@@ -1,6 +1,6 @@
 ---
 name: drawio
-description: "Draws draw.io diagrams and opens them in the browser editor through the bundled draw.io MCP server, with server-side auto-layout and no draw.io desktop app; saves them as editable .drawio files only on request. Covers flowcharts, architecture and cloud diagrams, network, BPMN, swimlanes, UML, ER, org charts, wireframes, floor plans and multi-page files. Use when the user wants to sketch or show something as a diagram, save it as a .drawio file, or change an existing one. Not for data charts or plots (bar, line or pie charts, Balken-, Linien- oder Kreisdiagramme), and not for Mermaid code blocks in Markdown, diagrams inside artifacts or research dossiers."
+description: "Draws draw.io diagrams and opens them in the browser editor through the bundled draw.io MCP server, with server-side auto-layout and no draw.io desktop app; asks whether to only show a diagram or also save it as an editable .drawio file. Covers flowcharts, architecture and cloud diagrams, network, BPMN, swimlanes, UML, ER, org charts, wireframes, floor plans and multi-page files. Use when the user wants to sketch or show something as a diagram, save it as a .drawio file, or change an existing one. Not for data charts or plots (bar, line or pie charts, Balken-, Linien- oder Kreisdiagramme), and not for Mermaid code blocks in Markdown, diagrams inside artifacts or research dossiers."
 when_to_use: "draw a diagram, flowchart, architecture diagram, sequence diagram, class diagram, UML, ER diagram, org chart, network diagram, BPMN, swimlane, wireframe, draw.io, diagrams.net, .drawio, save the diagram, edit the .drawio file, zeichne, erstelle ein Diagramm, visualisiere als Diagramm, Ablaufdiagramm, Architekturdiagramm, Sequenzdiagramm, Klassendiagramm, ER-Modell, Netzwerkdiagramm, Schaubild, Organigramm, speicher das Diagramm, ändere das Diagramm"
 ---
 
@@ -8,10 +8,18 @@ when_to_use: "draw a diagram, flowchart, architecture diagram, sequence diagram,
 
 Write diagrams as draw.io XML and open them in the browser editor (app.diagrams.net). The bundled `drawio` MCP server opens the diagram and runs layout and routing; the draw.io desktop app is not needed.
 
+## Show or save
+
 Two modes:
 
-- **Show** (default): open the diagram in the editor, write no file. For a quick sketch or explanation.
-- **Save**: only when the user asks for a file ("save", "as .drawio", "speichern", "für später"), names a path, or works on an existing `.drawio` file. Then the diagram lives in `diagrams/<slug>.drawio` in the current working directory.
+- **Show**: open the diagram in the editor, write no file. For a quick sketch or explanation.
+- **Save**: open it and keep it as `diagrams/<slug>.drawio` in the current working directory.
+
+Decide before drawing:
+
+- Save without asking when the user asks for a file ("save", "as .drawio", "speichern", "für später"), names a path, or works on an existing `.drawio` file.
+- Show without asking when the user says it is only a quick look ("kurz zeigen", "just show me").
+- Otherwise ask once with `AskUserQuestion`, in the user's language, with the options "Show only" and "Show and save as `diagrams/<slug>.drawio`" (put the proposed slug in the label). Ask this together with any other open question, never as a second round. If the tool is unavailable, ask one short plain question.
 
 A shown diagram can still be saved later: its editor URL holds the full model (see "Save").
 
@@ -93,7 +101,7 @@ Mermaid and CSV (`open_drawio_mermaid`, `open_drawio_csv`) only open a tab. Thei
 
 | Mistake | Fix |
 |---|---|
-| Writing a file for a quick sketch | Show only; save on request |
+| Writing a file, or not, without the user's choice | Ask unless the request makes it clear |
 | Using Mermaid because the tool description suggests it | Use XML |
 | Ignoring a `NOTE:` line | Report it, retry or fall back as above |
 | `postLayout: "elk"` on a hand-tuned diagram | Use `routing` or no pass |
