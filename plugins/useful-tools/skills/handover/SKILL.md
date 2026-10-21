@@ -1,6 +1,6 @@
 ---
 name: handover
-description: Writes a handover file under temp/handover/ so the next session can continue without asking, with verified state and evidence, open items with owners, background work and what not to touch. Also resumes from the newest handover and re-checks it before acting. Works with or without git. Use when the user asks for a handover or to save state, when a session ends or the context runs long, or at session start to pick up earlier work.
+description: Writes a handover file under temp/handover/ so the next session can continue without asking, with verified state and evidence, open items with owners, background work and what not to touch. Also resumes from the newest handover and re-checks it before acting. Works with or without git. Use when the user asks for a handover or to save session state, when a session ends or the context runs long, or at session start to pick up earlier work.
 when_to_use: Trigger phrases include "handover", "hand over", "write a handover", "save session state", "pick up where we left off", "continue the last session", "resume", and German "Übergabe", "Handover schreiben", "Stand sichern", "weitermachen, wo wir aufgehört haben", "letzte Session fortsetzen".
 argument-hint: "[write | read] [topic]"
 ---

@@ -16,9 +16,11 @@ Its own two skills trigger from natural language or run as slash commands. Two w
 
 **research** (`/useful-tools:research`) runs web research where every claim has a source and a confidence level. Depth follows the question, or force it with a keyword:
 
-- quick: a few sources, answer in chat with links, no files.
-- standard: notes in `research/<date>-<slug>/notes.md`, concise report.
-- deep (or "dossier"): notes plus an HTML dossier.
+- quick: a few sources, answer in chat with links.
+- standard: concise report in chat with a sources list.
+- deep (or "dossier"): a dossier published as an artifact.
+
+Research writes no files; the only file is the HTML behind an artifact, in the scratchpad or temp directory.
 
 Try "research X", "look into a topic", "recherchiere X" or "compare X vs Y deep".
 
@@ -28,5 +30,5 @@ Try "research X", "look into a topic", "recherchiere X" or "compare X vs Y deep"
 
 - All dependencies install with `useful-tools`, nothing to add by hand.
 - The official `playwright` plugin from `claude-plugins-official` is one of them. research uses it only for pages that need JavaScript, a login or get blocked. It needs Node.js (`npx`) and opens a visible browser window by default.
-- Deep dossiers are published as an artifact when the Artifact tool is available, otherwise written as a local HTML file.
-- Add `temp/` and `research/` to `.gitignore`. The skills never edit it for you.
+- Deep dossiers are published as an artifact when the Artifact tool is available, otherwise delivered in chat as structured markdown.
+- Add `temp/` to `.gitignore`. The skills never edit it for you.

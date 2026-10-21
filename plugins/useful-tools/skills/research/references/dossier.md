@@ -1,6 +1,6 @@
 # Dossier structure (deep depth)
 
-Template: `assets/dossier.html` in the skill folder (the full path is given in SKILL.md). Copy it to `research/<YYYY-MM-DD>-<slug>/dossier.html` and fill it from `notes.md`.
+Template: `assets/dossier.html` in the skill folder (the full path is given in SKILL.md). Copy it to the session scratchpad directory if the system prompt names one, otherwise to the system temp directory, never into the working directory or a repo, and fill it from the findings tables and sources list in the conversation.
 
 ## Required skeleton
 
@@ -11,7 +11,7 @@ In this order, always present:
 3. Findings: one article per sub-question, one to three paragraphs, with a confidence badge. Unanswered sub-questions go to open questions instead.
 4. Sources table: id `sN`, title as link, publisher, date, confidence.
 5. Open questions: what could not be verified, contradictions, "not verified" items.
-6. Footer: "Made with the research skill" and the notes path, translated like the labels.
+6. Footer: date and "Made with the research skill", translated like the labels.
 
 ## Optional blocks
 
@@ -36,7 +36,6 @@ Translate headings, labels and the footer text into the output language and set 
 ## Placeholders
 
 - `LANG`: output language code, for example `en`, `de`.
-- `FOLDER`: `<YYYY-MM-DD>-<slug>`.
 - `LABEL_*`, `HEADING_*`, `COL_*`: translated labels, headings and column titles.
 - `QUOTE_LANG`: language code of the original quote.
 - `LEVEL_*`: `high`, `medium` or `low`, used in the badge class; the visible badge text is the translated level.
@@ -62,4 +61,4 @@ The first prints dangling footnotes, the second leftover placeholders; both must
 
 ## Publishing
 
-With an `Artifact` tool: load `artifact-design` first if it exists, publish with a generic icon such as `search`, a one-sentence description, and the topic name as `<title>`. Keep the file under the research folder. Without it: write the file locally and give the path.
+With an `Artifact` tool: load `artifact-design` first if it exists, publish with a generic icon such as `search`, a one-sentence description, and the topic name as `<title>`. Publish early once the sub-questions are set, then republish the same file path as findings arrive. Without it: deliver the dossier content in chat as structured markdown, no file.

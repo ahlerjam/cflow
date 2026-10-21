@@ -2,9 +2,9 @@
 
 ## Source preference
 
-Prefer primary sources: vendor and project documentation, standards, laws and agency publications, original studies, release notes, source code. Use secondary sources (news, blogs, forums, aggregators) as pointers to the primary source or when none exists, and say so in the note column.
+Prefer primary sources: vendor and project documentation, standards, laws and agency publications, original studies, release notes, source code. Use secondary sources (news, blogs, forums, aggregators) as pointers to the primary source or when none exists, and say so in the note.
 
-Discard and list under "Discarded sources" with a reason: pages that only restate another source, undated SEO content, pages that could not be read, sources with an obvious conflict of interest when a neutral one exists.
+Discard and mention in the sources list with a reason: pages that only restate another source, undated SEO content, pages that could not be read, sources with an obvious conflict of interest when a neutral one exists.
 
 ## Confidence
 
@@ -24,7 +24,7 @@ Adjustments:
 
 ## Contradictions
 
-Record both claims with their sources and confidence in notes.md. Do not pick a winner unless one source is clearly primary and the other secondary; even then, keep the conflict visible. Contradictions become open questions in the output.
+Record both claims with their sources and confidence in chat. Do not pick a winner unless one source is clearly primary and the other secondary; even then, keep the conflict visible. Contradictions become open questions in the output.
 
 ## Quotes
 
