@@ -1,6 +1,18 @@
+# Lokale Arbeitsumgebung: liegt nur auf dem eigenen Rechner, nie im Repo
+.claude/
+CLAUDE.md
+AGENTS.md
+Makefile
+tools/
+.venv/
+
+# Python
 __pycache__/
 *.pyc
-.DS_Store
-.idea/
 .pytest_cache/
 .ruff_cache/
+
+# Editor und OS
+.DS_Store
+.idea/
+.vscode/
