@@ -4,5 +4,30 @@
     "name": "ahlerjam"
   },
   "description": "Personal collection of Claude Code plugins: skills, agents and workflows by ahlerjam.",
-  "plugins": []
+  "allowCrossMarketplaceDependenciesOn": [
+    "claude-plugins-official"
+  ],
+  "plugins": [
+    {
+      "name": "humanizer",
+      "source": {
+        "source": "github",
+        "repo": "blader/humanizer"
+      },
+      "description": "Third-party, by blader: rewrites AI-sounding English text so it reads like the writer. Listed here as a dependency of useful-tools."
+    },
+    {
+      "name": "humanizer-de",
+      "source": {
+        "source": "github",
+        "repo": "marmbiz/humanizer-de"
+      },
+      "description": "Third-party, by marmbiz: German style editor that finds and removes AI writing patterns. Listed here as a dependency of useful-tools."
+    },
+    {
+      "name": "useful-tools",
+      "source": "./plugins/useful-tools",
+      "description": "Session tools: handover files that let the next session pick up the work, and source-backed web research from quick answers to full dossiers."
+    }
+  ]
 }

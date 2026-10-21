@@ -26,7 +26,11 @@ Each plugin is versioned on its own. A new version ships as a
 ## Plugins
 
 <!-- plugins:start -->
-None yet.
+| Plugin | Version | Description |
+| :- | :- | :- |
+| [humanizer](https://github.com/blader/humanizer) | upstream | Third-party, by blader: rewrites AI-sounding English text so it reads like the writer. Listed here as a dependency of useful-tools. |
+| [humanizer-de](https://github.com/marmbiz/humanizer-de) | upstream | Third-party, by marmbiz: German style editor that finds and removes AI writing patterns. Listed here as a dependency of useful-tools. |
+| [useful-tools](plugins/useful-tools) | 0.1.0 | Session tools: handover files that let the next session pick up the work, and source-backed web research from quick answers to full dossiers. |
 <!-- plugins:end -->
 
 Each plugin has its own README with usage and setup.

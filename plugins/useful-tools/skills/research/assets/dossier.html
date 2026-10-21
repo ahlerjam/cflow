@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TOPIC}}</title>
+<!--
+  Copy to research/<date>-<slug>/dossier.html, replace every {{PLACEHOLDER}},
+  duplicate or delete findings and source rows, delete optional blocks the
+  research does not fill. Rules: references/dossier.md.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #FAF9F5; --surface: #FFFFFF; --ground-2: #F0EEE6;
+    --ink: #1F1E1C; --muted: #6B6862;
+    --rule: #E3DFD5; --rule-strong: #CFC9BB;
+    --accent: #A9502F; --accent-soft: #F5E6DE;
+    --high: #3F6A4B; --high-bg: #E6EFE4;
+    --medium: #7E5620; --medium-bg: #F6EBD9;
+    --low: #8E4A55; --low-bg: #F4E3E6;
+    --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+    --sans: "Schibsted Grotesk", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    --column: 68ch; --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1A1917; --surface: #232220; --ground-2: #2B2926;
+      --ink: #EDEAE3; --muted: #A39D93;
+      --rule: #37342F; --rule-strong: #4A4640;
+      --accent: #E08A66; --accent-soft: #3A2A22;
+      --high: #8FBF9C; --high-bg: #1F2E24;
+      --medium: #D9AE68; --medium-bg: #332A1A;
+      --low: #D98E9B; --low-bg: #33212A;
+    }
+  }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #1A1917; --surface: #232220; --ground-2: #2B2926;
+    --ink: #EDEAE3; --muted: #A39D93;
+    --rule: #37342F; --rule-strong: #4A4640;
+    --accent: #E08A66; --accent-soft: #3A2A22;
+    --high: #8FBF9C; --high-bg: #1F2E24;
+    --medium: #D9AE68; --medium-bg: #332A1A;
+    --low: #D98E9B; --low-bg: #33212A;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 16.5px; line-height: 1.62; -webkit-font-smoothing: antialiased; overflow-wrap: break-word; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--ground-2); padding: .1em .35em; border-radius: 3px; }
+  main { max-width: 84ch; margin: 0 auto; padding: 3.5rem 16px 6rem; }
+  section { margin-top: 3rem; }
+  section > h2, section > p, section > ul, .finding, .narrow { max-width: var(--column); }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(2.1rem, 5vw, 3.2rem); line-height: 1.08; margin: 0; max-width: 22ch; text-wrap: balance; }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: 1.75rem; line-height: 1.2; margin: 0 0 1.1rem; }
+  h3 { font-weight: 600; font-size: 1.02rem; line-height: 1.35; margin: 0; }
+  p { margin: 0 0 1rem; }
+
+  header { display: grid; gap: .85rem; padding-bottom: 1.75rem; border-bottom: 1px solid var(--rule-strong); }
+  .eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .meta { display: flex; flex-wrap: wrap; gap: .35rem 1.75rem; font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 500; }
+
+  .key p { font-family: var(--serif); font-size: 1.4rem; line-height: 1.45; }
+  .findings { display: grid; gap: 2.25rem; }
+  .finding { display: grid; gap: .65rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); }
+  .finding-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .finding p:last-child { margin-bottom: 0; }
+
+  .badge { flex-shrink: 0; font-family: var(--mono); font-size: .68rem; letter-spacing: .07em; text-transform: uppercase; padding: .22rem .6rem; border-radius: 999px; line-height: 1.4; white-space: nowrap; }
+  .badge-high { color: var(--high); background: var(--high-bg); }
+  .badge-medium { color: var(--medium); background: var(--medium-bg); }
+  .badge-low { color: var(--low); background: var(--low-bg); }
+
+  sup { line-height: 0; font-size: .72em; }
+  sup a { text-decoration: none; font-family: var(--mono); padding: 0 .12em; }
+
+  .table { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; vertical-align: top; padding: .65rem .85rem; border-bottom: 1px solid var(--rule); }
+  th { font-family: var(--mono); font-size: .7rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.nr, td.date { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+  tr:target td { background: var(--accent-soft); }
+  .legend { margin-top: 1rem; font-size: .85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; }
+  .open-list { margin: 0; padding-left: 1.3rem; display: grid; gap: .55rem; }
+
+  .callout { border-left: 3px solid var(--rule-strong); background: var(--ground-2); padding: .95rem 1.1rem; border-radius: 0 var(--radius) var(--radius) 0; }
+  .callout p { margin: 0; }
+  .callout-title { font-family: var(--mono); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+  .callout-warn { border-color: var(--medium); background: var(--medium-bg); }
+  .callout-unverified { border-color: var(--low); background: var(--low-bg); }
+
+  .contradiction { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+  .contradiction > div { background: var(--surface); padding: 1.1rem; display: grid; gap: .5rem; align-content: start; }
+  .contradiction p { margin: 0; font-size: .93rem; }
+  .contradiction-src { display: flex; justify-content: space-between; gap: .75rem; font-family: var(--mono); font-size: .74rem; color: var(--muted); }
+
+  .recommendation { background: var(--accent-soft); border-radius: var(--radius); padding: 1.5rem 1.6rem; }
+  .recommendation h2 { font-size: 1.4rem; }
+  .recommendation p:last-child { margin-bottom: 0; }
+
+  figure.quote { margin: 3rem 0 0; padding-left: 1.25rem; border-left: 3px solid var(--accent); display: grid; gap: .6rem; }
+  figure.quote blockquote { margin: 0; font-family: var(--serif); font-size: 1.2rem; line-height: 1.5; }
+  figure.quote figcaption { font-size: .82rem; color: var(--muted); }
+
+  pre.mermaid { overflow-x: auto; }
+  .wide { max-width: none; }
+  footer { margin-top: 4rem; padding-top: 1.1rem; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: .74rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+  <header>
+    <div class="eyebrow">{{LABEL_DOSSIER}}</div>
+    <h1>{{TOPIC}}</h1>
+    <div class="meta">
+      <span>{{LABEL_DATE}} <b>{{DATE}}</b></span>
+      <span>{{LABEL_SOURCES}} <b>{{SOURCE_COUNT}}</b></span>
+    </div>
+  </header>
+
+  <section class="key" aria-labelledby="key">
+    <h2 id="key">{{HEADING_KEY_ANSWER}}</h2>
+    <p>{{KEY_ANSWER}}<sup><a href="#s1">1</a></sup></p>
+  </section>
+
+  <section aria-labelledby="findings">
+    <h2 id="findings">{{HEADING_FINDINGS}}</h2>
+    <div class="findings">
+      <article class="finding">
+        <div class="finding-head">
+          <h3>{{SUBQUESTION_1}}</h3>
+          <span class="badge badge-{{LEVEL_1}}">{{FINDING_CONFIDENCE_1}}</span>
+        </div>
+        <p>{{FINDING_1}}<sup><a href="#s1">1</a></sup></p>
+      </article>
+    </div>
+  </section>
+
+  <!-- OPTIONAL: comparison table (A or B questions) -->
+  <section aria-labelledby="comparison">
+    <h2 id="comparison">{{HEADING_COMPARISON}}</h2>
+    <div class="table wide">
+      <table>
+        <thead><tr><th>{{CRITERION}}</th><th>{{OPTION_A}}</th><th>{{OPTION_B}}</th></tr></thead>
+        <tbody>
+          <tr><td>{{ROW_1}}</td><td>{{CELL_A_1}}<sup><a href="#s1">1</a></sup></td><td>{{CELL_B_1}}<sup><a href="#s2">2</a></sup></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- OPTIONAL: callout; variants callout-warn, callout-unverified -->
+  <section aria-labelledby="note">
+    <h2 id="note">{{HEADING_NOTE}}</h2>
+    <div class="callout narrow">
+      <div class="callout-title">{{CALLOUT_TITLE}}</div>
+      <p>{{CALLOUT_TEXT}}<sup><a href="#s1">1</a></sup></p>
+    </div>
+  </section>
+
+  <!-- REQUIRED whenever two sources disagree; also list it under open questions -->
+  <section aria-labelledby="contradiction">
+    <h2 id="contradiction">{{HEADING_CONTRADICTION}}</h2>
+    <div class="contradiction wide">
+      <div>
+        <div class="contradiction-src"><span>{{SOURCE_A}}</span><span class="badge badge-{{LEVEL_A}}">{{CONFIDENCE_A}}</span></div>
+        <p>{{CLAIM_A}}<sup><a href="#s1">1</a></sup></p>
+      </div>
+      <div>
+        <div class="contradiction-src"><span>{{SOURCE_B}}</span><span class="badge badge-{{LEVEL_B}}">{{CONFIDENCE_B}}</span></div>
+        <p>{{CLAIM_B}}<sup><a href="#s2">2</a></sup></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPTIONAL: quote; keep it in its original language and set lang -->
+  <figure class="quote narrow" lang="{{QUOTE_LANG}}">
+    <blockquote>{{QUOTE}}</blockquote>
+    <figcaption>{{QUOTE_ATTRIBUTION}}<sup><a href="#s1">1</a></sup> {{QUOTE_TRANSLATION}}</figcaption>
+  </figure>
+
+  <!-- OPTIONAL: recommendation; closes the findings when the research leads to one -->
+  <section class="recommendation narrow" aria-labelledby="recommendation">
+    <h2 id="recommendation">{{HEADING_RECOMMENDATION}}</h2>
+    <p>{{RECOMMENDATION}}<sup><a href="#s1">1</a></sup></p>
+  </section>
+
+  <section aria-labelledby="sources">
+    <h2 id="sources">{{HEADING_SOURCES}}</h2>
+    <div class="table wide">
+      <table>
+        <thead><tr><th>#</th><th>{{COL_TITLE}}</th><th>{{COL_PUBLISHER}}</th><th>{{COL_DATE}}</th><th>{{COL_CONFIDENCE}}</th></tr></thead>
+        <tbody>
+          <tr id="s1"><td class="nr">1</td><td><a href="{{URL_1}}">{{TITLE_1}}</a></td><td>{{PUBLISHER_1}}</td><td class="date">{{DATE_1}}</td><td><span class="badge badge-{{LEVEL_S1}}">{{SOURCE_CONFIDENCE_1}}</span></td></tr>
+          <tr id="s2"><td class="nr">2</td><td><a href="{{URL_2}}">{{TITLE_2}}</a></td><td>{{PUBLISHER_2}}</td><td class="date">{{DATE_2}}</td><td><span class="badge badge-{{LEVEL_S2}}">{{SOURCE_CONFIDENCE_2}}</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <span><span class="badge badge-high">{{HIGH}}</span> {{LEGEND_HIGH}}</span>
+      <span><span class="badge badge-medium">{{MEDIUM}}</span> {{LEGEND_MEDIUM}}</span>
+      <span><span class="badge badge-low">{{LOW}}</span> {{LEGEND_LOW}}</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="open">
+    <h2 id="open">{{HEADING_OPEN}}</h2>
+    <ul class="open-list">
+      <li>{{OPEN_QUESTION_1}}</li>
+    </ul>
+  </section>
+
+  <footer>Made with the research skill · {{LABEL_NOTES}}: <code>research/{{FOLDER}}/notes.md</code></footer>
+
+</main>
+</body>
+</html>
