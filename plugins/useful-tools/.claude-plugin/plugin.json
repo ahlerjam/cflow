@@ -1,7 +1,7 @@
 {
   "name": "useful-tools",
-  "version": "0.1.0",
-  "description": "Session tools: handover files that let the next session pick up the work, and source-backed web research from quick answers to full dossiers.",
+  "version": "0.2.0",
+  "description": "Session tools: handover files for the next session, source-backed web research from quick answers to full dossiers, and editable draw.io diagrams without the desktop app.",
   "author": {
     "name": "ahlerjam"
   },
