@@ -2,12 +2,14 @@
 
 Usage: layout_back.py [--file PATH --page INDEX|NAME|ID] [URL or tool output]
 Input comes from the argument or stdin. Without --file the XML goes to stdout.
+A missing --file is created as a one-page file; --page then names that page.
 """
 import argparse
 import base64
 import re
 import sys
 import zlib
+from pathlib import Path
 from urllib.parse import unquote
 from xml.etree import ElementTree as ET
 
@@ -24,7 +26,18 @@ def decode(text):
     return xml, root
 
 
+def new_file(path, page, model):
+    name = "Page-1" if page.isdigit() else page
+    root = ET.Element("mxfile", host="app.diagrams.net")
+    ET.SubElement(root, "diagram", name=name, id=re.sub(r"\W+", "-", name).strip("-").lower() or "page-1").append(model)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    ET.ElementTree(root).write(path, encoding="utf-8")
+    return name
+
+
 def replace_page(path, page, model):
+    if not Path(path).exists():
+        return new_file(path, page, model)
     tree = ET.parse(path)
     diagrams = tree.getroot().findall("diagram")
     if page.isdigit() and int(page) < len(diagrams):
