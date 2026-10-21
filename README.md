@@ -25,7 +25,11 @@ Each plugin is versioned on its own. A new version ships as a
 
 ## Plugins
 
+<!-- plugins:start -->
 None yet.
+<!-- plugins:end -->
+
+Each plugin has its own README with usage and setup.
 
 ## Layout
 
