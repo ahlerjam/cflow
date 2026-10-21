@@ -1,0 +1,15 @@
+{
+  "name": "useful-tools",
+  "version": "0.1.0",
+  "description": "Session tools: handover files that let the next session pick up the work, and source-backed web research from quick answers to full dossiers.",
+  "author": {
+    "name": "ahlerjam"
+  },
+  "repository": "https://github.com/ahlerjam/cflow",
+  "license": "MIT",
+  "dependencies": [
+    "playwright@claude-plugins-official",
+    "humanizer",
+    "humanizer-de"
+  ]
+}
