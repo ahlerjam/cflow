@@ -2,6 +2,17 @@
 
 Session tools: handover files for the next session, source-backed web research from quick answers to full dossiers, and editable draw.io diagrams without the desktop app.
 
+## Requirements
+
+Install these yourself before using the plugin:
+
+| Software | Needed for | Check |
+| :- | :- | :- |
+| [Node.js](https://nodejs.org) with `npx` | the draw.io and Playwright MCP servers; without it drawio does not work and research has no browser | `npx --version` |
+| Python 3 | saving diagrams in drawio, the measuring scripts of humanizer-de | `python3 --version` |
+
+Everything else either comes with the plugin or is optional (git and `gh` for handover, spaCy for the precision mode of humanizer-de).
+
 ## Install
 
 ```
@@ -30,8 +41,8 @@ Try "research X", "look into a topic", "recherchiere X" or "compare X vs Y deep"
 
 ## Setup
 
-- All dependencies install with `useful-tools`, nothing to add by hand.
-- The official `playwright` plugin from `claude-plugins-official` is one of them. research uses it only for pages that need JavaScript, a login or get blocked. It needs Node.js (`npx`) and opens a visible browser window by default.
+- The plugin dependencies (playwright, humanizer, humanizer-de) install with `useful-tools`.
+- The official `playwright` plugin from `claude-plugins-official` is one of them. research uses it only for pages that need JavaScript, a login or get blocked. It opens a visible browser window by default.
 - Deep dossiers are published as an artifact when the Artifact tool is available, otherwise delivered in chat as structured markdown.
 - Add `temp/` to `.gitignore`. The skills never edit it for you.
-- drawio uses the bundled draw.io MCP server, pinned to version 1.10.0 of `@drawio/mcp` (run through `npx`). It needs Node.js and network access: for the first download, and on first use of layout, routing and shape search (engines come from viewer.diagrams.net, the shape index from cdn.jsdelivr.net, cached afterwards). The draw.io desktop app is not needed. Diagrams in `diagrams/` are often worth committing; add the folder to `.gitignore` if you would rather not.
+- drawio uses the bundled draw.io MCP server, pinned to version 1.10.0 of `@drawio/mcp` (run through `npx`). It needs network access for the first download, and on first use of layout, routing and shape search (engines come from viewer.diagrams.net, the shape index from cdn.jsdelivr.net, cached afterwards). The draw.io desktop app is not needed. Diagrams in `diagrams/` are often worth committing; add the folder to `.gitignore` if you would rather not.
