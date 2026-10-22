@@ -27,6 +27,14 @@ jobs:
             claude plugin validate --strict "$dir"
           done
 
+      - name: Plugin tests
+        run: |
+          for dir in plugins/*/; do
+            if [ -n "$(find "$dir" \( -name '*.test.ts' -o -name '*.test.tsx' \) -print -quit)" ]; then
+              claude plugin test "$dir"
+            fi
+          done
+
       - name: Changed plugins have a new version
         if: github.event_name == 'pull_request'
         env:

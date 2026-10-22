@@ -1,0 +1,11 @@
+{
+  "name": "cockpit",
+  "version": "0.1.0",
+  "description": "Side pane next to the chat: switch every skill, plugin, MCP server and agent on, off or never; GitHub Actions runs and issues of the current repo.",
+  "author": {
+    "name": "ahlerjam"
+  },
+  "repository": "https://github.com/ahlerjam/cflow",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
