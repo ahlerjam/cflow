@@ -258,6 +258,24 @@ describe('gh state', () => {
     await ui.press({ key: 'tab-issues' })
     expect((await texts(ui, /gh auth login/)).length).toBe(1)
   })
+
+  test('an invalid token of an inactive account does not count as signed out', async ($, on) => {
+    const { world, calls } = await boot($, on)
+    world.extra = argv => (argv[1] === 'auth' ? { exitCode: argv.includes('--active') ? 0 : 1 } : undefined)
+    const ui = await pane($)
+    await ui.press({ key: 'act-refresh' })
+    expect(calls.argvs.some(a => a.includes('auth status --active'))).toBe(true)
+    expect((await texts(ui, /gh auth login/)).length).toBe(0)
+  })
+
+  test('gh without --active falls back to the plain probe', async ($, on) => {
+    const { world } = await boot($, on)
+    world.extra = argv =>
+      argv[1] === 'auth' ? (argv.includes('--active') ? { exitCode: 1, stderr: 'unknown flag: --active' } : { exitCode: 0 }) : undefined
+    const ui = await pane($)
+    await ui.press({ key: 'act-refresh' })
+    expect((await texts(ui, /gh auth login/)).length).toBe(0)
+  })
 })
 
 describe('opener', () => {
