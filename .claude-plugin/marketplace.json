@@ -11,7 +11,7 @@
     {
       "name": "cockpit",
       "source": "./plugins/cockpit",
-      "description": "Side pane next to the chat: switch every skill, plugin, MCP server and agent on, off or never; GitHub Actions runs and issues of the current repo."
+      "description": "Side pane next to the chat that switches every skill, plugin, MCP server and agent on, off or never, and shows GitHub Actions runs and issues of the current repo."
     },
     {
       "name": "humanizer",
