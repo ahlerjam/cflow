@@ -21,7 +21,7 @@ Everything else either comes with the plugin or is optional (git and `gh` for ha
 
 ## Usage
 
-Its own three skills trigger from natural language or run as slash commands. Two writing editors come along as dependencies.
+The plugin's three skills trigger from natural language or run as slash commands. Two writing editors come along as dependencies.
 
 **handover** (`/useful-tools:handover`) writes a state file to `temp/handover/<date>-<time>-<slug>.md` so the next session can continue without you: verified status with evidence, unverified claims, background work, things not to touch, open items with owner and done-criterion, first steps. It works with or without git. Say "handover", "save session state" or "Übergabe" to write one; at session start say "continue the last session" to read the newest one and verify it before acting.
 
@@ -31,7 +31,7 @@ Its own three skills trigger from natural language or run as slash commands. Two
 - standard: concise report in chat with a sources list.
 - deep (or "dossier"): a dossier published as an artifact.
 
-Research writes no files; the only file is the HTML behind an artifact, in the scratchpad or temp directory.
+Research writes no files except the HTML behind an artifact, which goes to the scratchpad or temp directory.
 
 Try "research X", "look into a topic", "recherchiere X" or "compare X vs Y deep".
 
