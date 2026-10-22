@@ -321,7 +321,13 @@ export async function ghReady($: Eng): Promise<{ bin: string; problem: null } | 
   if (!S.ghAuth || (!S.ghAuth.isOk && now - S.ghAuth.at >= GH_AUTH_RETRY_MS)) {
     let isOk = false
     try {
-      isOk = (await $.process.run([bin, 'auth', 'status', '--hostname', 'github.com'], { timeoutMs: 10_000 })).exitCode === 0
+      // Only the active account counts: an invalid token of another account makes plain `auth status` exit 1.
+      // gh before 2.40 has no --active and refuses the flag, then the plain probe decides.
+      const active = await $.process.run([bin, 'auth', 'status', '--active', '--hostname', 'github.com'], { timeoutMs: 10_000 })
+      isOk = active.exitCode === 0
+      if (!isOk && /unknown flag/i.test(active.stderr)) {
+        isOk = (await $.process.run([bin, 'auth', 'status', '--hostname', 'github.com'], { timeoutMs: 10_000 })).exitCode === 0
+      }
     } catch {
       // treated as not signed in
     }
