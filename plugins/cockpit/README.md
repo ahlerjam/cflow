@@ -1,6 +1,6 @@
 # cockpit
 
-A pane beside the chat. It controls what Claude sees (skills, plugins, MCP servers and agents can be on, off or never) and shows the GitHub Actions runs and issues of the repo you are working in.
+Cockpit adds a pane beside the chat. It controls what Claude sees (each skill, plugin, MCP server and agent can be on, off or never) and shows the GitHub Actions runs and issues of the repo you are working in.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ Install these yourself before using the plugin:
 | [Claude Code](https://claude.com/claude-code) 2.1.287 or later (mods are on by default from that version; tested with 2.1.308) | the plugin itself | `claude --version` |
 | [GitHub CLI](https://cli.github.com) | the Actions and Issues tabs | `gh auth status` |
 
-The Sources tab works without `gh`. Without it, the two GitHub tabs show a one-line reason instead.
+The Sources tab works without `gh`; the two GitHub tabs then show a one-line reason instead.
 
 ## Install
 
@@ -49,7 +49,7 @@ Hints and Bash redirects live in `cockpit.json`. A redirect stops a Bash command
 
 Limits:
 
-- "Hidden" does not unload anything. MCP and LSP servers and plugin hooks keep running; only Disable under Sources, Manage plugins really unloads a plugin.
+- "Hidden" does not unload anything. MCP and LSP servers and plugin hooks keep running; only Disable under Sources → Manage plugins unloads a plugin.
 - What is already in the conversation stays until `/compact` or a new session.
 - Non-interactive runs (`claude -p`) are never filtered.
 - A plugin switched off in `enabledPlugins` cannot be loaded this way.
@@ -58,11 +58,11 @@ Limits:
 
 Shows the last 50 runs of the current repo, or of all repos of the owner. Open a run to see jobs and steps, load the log and filter it to errors. You can rerun failed jobs, rerun all, cancel, and start a workflow that has `workflow_dispatch`. "To Claude" hands a run or its log to Claude for analysis. The status line shows the check counts of the current branch's PR, for example `PR #7 ✓3 ✗1 …2`.
 
-Setting: a notification when a run on the current branch ends, an alert for jobs queued longer than a chosen time, and the polling interval (off, 1, 1.5, 3 or 5 minutes; default 90 seconds). Inside a GitHub repo, a light poll runs every N seconds in the background; with a runner pool configured, its health is also fetched once a minute. Rate limits make the polling back off.
+Related settings: a notification when a run on the current branch ends, an alert for jobs queued longer than a chosen time, and the polling interval (off, 1, 1.5, 3 or 5 minutes; default 90 seconds). Inside a GitHub repo, a light poll runs every N seconds in the background; with a runner pool configured, its health is also fetched once a minute. Rate limits make the polling back off.
 
 ## Issues
 
-Open issues of the repo with labels, native sub-issues, issue types, blockers and linked PRs. Search, and "Mine only" filter. Open an issue in the pane or on GitHub, or hand it to Claude to work on. The issue text is treated as data, not as instructions.
+Lists the open issues of the repo with labels, native sub-issues, issue types, blockers and linked PRs, with search and a "Mine only" filter. Open an issue in the pane or on GitHub, or hand it to Claude to work on. The issue text is treated as data, not as instructions.
 
 AI summaries are off by default. When turned on, the title, labels and the first 3000 characters of each issue body are sent to the model chosen in Settings (haiku or sonnet).
 
@@ -97,7 +97,7 @@ If you run your own GitHub runners behind a small HTTP service, the Actions tab 
 - `healthUrl` (required) and `vmsUrl` (optional) must be `https`. A block with an invalid field is reported as an error in the pane and is not saved over.
 - `token` is sent as a bearer token to `vmsUrl` only. Use `{ "command": [...] }` (an argv list, run without a shell, trimmed stdout is the token) or `{ "env": "NAME" }` (read with `printenv`, so POSIX only). `tokenCommand` and `tokenEnv` at the top level of the block are accepted as the same thing. The token is read once per session (a failed read is retried after 5 minutes; the command may take up to 30 seconds) and never stored in `cockpit.json`.
 - `owner` is put in front of short repo names the pool reports. Without it, the owner of the current repo or the signed-in user is used.
-- `label` is shown in Settings (40 characters).
+- `label` is shown in Settings, cut to 40 characters.
 - `maxPool` and `maxRunnersPerRepo` (whole numbers) set the maxima shown in the runner view. The `limits` of the `vmsUrl` answer win; without either, no maximum is shown.
 
 `GET healthUrl` returns JSON; every field is optional:
