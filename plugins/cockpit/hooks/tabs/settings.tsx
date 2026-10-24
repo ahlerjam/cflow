@@ -1,20 +1,22 @@
 import type { RenderChildren } from 'claude-code'
 
 import { minutes, t } from '../i18n'
-import { CI_INTERVAL_SECS, ISSUE_LIMITS, QUEUED_MINUTES, S, SUMMARY_MODELS } from '../state'
+import { CI_INTERVAL_SECS, QUEUED_MINUTES, S, SUMMARY_MODELS } from '../state'
 import { discover, edit, setSetting } from '../core'
 import { setCiInterval } from '../actions-io'
 import { setSummaryModel, toggleSummaries } from '../issues-io'
 import { addMarker, reloadAll, resetConfig, toggleDemo } from '../nav'
 import { httpsHost, setMarker } from '../sources'
 import type { Eng } from '../state'
-import { STATE_LABEL, dangerBtn, onOff, pill, section, segmented, settingRow, textField } from './ui'
+import { CHIP_PAD, STATE_LABEL, chip, dangerBtn, onOff, section, segmented, settingRow, textField } from './ui'
 import type { PaneView, Table } from './ui'
 
 // Wide enough for the longest row title in English and German
 const LABEL_W = 26
 
-// Sections with a row per setting: name on the left, every choice as a button on the right
+const ISSUES_PER_PAGE = [5, 10, 20] as const
+
+// Sections with a row per setting: name on the left, every choice as a chip on the right
 export async function settingsTab($: Eng, table: Table, pane: PaneView) {
   const { Box, Text } = table
   const { pending } = pane
@@ -24,6 +26,8 @@ export async function settingsTab($: Eng, table: Table, pane: PaneView) {
   const markers = Object.entries(S.cfg.startupMarkers)
   const ciIntervals = CI_INTERVAL_SECS.map(sec => ({ value: String(sec), label: sec === 0 ? t('interval.off') : minutes(sec / 60) }))
   const queuedOptions = QUEUED_MINUTES.map(m => ({ value: String(m), label: minutes(m) }))
+  const perPage = [{ value: 'auto', label: t('set.auto') }, ...ISSUES_PER_PAGE.map(n => ({ value: String(n), label: String(n) }))]
+  const removeW = t('set.remove').length + CHIP_PAD
   const languages = [
     { value: 'auto', label: t('set.langAuto') },
     { value: 'en', label: t('set.langEn') },
@@ -53,7 +57,9 @@ export async function settingsTab($: Eng, table: Table, pane: PaneView) {
           {row('set-queued', t('set.queuedAlert'), segmented(table, 'set-queued', String(s.queuedAlertMin), queuedOptions, v =>
             void setSetting($, 'queuedAlertMin', Number(v)),
           ))}
-          {row('set-issues', t('set.issuesLoad'), segmented(table, 'set-issues', String(s.issueLimit), ISSUE_LIMITS, v => void setSetting($, 'issueLimit', Number(v))))}
+          {row('set-issues', t('set.issuesPerPage'), segmented(table, 'set-issues', String(s.issuesPerPage), perPage, v =>
+            void setSetting($, 'issuesPerPage', ISSUES_PER_PAGE.find(n => String(n) === v) ?? 'auto'),
+          ))}
           {row('set-sum', t('set.aiSummary'), onOff(table, 'set-sum', s.issueSummaries, () => void toggleSummaries($)))}
           {row('set-sum-model', t('set.sumModel'), segmented(table, 'set-sum-model', s.summaryModel, SUMMARY_MODELS, v => void setSummaryModel($, v)))}
           {row('set-pool', t('set.pool'), (
@@ -66,13 +72,14 @@ export async function settingsTab($: Eng, table: Table, pane: PaneView) {
       {section(table, 'sec-marker', t('set.markers'), 'warning',
         <Box flexDirection="column">
           {markers.map(([plugin, marker]) => (
-            <Box key={`marker-${plugin}`} flexDirection="row" columnGap={1} alignItems="center">
+            <Box key={`marker-${plugin}`} flexDirection="row" columnGap={1} alignItems="flex-start">
               <Box width={LABEL_W} flexShrink={0}>
-                <Text color="warning">{plugin}</Text>
+                <Text color="warning" wrap="wrap">{plugin}</Text>
               </Box>
-              <Text>{t('set.markerQuoted', { marker })}</Text>
-              <Box flexGrow={1} />
-              {pill(table, `marker-del-${plugin}`, t('set.remove'), () => void edit($, c => setMarker(c, plugin, null)), { color: 'error' })}
+              <Box width={Math.max(10, inner - LABEL_W - removeW - 2)} flexShrink={0}>
+                <Text wrap="wrap">{t('set.markerQuoted', { marker })}</Text>
+              </Box>
+              {chip(table, `marker-del-${plugin}`, t('set.remove'), () => void edit($, c => setMarker(c, plugin, null)), { color: 'error' })}
             </Box>
           ))}
           {textField(table, 'set-marker', t('set.new'), '', t('set.markerPlaceholder'), v => void addMarker($, v))}
@@ -86,8 +93,8 @@ export async function settingsTab($: Eng, table: Table, pane: PaneView) {
             {S.cfgPath}
           </Text>
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-            {pill(table, 'set-reload', t('set.reload'), () => void reloadAll($))}
-            {pill(table, 'set-rescan', t('set.rescan'), () => void discover($))}
+            {chip(table, 'set-reload', t('set.reload'), () => void reloadAll($))}
+            {chip(table, 'set-rescan', t('set.rescan'), () => void discover($))}
           </Box>
           <Box flexDirection="row">
             {dangerBtn($, table, pending, 'reset', t('set.reset'), () => void resetConfig($))}

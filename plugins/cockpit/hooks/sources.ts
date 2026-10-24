@@ -33,7 +33,8 @@ export type CockpitSettings = {
   // 0 = off
   ciEverySec: number
   queuedAlertMin: number
-  issueLimit: number
+  // Issues per page in the Issues tab; 'auto' fits the window
+  issuesPerPage: 'auto' | 5 | 10 | 20
   // Sample data in CI and Issues, shown in the pane only
   demo: boolean
   issueSummaries: boolean
@@ -52,7 +53,7 @@ export const DEFAULT_SETTINGS: CockpitSettings = {
   openOnStart: true,
   ciEverySec: 90,
   queuedAlertMin: 5,
-  issueLimit: 100,
+  issuesPerPage: 'auto',
   demo: false,
   issueSummaries: false,
   summaryModel: 'haiku',
@@ -502,7 +503,8 @@ export function cleanPool(raw: unknown): RunnerPool | undefined {
   return pool
 }
 
-const SETTING_KEYS = new Set<string>([...Object.keys(DEFAULT_SETTINGS), 'runnerPool'])
+// issueLimit (before issuesPerPage) is dropped quietly instead of being kept as an unknown key
+const SETTING_KEYS = new Set<string>([...Object.keys(DEFAULT_SETTINGS), 'runnerPool', 'issueLimit'])
 
 // Known fields of the right type only; the rest falls back to the default. In version 3 a wrong type lands in `bad`.
 function cleanSettings(raw: unknown, bad: string[], isLegacy: boolean): CockpitSettings {
@@ -524,14 +526,16 @@ function cleanSettings(raw: unknown, bad: string[], isLegacy: boolean): CockpitS
   const runnerPool = cleanPool(r['runnerPool'])
   if (!runnerPool) wrong('runnerPool')
   const everySec = num('ciEverySec')
+  const perPage = r['issuesPerPage']
+  const isPerPage = perPage === 'auto' || perPage === 5 || perPage === 10 || perPage === 20
+  if (!isPerPage) wrong('issuesPerPage')
   return {
     toasts: bool('toasts'),
     openOnStart: bool('openOnStart'),
     // Polling faster than every 30 s would hit the GitHub rate limit from every session
     ciEverySec: everySec === 0 ? 0 : Math.max(30, Math.round(everySec)),
     queuedAlertMin: Math.round(num('queuedAlertMin')),
-    // GitHub returns at most 100 per request
-    issueLimit: Math.min(100, Math.round(num('issueLimit'))),
+    issuesPerPage: isPerPage ? perPage : DEFAULT_SETTINGS.issuesPerPage,
     demo: bool('demo'),
     issueSummaries: bool('issueSummaries'),
     summaryModel: r['summaryModel'] === 'sonnet' ? 'sonnet' : DEFAULT_SETTINGS.summaryModel,

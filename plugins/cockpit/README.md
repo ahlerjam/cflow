@@ -30,7 +30,7 @@ Every skill, plugin, MCP server and custom agent has a saved state:
 - **off**: hidden. Claude sees only the name. The source loads when Claude calls it or when you name it in the prompt, and stays loaded for the session.
 - **never**: refused. The refusal tells Claude the better way (see hints below). Naming it in the prompt or going around it with Bash does not change that.
 
-Plugin children (their skills and MCP servers) inherit the plugin's state until you set one on them. A folder can deviate from the global default: choose "Local" in the overview. A session in a folder with deviations opens on "Local"; "keep" in the loaded list then saves there too. The deviation is stored per git root (outside a repo, the start folder) in `cockpit.json`, not in the repo.
+Plugin children (their skills and MCP servers) inherit the plugin's state until you set one on them. A folder can deviate from the global default: choose "Local" in the overview. A session in a folder with deviations opens on "Local"; "keep" in the loaded list ("always on" in the Global view) then saves there too. The deviation is stored per git root (outside a repo, the start folder) in `cockpit.json`, not in the repo.
 
 Type `;name` in the prompt to load a source for the session; Tab completes. Sources without an entry follow "New sources" under Settings (on for fresh installs). Slash commands are never hidden.
 
@@ -62,13 +62,13 @@ Related settings: a notification when a run on the current branch ends, an alert
 
 ## Issues
 
-Lists the issues of the repo with labels, native sub-issues, issue types, blockers and linked PRs, with search and filters for status, sort order, label, issue type and assignee. GitHub applies them through search qualifiers, so counts and "Load more" stay correct; the type filter only shows for repos that use issue types. Open an issue in the pane or on GitHub. "→ Claude" puts a reference to the issue into the input without sending it; you add what Claude should do. The reference tells Claude to treat the issue text as data, not as instructions.
+Lists the issues of the repo with labels, native sub-issues, issue types, blockers and linked PRs, with search and filters for status, sort order, label, issue type and assignee. GitHub applies them through search qualifiers, so the counts stay correct; the type filter only shows for repos that use issue types. All issues are loaded, 100 per request up to the 1000 results GitHub search returns, and the list appears after the first request. Task lists (`- [ ]`) in an issue's description are clickable: a click ticks the task on GitHub by editing the issue description, and nothing is written if the text changed there in the meantime. Open an issue in the pane or on GitHub. "→ Claude" puts a reference to the issue into the input without sending it; you add what Claude should do. The reference tells Claude to treat the issue text as data, not as instructions.
 
 AI summaries are off by default. When turned on, the title, labels and the first 3000 characters of each issue body are sent to the model chosen in Settings (haiku or sonnet).
 
 ## Settings and language
 
-The Settings tab has: open on start, New sources, notices, language, polling interval, run-end notification, queued alert, issues per load, AI summaries and model, the runner pool (read-only), sample data, startup texts to suppress while their plugin is off, and the config file with reload, rescan and reset.
+The Settings tab has: open on start, New sources, notices, language, polling interval, run-end notification, queued alert, issues per page (auto, 5, 10 or 20), AI summaries and model, the runner pool (read-only), sample data, startup texts to suppress while their plugin is off, and the config file with reload, rescan and reset.
 
 Language is Auto (the `language` setting of Claude Code, then `LANG`), English or Deutsch. Text addressed to Claude stays English.
 

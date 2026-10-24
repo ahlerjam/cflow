@@ -6,7 +6,7 @@ import { HELP_SYSTEM, helpAsText, helpCommands, helpSections } from '../help-tex
 import { t } from '../i18n'
 import { AI_MODEL, S } from '../state'
 import type { Eng } from '../state'
-import { pill, section, textField } from './ui'
+import { CHIP_PAD, chip, section, textField } from './ui'
 import type { PaneView, Table } from './ui'
 
 // Atoms are declared in every file that reads them: the mod loader only finds the source in a const of its own file.
@@ -45,20 +45,22 @@ export async function helpTab($: Eng, table: Table, pane: PaneView) {
   const { Box, Markdown, Text } = table
   const W = Math.max(44, (pane.bodyColumns || 70) - 1)
   const inner = W - 4
-  const cmdW = Math.min(36, Math.max(20, Math.floor(inner * 0.42)))
+  const cmds = helpCommands()
+  const cmdW = Math.min(Math.floor(inner * 0.4), Math.max(...cmds.map(c => c.cmd.length)) + CHIP_PAD)
+  const descW = Math.max(10, inner - cmdW - 1)
   const help = S.help
 
   return (
     <Box flexDirection="column" rowGap={1}>
       {section(table, 'help-ask', t('help.askTitle'), 'claude',
-        <Box flexDirection="column">
+        <Box width={inner} flexDirection="column">
           {textField(table, 'help-q', t('help.questionLabel'), '', t('help.questionPlaceholder'), v => void askHelp($, v))}
           {help && (
-            <Box flexDirection="column" marginTop={1}>
+            <Box width={inner} flexDirection="column" marginTop={1}>
               <Text color="claude" bold>
                 {fit(`» ${help.question}`, inner)}
               </Text>
-              {help.isBusy ? <Text color="warning">{t('help.answering', { model: AI_MODEL })}</Text> : <Markdown text={help.answer} />}
+              {help.isBusy ? <Text color="warning" wrap="wrap">{t('help.answering', { model: AI_MODEL })}</Text> : <Box width={inner}><Markdown text={help.answer} /></Box>}
             </Box>
           )}
         </Box>,
@@ -66,13 +68,13 @@ export async function helpTab($: Eng, table: Table, pane: PaneView) {
       )}
 
       {section(table, 'help-cmd', t('help.cmdTitle'), 'success',
-        <Box flexDirection="column">
-          {helpCommands().map((c, i) => (
-            <Box key={`help-cmd-${i}`} flexDirection="row" columnGap={1} alignItems="center">
+        <Box width={inner} flexDirection="column">
+          {cmds.map((c, i) => (
+            <Box key={`help-cmd-${i}`} width={inner} flexDirection="row" columnGap={1} alignItems="flex-start">
               <Box width={cmdW} flexShrink={0}>
-                {pill(table, `help-run-${i}`, fit(c.cmd, cmdW - 4).trimEnd(), () => void fillCommand($, c.fill))}
+                {chip(table, `help-run-${i}`, fit(c.cmd, cmdW - CHIP_PAD).trimEnd(), () => void fillCommand($, c.fill), { color: 'success' })}
               </Box>
-              <Box width={Math.max(10, inner - cmdW - 1)} flexShrink={0}>
+              <Box width={descW} flexShrink={0}>
                 <Text wrap="wrap">{c.what}</Text>
               </Box>
             </Box>
@@ -81,7 +83,7 @@ export async function helpTab($: Eng, table: Table, pane: PaneView) {
         <Text dimColor>{t('help.cmdHint')}</Text>,
       )}
 
-      {helpSections().map(s => section(table, `help-${s.id}`, s.title, s.color, <Markdown text={s.lines.join('\n')} />))}
+      {helpSections().map(s => section(table, `help-${s.id}`, s.title, s.color, <Box width={inner}><Markdown text={s.lines.join('\n')} /></Box>))}
     </Box>
   )
 }

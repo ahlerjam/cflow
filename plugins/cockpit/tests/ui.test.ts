@@ -83,7 +83,7 @@ async function boot($: Engine, on: On, demo = true, stored: Record<string, unkno
   mock.store(on, stored)
   mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/preview' })
-  let config = JSON.stringify({ ...DEFAULT_CONFIG, settings: { ...DEFAULT_CONFIG.settings, demo, issueSummaries: demo } })
+  let config = JSON.stringify({ ...DEFAULT_CONFIG, settings: { ...DEFAULT_CONFIG.settings, demo, issueSummaries: demo, issuesPerPage: 10 } })
   on('fs.exists', async () => ({ value: true }))
   on('fs.read', async () => ({ value: config }))
   on('fs.write', async (_, e) => {
@@ -257,30 +257,34 @@ describe('Pane: Issues', () => {
 })
 
 describe('Pane: Issues paging', () => {
-  test('jump to pages, total from GitHub, loading more appends', async ($, on) => {
+  test('all pages are fetched at 100 per request, the pager jumps within them', async ($, on) => {
     const calls = await boot($, on, false)
     const ui = await openPane($, 'issues')
     await ui.press({ key: 'tab-issues' })
     await ui.press({ key: 'issue-refresh' })
 
-    expect(await ui.find({ type: 'Text', text: /10 of 15 open/ })).toBeDefined()
-    expect(await ui.find({ type: 'Button', key: 'issue-open-15' })).toBeDefined()
-    // at most 100 per request even if more is configured
     expect(calls.argvs.find(a => a.includes('n=100'))).toBeDefined()
-
-    await ui.press({ key: 'iss-page-1' })
-    expect(await ui.find({ type: 'Button', key: 'issue-open-15' })).toBeUndefined()
-    expect((await ui.find({ type: 'Button', key: 'iss-page-1' }))?.props['variant']).toBe('primary')
-
-    await ui.press({ key: 'iss-more' })
     expect(calls.argvs.find(a => a.includes('after=c1'))).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /● 15 open/ })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: 'iss-more' })).toBeUndefined()
-    // after loading more, the page with the first new issue is shown
+    expect(await ui.find({ type: 'Button', key: 'issue-open-15' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', key: 'issue-open-5' })).toBeUndefined()
+
+    await ui.press({ key: 'iss-page-1' })
+    expect(await ui.find({ type: 'Button', key: 'issue-open-15' })).toBeUndefined()
     expect(await ui.find({ type: 'Button', key: 'issue-open-5' })).toBeDefined()
+    expect((await ui.find({ type: 'Button', key: 'iss-page-1' }))?.props['variant']).toBe('primary')
 
     await ui.press({ key: 'iss-page-0' })
     expect(await ui.find({ type: 'Button', key: 'issue-open-15' })).toBeDefined()
+  })
+
+  test('issuesPerPage sets the page size', async ($, on) => {
+    await boot($, on, false)
+    const ui = await openPane($, 'issues')
+    await ui.press({ key: 'tab-issues' })
+    await ui.press({ key: 'issue-refresh' })
+    expect(await ui.find({ type: 'Text', text: /#1–10 of 15 loaded/ })).toBeDefined()
   })
 })
 
