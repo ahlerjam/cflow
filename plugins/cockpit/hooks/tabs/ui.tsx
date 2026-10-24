@@ -99,28 +99,32 @@ export function segmented(table: Table, key: string, value: string, options: Rea
   ))
 }
 
+export type PillLook = { icon?: string; color?: Color; badge?: string; variant?: 'primary' | 'secondary'; dimColor?: boolean }
+
+// The button style of the whole pane: a rounded frame around icon, label and badge, three rows high.
+// As wide as `[ label ]` (frame 2 + padding 2), so width math made for plain buttons still holds.
+// Primary takes the color on frame and icon, secondary a dim frame.
+export function pill(table: Table, key: string, label: string, onPress: () => void, look: PillLook = {}) {
+  const { Box, Button, Text } = table
+  const color = look.color ?? 'claude'
+  const isPrimary = look.variant === 'primary'
+  return (
+    <Box key={`${key}-pill`} flexDirection="row" columnGap={1} borderStyle="round" borderColor={isPrimary ? color : 'inactive'} borderDimColor={!isPrimary} paddingX={1} flexShrink={0}>
+      {look.icon && <Text color={isPrimary ? color : undefined} dimColor={!isPrimary} bold={isPrimary}>{look.icon}</Text>}
+      <Button key={key} plain label={label} variant={isPrimary ? 'primary' : 'secondary'} dimColor={look.dimColor} hover={{ color }} onPress={onPress} />
+      {look.badge && <Text color={color} dimColor={!isPrimary}>{look.badge}</Text>}
+    </Box>
+  )
+}
+
 export type Pill = { id: string; icon: string; label: string; color: Color; badge?: string }
 export function pills(table: Table, key: string, value: string, options: ReadonlyArray<Pill>, pick: (id: string) => void) {
-  const { Box, Button, Text } = table
+  const { Box } = table
   return (
     <Box key={key} flexDirection="row" flexWrap="wrap" columnGap={1}>
       {options.map(o => {
         const isOn = o.id === value
-        return (
-          <Box key={`${key}-box-${o.id}`} flexDirection="row" columnGap={1} borderStyle="round" borderColor={isOn ? o.color : 'inactive'} borderDimColor={!isOn} paddingX={1}>
-            <Text color={isOn ? o.color : undefined} dimColor={!isOn} bold={isOn}>{o.icon}</Text>
-            <Button
-              key={`${key}-${o.id}`}
-              plain
-              label={o.label}
-              variant={isOn ? 'primary' : 'secondary'}
-              dimColor={!isOn}
-              hover={{ color: o.color }}
-              onPress={() => pick(o.id)}
-            />
-            {o.badge && <Text color={o.color} dimColor={!isOn}>{o.badge}</Text>}
-          </Box>
-        )
+        return pill(table, `${key}-${o.id}`, o.label, () => pick(o.id), { icon: o.icon, color: o.color, badge: o.badge, variant: isOn ? 'primary' : 'secondary', dimColor: !isOn })
       })}
     </Box>
   )

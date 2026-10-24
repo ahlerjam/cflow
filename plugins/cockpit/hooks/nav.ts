@@ -18,6 +18,7 @@ const sourcesViewA = atom({ plugin: 'cockpit', key: 'sourcesView' } as const, 'o
 const isPaneOpenA = atom({ plugin: 'cockpit', key: 'isPaneOpen' } as const, false)
 const isClosedA = atom({ plugin: 'cockpit', key: 'isClosed' } as const, false)
 const sourcesScopeA = atom({ plugin: 'cockpit', key: 'sourcesScope' } as const, 'global')
+const scopePickedA = atom({ plugin: 'cockpit', key: 'isScopePicked' } as const, false)
 
 export async function openPane($: Eng, tab?: CockpitTab): Promise<boolean> {
   if (tab) await update($, tabA, () => tab)
@@ -63,7 +64,16 @@ export async function showSourcesView($: Eng, view: SourcesView): Promise<void> 
 
 export async function showSourcesScope($: Eng, scope: SourcesScope): Promise<void> {
   await update($, sourcesScopeA, () => scope)
+  await update($, scopePickedA, () => true)
   await update($, confirmA, () => '')
+}
+
+// A folder with deviations starts on "Local", any other on "Global". What the person picked in this
+// session stays, also across a reload (it fires session.start again).
+export async function defaultSourcesScope($: Eng): Promise<void> {
+  if (await read($, scopePickedA)) return
+  const hasLocal = S.folder !== '' && Object.keys(S.cfg.folders[S.folder] ?? {}).length > 0
+  await update($, sourcesScopeA, () => (hasLocal ? 'folder' : 'global'))
 }
 
 export async function addMarker($: Eng, text: string): Promise<void> {

@@ -209,6 +209,7 @@ declare module 'claude-code' {
       isPaneOpen: boolean
       isClosed: boolean
       sourcesScope: SourcesScope
+      isScopePicked: boolean
     }
   }
 }

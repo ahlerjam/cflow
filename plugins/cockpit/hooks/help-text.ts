@@ -84,7 +84,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       color: 'warning',
       lines: [
         '- Open issues of the repo with AI summary, labels, epic, blockers and PRs. Search and "Mine only" filter.',
-        '- The title opens the issue here, "↗ Browser" opens it on GitHub, "→ Claude" hands it to Claude to work on.',
+        '- The title opens the issue here, "↗ Browser" opens it on GitHub, "→ Claude" puts a reference to it into the input, where you add what Claude should do.',
       ],
     },
     {
@@ -162,7 +162,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       color: 'warning',
       lines: [
         '- Offene Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Suche und „Nur meine“ filtern.',
-        '- Der Titel öffnet das Issue hier, „↗ Browser“ auf GitHub, „→ Claude“ gibt es Claude zum Bearbeiten.',
+        '- Der Titel öffnet das Issue hier, „↗ Browser“ auf GitHub, „→ Claude“ setzt einen Verweis darauf in die Eingabe; dort ergänzt du, was Claude tun soll.',
       ],
     },
     {

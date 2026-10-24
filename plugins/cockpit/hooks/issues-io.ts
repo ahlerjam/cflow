@@ -198,8 +198,11 @@ export async function handOver($: Eng, issue: Issue): Promise<void> {
     toast($, t('iss.badRef'))
     return
   }
-  toast($, t('iss.handedOver', { n: issue.number }))
-  await $.prompt.submit({ text: issuePrompt(list.repo, issue) })
+  // Appended, so a draft already typed stays
+  const draft = (await $.prompt.read()).text
+  const text = `${draft && !/\s$/.test(draft) ? ' ' : ''}${issuePrompt(list.repo, issue)}`
+  const r = await $.prompt.fill({ text, mode: draft ? 'append' : 'replace' })
+  toast($, t(r.isFilled ? 'iss.handedOver' : 'iss.inputBusy', { n: issue.number }))
 }
 
 // The pane clamps the page to the existing ones; rows is how many it shows per page, for the summaries

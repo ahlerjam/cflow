@@ -203,8 +203,8 @@ function sourceRow($: Eng, table: Table, inner: number, row: Row) {
 const isOn = (src: string): boolean => resolve(ownerOf(src, S.knownPlugins)).effective === 'on'
 
 // Loaded (this session): every session grant with a counter; "keep on" saves it, "undo" drops it.
-// Widths follow the longest label of the active locale (+2 padding, +4 brackets).
-const keepW = (): number => Math.max(t('src.keepHere').length, t('src.keepOn').length) + 2
+// Widths follow the longest label of the active locale (+4 for brackets and padding).
+const keepW = (): number => Math.max(t('src.keepHere').length, t('src.keepOn').length) + 4
 const dropW = (): number => t('src.drop').length + 4
 
 function loadedBox($: Eng, table: Table, W: number, isHere: boolean) {

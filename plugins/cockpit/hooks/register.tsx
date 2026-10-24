@@ -6,7 +6,7 @@ import type { Owner } from './sources'
 import { refreshLight, startCiTimer } from './actions-io'
 import { discover, grantFor, grantOnRequest, loadConfig, note, noteMcpServer, noteUse, readFolder, readPlugins, refreshSkills, registerCommand, resolve, restoreSession, showStatus, stateFor, stateForKey } from './core'
 import { describeSuggestion, t } from './i18n'
-import { isClosedByPerson, isPaneShown, notePaneClosed, notePaneOpen, openPane, showTab } from './nav'
+import { defaultSourcesScope, isClosedByPerson, isPaneShown, notePaneClosed, notePaneOpen, openPane, showTab } from './nav'
 import { S, TABS, normalizeTab } from './state'
 import type { Eng } from './state'
 import { actionsTab } from './tabs/actions'
@@ -59,6 +59,7 @@ export const register: Register = on => {
     // A reload fires session.start again: loaded sources and the source list stay
     await restoreSession($)
     await readFolder($, e.cwd).catch(err => logDiscover($, err))
+    await defaultSourcesScope($)
     // Before the first prompt: the gating assigns plugin servers and repo plugins by it
     await readPlugins($).catch(err => logDiscover($, err))
     await refreshSkills($).catch(err => logDiscover($, err))

@@ -62,7 +62,7 @@ Related settings: a notification when a run on the current branch ends, an alert
 
 ## Issues
 
-Lists the open issues of the repo with labels, native sub-issues, issue types, blockers and linked PRs, with search and a "Mine only" filter. Open an issue in the pane or on GitHub, or hand it to Claude to work on. The issue text is treated as data, not as instructions.
+Lists the open issues of the repo with labels, native sub-issues, issue types, blockers and linked PRs, with search and a "Mine only" filter. Open an issue in the pane or on GitHub. "→ Claude" puts a reference to the issue into the input without sending it; you add what Claude should do. The reference tells Claude to treat the issue text as data, not as instructions.
 
 AI summaries are off by default. When turned on, the title, labels and the first 3000 characters of each issue body are sent to the model chosen in Settings (haiku or sonnet).
 
