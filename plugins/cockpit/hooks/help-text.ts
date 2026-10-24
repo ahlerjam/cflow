@@ -161,7 +161,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       title: 'Issues',
       color: 'warning',
       lines: [
-        '- Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Suche sowie Filter für Status, Sortierung, Label, Issue-Typ und Zugewiesene werden von GitHub angewendet, damit Zähler und „Weitere laden“ stimmen. „Filter zurücksetzen“ erscheint, sobald einer gesetzt ist.',
+        '- Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Suche und Filter für Status, Sortierung, Label, Issue-Typ und Zugewiesene wendet GitHub selbst an, deshalb stimmen Zähler und „weitere laden“. „Filter zurücksetzen“ erscheint, sobald einer gesetzt ist.',
         '- Der Titel öffnet das Issue hier, „↗ Browser“ auf GitHub, „→ Claude“ setzt einen Verweis darauf in die Eingabe; dort ergänzt du, was Claude tun soll.',
       ],
     },
