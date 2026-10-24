@@ -4,7 +4,7 @@ import type { Issue, IssueList, IssueOptions } from '../types'
 import { cleanQuery, isIssueRef, issuePrompt } from './ci'
 import { currentRepo, ghPath, ghReady, note, runGh, setSetting, toast } from './core'
 import { demoIssues } from './demo-data'
-import { ANY, DEFAULT_FILTERS, ISSUE_PAGE_MAX, NAMED, cleanSummary, detailQuery, filterDemo, isFieldError, isSearchCapError, listQuery, normalizeFilters, optionsQuery, parseDetail, parseListPage, parseOptions, searchString, summaryKey, summaryPrompt, summarySystem } from './issues'
+import { ANY, DEFAULT_FILTERS, ISSUE_PAGE_MAX, NAMED, cleanSummary, detailQuery, filterDemo, flipTask, isFieldError, isSearchCapError, listQuery, normalizeFilters, optionsQuery, parseDetail, parseListPage, parseOptions, searchString, summaryKey, summaryPrompt, summarySystem } from './issues'
 import type { IssueFilters } from './issues'
 import { t } from './i18n'
 import { S, SEARCH_CAP, SUMMARY_INDEX, SUMMARY_KEEP } from './state'
@@ -23,6 +23,7 @@ const optionsA = atom({ plugin: 'cockpit', key: 'issueOptions' } as const, null)
 const openIssueA = atom({ plugin: 'cockpit', key: 'openIssue' } as const, 0)
 const queryA = atom({ plugin: 'cockpit', key: 'issueQuery' } as const, '')
 const summariesA = atom({ plugin: 'cockpit', key: 'summaries' } as const, {})
+const taskBusyA = atom({ plugin: 'cockpit', key: 'issueTaskBusy' } as const, '')
 
 // Runs the query with issue types and sub-issues; if GitHub does not know those fields, once more without them
 // and without them for the rest of the session
@@ -83,10 +84,15 @@ async function loadOptions($: Eng, bin: string, repo: string, cwd: string): Prom
   return { repo, labels: [], kinds: [] }
 }
 
-// isMore appends the next issues behind the loaded ones; otherwise reload from page 1
-export async function refreshIssues($: Eng, isMore = false): Promise<void> {
+// Generation of the running load; a newer refresh makes an older one stop
+let loadGen = 0
+
+// Fetches page after page (the GitHub maximum per request) until everything is in or the search cap is reached.
+// The atom is updated after each page, so the list shows up with the first one.
+export async function refreshIssues($: Eng): Promise<void> {
+  const gen = ++loadGen
   const now = await $.clock.now()
-  if (!isMore) await update($, pageA, () => 0)
+  await update($, pageA, () => 0)
   if (S.cfg.settings.demo) {
     const demo = demoIssues(now)
     const kinds = demo.list.items.map(i => i.kind).filter((k): k is string => !!k)
@@ -96,51 +102,63 @@ export async function refreshIssues($: Eng, isMore = false): Promise<void> {
     await update($, summariesA, m => ({ ...m, ...demo.summaries }))
     return
   }
-  const before = isMore ? await read($, issuesA) : null
-  const after = before?.cursor ?? null
-  if (isMore && !after) return
   const here = await currentRepo($)
   const ready = await ghReady($)
-  // If loading more fails, what is already loaded stays
-  const list: IssueList = { at: now, repo: null, items: before?.items ?? [], total: before?.total ?? 0, cursor: after, error: null, problem: ready.problem ?? (here ? null : 'noRepo'), retryAt: 0, isCapped: before?.isCapped ?? false }
+  const list: IssueList = { at: now, repo: null, items: [], total: 0, cursor: null, error: null, problem: ready.problem ?? (here ? null : 'noRepo'), retryAt: 0, isCapped: false, isLoading: false }
   if (ready.bin && here) {
     list.repo = here.full
     const options = await loadOptions($, ready.bin, here.full, here.root)
     const q = searchString(here.full, cleanQuery(await read($, queryA)), await readFilters($), options)
-    try {
-      const res = await queryGh(
-        $, ready.bin,
-        isNative => [
-          'api', 'graphql', '-f', `query=${listQuery(isNative)}`, '-f', `q=${q}`,
-          '-F', `n=${Math.min(ISSUE_PAGE_MAX, Math.max(1, S.cfg.settings.issueLimit))}`,
-          ...(after ? ['-f', `after=${after}`] : []),
-        ],
-        { cwd: here.root, timeoutMs: 20_000 },
-      )
-      if (res.exitCode === 0) {
-        const got = parseListPage(res.stdout)
-        // Between two requests an issue can move forward, so skip duplicates when appending
-        const old = before?.items ?? []
-        list.items = [...old, ...got.items.filter(i => !old.some(o => o.number === i.number))]
-        list.total = got.total
-        list.cursor = list.items.length >= SEARCH_CAP ? null : got.cursor
-        list.isCapped = got.total > SEARCH_CAP
-      } else if (after && isSearchCapError(`${res.stderr}\n${res.stdout}`)) {
+    let after: string | null = null
+    let isFirst = true
+    do {
+      const cursor: string | null = after
+      try {
+        const res = await queryGh(
+          $, ready.bin,
+          isNative => [
+            'api', 'graphql', '-f', `query=${listQuery(isNative)}`, '-f', `q=${q}`,
+            '-F', `n=${ISSUE_PAGE_MAX}`,
+            ...(cursor ? ['-f', `after=${cursor}`] : []),
+          ],
+          { cwd: here.root, timeoutMs: 20_000 },
+        )
+        if (gen !== loadGen) return
+        if (res.exitCode === 0) {
+          const got = parseListPage(res.stdout)
+          // Between two requests an issue can move forward, so skip duplicates
+          const old = list.items
+          list.items = [...old, ...got.items.filter(i => !old.some(o => o.number === i.number))]
+          list.total = got.total
+          // A page without anything new would repeat itself forever
+          list.cursor = list.items.length >= SEARCH_CAP || list.items.length === old.length ? null : got.cursor
+          list.isCapped = got.total > SEARCH_CAP
+        } else if (cursor && isSearchCapError(`${res.stderr}\n${res.stdout}`)) {
+          list.cursor = null
+          list.isCapped = true
+        } else {
+          list.error = res.stderr.trim().slice(0, 160)
+          list.cursor = null
+        }
+      } catch (err) {
+        if (gen !== loadGen) return
+        list.error = String(err).slice(0, 160)
         list.cursor = null
-        list.isCapped = true
-      } else list.error = res.stderr.trim().slice(0, 160)
-    } catch (err) {
-      list.error = String(err).slice(0, 160)
-    }
+      }
+      after = list.cursor
+      list.isLoading = after !== null
+      if (isFirst && list.repo && list.items.length > 0) void summarize($, list.repo, list.items.slice(0, S.issueRows), ++S.sumGen)
+      isFirst = false
+      if (after) await update($, issuesA, () => ({ ...list }))
+    } while (after)
   }
+  if (gen !== loadGen) return
   if (!list.problem && S.rateUntil > now) {
     list.problem = 'rate'
     list.error = null
   }
   list.retryAt = list.problem === 'rate' ? S.rateUntil : 0
   await update($, issuesA, () => list)
-  // Loading more is followed by setIssuePage, which knows the rows that are visible then
-  if (!isMore && list.repo) void summarize($, list.repo, list.items.slice(0, S.issueRows), ++S.sumGen)
 }
 
 // store.keys() has no documented order, so the age is tracked in an index key (oldest first).
@@ -190,6 +208,10 @@ export async function summarize($: Eng, repo: string, items: readonly Issue[], g
 export async function openIssue($: Eng, number: number): Promise<void> {
   await update($, openIssueA, () => number)
   await update($, detailA, () => null)
+  await loadDetail($, number)
+}
+
+async function loadDetail($: Eng, number: number): Promise<void> {
   if (S.cfg.settings.demo) {
     const demo = demoIssues(await $.clock.now())
     const issue = demo.list.items.find(i => i.number === number)
@@ -216,6 +238,50 @@ export async function openIssue($: Eng, number: number): Promise<void> {
     if (!detail.error) void summarize($, repo, [detail.issue], S.sumGen)
   } catch (err) {
     await update($, detailA, () => ({ ...parseDetail('{}'), error: String(err).slice(0, 160) }))
+  }
+}
+
+// Flips task `index` of the description on GitHub. The current body is fetched first and the task must still read
+// `text`, otherwise somebody changed it and the detail is reloaded instead. The body goes to gh as an argument, never through a shell.
+export async function toggleIssueTask($: Eng, issue: Issue, index: number, text: string): Promise<void> {
+  if (await read($, taskBusyA)) return
+  await update($, taskBusyA, () => `${issue.number}-${index}`)
+  try {
+    if (S.cfg.settings.demo) {
+      const body = flipTask(issue.body, index, text)
+      if (body !== null) await update($, detailA, d => (d ? { ...d, issue: { ...d.issue, body } } : d))
+      return
+    }
+    const here = await currentRepo($)
+    const ready = await ghReady($)
+    if (!ready.bin || !here) return
+    if (!isIssueRef(here.full, issue.number)) {
+      toast($, t('iss.badRef'))
+      return
+    }
+    const path = `repos/${here.full}/issues/${issue.number}`
+    const got = await runGh($, ready.bin, ['api', path], { cwd: here.root, timeoutMs: 20_000 })
+    if (got.exitCode !== 0) {
+      toast($, t('iss.taskFailed', { err: got.stderr.trim().slice(0, 160) }))
+      return
+    }
+    const current = (JSON.parse(got.stdout) as { body?: unknown }).body
+    const body = flipTask(typeof current === 'string' ? current : '', index, text)
+    if (body === null) {
+      toast($, t('iss.taskChanged'))
+      return
+    }
+    const put = await runGh($, ready.bin, ['api', '-X', 'PATCH', path, '-f', `body=${body}`], { cwd: here.root, timeoutMs: 20_000 })
+    if (put.exitCode !== 0) {
+      toast($, t('iss.taskFailed', { err: put.stderr.trim().slice(0, 160) }))
+      return
+    }
+  } catch (err) {
+    toast($, t('iss.taskFailed', { err: String(err).slice(0, 160) }))
+    return
+  } finally {
+    if (!S.cfg.settings.demo) await loadDetail($, issue.number)
+    await update($, taskBusyA, () => '')
   }
 }
 

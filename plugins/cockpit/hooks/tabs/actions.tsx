@@ -1,4 +1,5 @@
 import { atom, read, update } from 'claude-code'
+import type { Color } from 'claude-code'
 
 import type { ActView } from '../../types'
 import type { Verdict } from '../actions'
@@ -9,7 +10,7 @@ import { analyzeLog, analyzeRunDetail, closeLog, closeRun, dispatchWorkflow, fil
 import { bar, poolVerdict, shortRepo, vmsPerRepo } from '../ci'
 import { LOG_LINES_STEP, age, fit, fitLeft, isErrorLine, runColumns, runHeader, runRow, span, verdict } from '../actions'
 import type { Eng } from '../state'
-import { card, choice, dangerBtn, pill, switchBtn } from './ui'
+import { card, choice, chip, dangerBtn, pill, switchBtn } from './ui'
 import type { PaneView, Table } from './ui'
 
 // Atoms are declared in every file that reads them: the mod loader only finds the source in a const of the file itself.
@@ -25,6 +26,8 @@ const actViewA = atom({ plugin: 'cockpit', key: 'actView' } as const, 'runs')
 const actWfA = atom({ plugin: 'cockpit', key: 'actWorkflows' } as const, null)
 const actWfFilterA = atom({ plugin: 'cockpit', key: 'actWorkflowFilter' } as const, '')
 const ciA = atom({ plugin: 'cockpit', key: 'ci' } as const, null)
+
+const VIEW_COLOR: Record<ActView, Color> = { runs: 'autoAccept', runners: 'planMode', workflows: 'suggestion' }
 
 export async function actionsTab($: Eng, table: Table, pane: PaneView) {
   const { Box, Button, Code, Text } = table
@@ -83,11 +86,12 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
       <Box flexDirection="row" columnGap={1} alignItems="center">
         {views.map(v => (
           pill(table, `act-${v}`, t(v === 'runs' ? 'act.viewRuns' : v === 'runners' ? 'act.viewRunners' : 'act.viewWorkflows'), () => void showActView($, v), {
+            color: VIEW_COLOR[v],
             variant: view === v && !opened ? 'primary' : 'secondary',
           })
         ))}
         <Box flexGrow={1} />
-        {pill(table, 'act-refresh', t('common.refresh'), () => void refreshCi($))}
+        {chip(table, 'act-refresh', t('common.refresh'), () => void refreshCi($))}
       </Box>
     </Box>
   )
@@ -104,7 +108,7 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
     const lv = verdict(logJob?.status ?? 'completed', logJob?.conclusion ?? '')
     content = (
       <Box flexDirection="column" rowGap={1}>
-        {pill(table, 'log-back', t('act.backRun'), () => void closeLog($))}
+        {chip(table, 'log-back', t('act.backRun'), () => void closeLog($))}
         {card(
           table,
           'log-card',
@@ -122,10 +126,10 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           {switchBtn(table, 'log-err', t('act.onlyErrors'), onlyErrors, () => void update($, actOnlyErrA, v => !v))}
           {all.length > shown.length && (
-            pill(table, 'log-more', t('act.moreLines', { n: LOG_LINES_STEP }), () => void update($, actLogLimitA, v => v + LOG_LINES_STEP))
+            chip(table, 'log-more', t('act.moreLines', { n: LOG_LINES_STEP }), () => void update($, actLogLimitA, v => v + LOG_LINES_STEP))
           )}
-          {pill(table, 'log-ai', t('act.toClaude'), () => void analyzeLog($), { color: 'claude', variant: 'primary' })}
-          {run && pill(table, 'log-web', t('act.browser'), () => void openUrl($, logJob?.url ?? run.url))}
+          {chip(table, 'log-ai', t('act.toClaude'), () => void analyzeLog($), { color: 'claude', variant: 'primary' })}
+          {run && chip(table, 'log-web', t('act.browser'), () => void openUrl($, logJob?.url ?? run.url))}
         </Box>
         {log.steps.length > 1 &&
           choice(table,
@@ -156,12 +160,12 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
     const runningJobs = run ? run.jobs.filter(j => j.status !== 'completed').length : 0
     content = !run || !rv ? (
       <Box flexDirection="column" rowGap={1}>
-        {pill(table, 'run-back', t('act.backRuns'), () => void closeRun($))}
+        {chip(table, 'run-back', t('act.backRuns'), () => void closeRun($))}
         <Text dimColor>{t('act.runLoading', { id: opened.runId })}</Text>
       </Box>
     ) : (
       <Box flexDirection="column" rowGap={1}>
-        {pill(table, 'run-back', t('act.backRuns'), () => void closeRun($))}
+        {chip(table, 'run-back', t('act.backRuns'), () => void closeRun($))}
         {card(
           table,
           'run-card',
@@ -178,8 +182,8 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
           run.title || undefined,
         )}
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-          {pill(table, 'run-web', t('act.browser'), () => void openUrl($, run.url))}
-          {hasFailed && pill(table, 'run-ai', t('act.toClaude'), () => void analyzeRunDetail($, run), { color: 'claude', variant: 'primary' })}
+          {chip(table, 'run-web', t('act.browser'), () => void openUrl($, run.url))}
+          {hasFailed && chip(table, 'run-ai', t('act.toClaude'), () => void analyzeRunDetail($, run), { color: 'claude', variant: 'primary' })}
           {hasFailed && dangerBtn($, table, pending, 'run-rerun-failed', t('act.rerunFailed'), () => void runAction($, run, 'rerun-failed'))}
           {!isRunning && dangerBtn($, table, pending, 'run-rerun', t('act.rerunAll'), () => void runAction($, run, 'rerun'))}
           {isRunning && dangerBtn($, table, pending, 'run-cancel', t('act.cancel'), () => void runAction($, run, 'cancel'))}
@@ -225,8 +229,8 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
                     ))}
                     <Box flexDirection="row" columnGap={1} alignItems="center">
                       <Text dimColor>└</Text>
-                      {pill(table, `job-log-${j.id}`, t('act.viewLog'), () => void openLog($, j))}
-                      {pill(table, `job-web-${j.id}`, t('act.browser'), () => void openUrl($, j.url))}
+                      {chip(table, `job-log-${j.id}`, t('act.viewLog'), () => void openLog($, j))}
+                      {chip(table, `job-web-${j.id}`, t('act.browser'), () => void openUrl($, j.url))}
                     </Box>
                   </Box>
                 )}
@@ -344,7 +348,7 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
       <Box flexDirection="column" rowGap={1}>
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           {switchBtn(table, 'act-all', t('act.allRepos'), isAll, () => void toggleAllRepos($))}
-          {wfFilter && pill(table, 'act-unfilter', wfFilter, () => void update($, actWfFilterA, () => ''), { icon: '×', color: 'warning', variant: 'primary' })}
+          {wfFilter && chip(table, 'act-unfilter', `× ${wfFilter}`, () => void update($, actWfFilterA, () => ''), { color: 'warning', variant: 'primary' })}
           {ci?.pr && (
             <Button
               key="ci-pr"

@@ -5,8 +5,8 @@ import type { On } from 'claude-code'
 import { isIssueRef, issuePrompt } from '../hooks/ci'
 import { DEFAULT_CONFIG } from '../hooks/defaults'
 import {
-  DEFAULT_FILTERS, childrenOf, cleanSummary, detailQuery, emptyIssue, epicRefOf, filterDemo, isFieldError, isFiltered, listQuery, normalizeFilters,
-  optionsQuery, parseDetail, parseNode, parseOptions, searchString, stripControl, subtasksOf, summaryKey, summaryPrompt,
+  DEFAULT_FILTERS, childrenOf, cleanSummary, clipSegs, detailQuery, emptyIssue, epicRefOf, filterDemo, flipTask, isFieldError, isFiltered, listQuery, normalizeFilters,
+  optionsQuery, parseDetail, parseNode, parseOptions, searchString, splitBody, stripControl, subtasksOf, summaryKey, summaryPrompt, taskItems,
 } from '../hooks/issues'
 import { parseConfig } from '../hooks/sources'
 
@@ -212,14 +212,58 @@ describe('Issues: native fields', () => {
   })
 })
 
+describe('Issues: task lists', () => {
+  const BODY = 'Intro\n\n- [ ] first\n- [x] second\n```\n- [ ] in fence\n```\n* [X] third\n  - [ ] nested\nOutro'
+
+  test('tasks are found outside code fences, in order', () => {
+    expect(taskItems(BODY).map(t => [t.index, t.isDone, t.text])).toEqual([[0, false, 'first'], [1, true, 'second'], [2, true, 'third'], [3, false, 'nested']])
+    expect(taskItems('~~~\n- [ ] a\n~~~\n````\n```\n- [ ] b\n````\n- [ ] c').map(t => t.text)).toEqual(['c'])
+    expect(taskItems('- [ ]no space\n-[ ] x\n- [y] z')).toEqual([])
+  })
+
+  test('the body splits into text blocks and tasks', () => {
+    const parts = splitBody(BODY)
+    expect(parts.map(p => (p.kind === 'task' ? `task ${p.index}` : 'text'))).toEqual(['text', 'task 0', 'task 1', 'text', 'task 2', 'task 3', 'text'])
+    const fenced = parts[3]
+    expect(fenced?.kind === 'text' && fenced.text).toBe('```\n- [ ] in fence\n```')
+    expect(splitBody('plain')).toEqual([{ kind: 'text', text: 'plain' }])
+  })
+
+  test('flipping changes one character and keeps the rest, CRLF included', () => {
+    expect(flipTask(BODY, 0, 'first')).toBe(BODY.replace('- [ ] first', '- [x] first'))
+    expect(flipTask(BODY, 1, 'second')).toBe(BODY.replace('- [x] second', '- [ ] second'))
+    expect(flipTask(BODY, 2, 'third')).toBe(BODY.replace('* [X] third', '* [ ] third'))
+    const crlf = 'a\r\n- [ ] one\r\n- [ ] two\r\n'
+    expect(flipTask(crlf, 1, 'two')).toBe('a\r\n- [ ] one\r\n- [x] two\r\n')
+  })
+
+  test('a task that moved or changed text is not flipped', () => {
+    expect(flipTask(BODY, 0, 'other')).toBeNull()
+    expect(flipTask(BODY, 9, 'first')).toBeNull()
+    expect(flipTask('- [ ] a', 0, 'a ')).toBeNull()
+  })
+})
+
+describe('Issues: one-line segments', () => {
+  test('segments are cut so the line never exceeds the width', () => {
+    const segs = [{ text: '[Bug]' }, { text: '●authentication' }, { text: '●ci' }]
+    const width = (list: Array<{ text: string }>) => list.reduce((sum, s) => sum + s.text.length, 0) + 2 * Math.max(0, list.length - 1)
+    for (let w = 0; w < 40; w++) expect(width(clipSegs(segs, w))).toBeLessThanOrEqual(w)
+    expect(clipSegs(segs, 40).map(s => s.text)).toEqual(['[Bug]', '●authentication', '●ci'])
+    expect(clipSegs(segs, 14).map(s => s.text)).toEqual(['[Bug]', '●authe…'])
+    expect(clipSegs(segs, 2)).toEqual([])
+  })
+})
+
 type Out = { exitCode: number; stdout?: string; stderr?: string }
-type World = { search: (argv: string[]) => Out; detail: (argv: string[]) => Out; complete: (prompt: string, n: number) => Promise<string>; draft: string }
+type World = { search: (argv: string[]) => Out; detail: (argv: string[]) => Out; rest: (argv: string[]) => Out; complete: (prompt: string, n: number) => Promise<string>; draft: string }
 
 async function boot($: Engine, on: On, opts: { settings?: Record<string, unknown>; stored?: Record<string, unknown>; locale?: string } = {}) {
   const calls = { argvs: [] as string[][], toasts: [] as string[], prompts: [] as string[], fills: [] as Array<{ text: string; mode: string }>, models: [] as string[], writes: [] as string[], completes: 0 }
   const world: World = {
     search: () => ({ exitCode: 0, stdout: JSON.stringify({ data: { search: { issueCount: 2, pageInfo: { hasNextPage: false, endCursor: null }, nodes: [node(2), node(1)] } } }) }),
     detail: () => ({ exitCode: 1 }),
+    rest: () => ({ exitCode: 0, stdout: '{}' }),
     complete: async () => 'A summary.',
     draft: '',
   }
@@ -281,6 +325,7 @@ async function boot($: Engine, on: On, opts: { settings?: Record<string, unknown
     const out = (o: Out) => ({ value: { exitCode: o.exitCode, stdout: o.stdout ?? '', stderr: o.stderr ?? '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (argv[1] === 'api' && argv.some(a => a.startsWith('q=repo:'))) return out(world.search(argv))
     if (argv[1] === 'api' && argv.some(a => a.startsWith('owner='))) return out(world.detail(argv))
+    if (argv[1] === 'api' && argv.some(a => a.startsWith('repos/'))) return out(world.rest(argv))
     return out({ exitCode: 0 })
   })
   await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: false } as never)
@@ -332,6 +377,45 @@ describe('Issues: GitHub requests', () => {
     expect(await ui.find({ type: 'Text', text: '[Epic]' })).toBeDefined()
   })
 
+  test('all pages are fetched one after the other, the list shows after the first', async ($, on) => {
+    const { world, calls } = await boot($, on)
+    const page = (from: number, count: number, next: string | null) => ({ exitCode: 0, stdout: JSON.stringify({ data: { search: {
+      issueCount: 250, pageInfo: { hasNextPage: next !== null, endCursor: next },
+      nodes: Array.from({ length: count }, (_, i) => node(from + i)),
+    } } }) })
+    const seen: number[] = []
+    world.search = argv => {
+      const after = argv.find(a => a.startsWith('after='))
+      seen.push(argv.includes('n=100') ? 100 : 0)
+      if (!after) return page(1, 100, 'c1')
+      return after === 'after=c1' ? page(101, 100, 'c2') : page(201, 50, null)
+    }
+    const ui = await pane($, 'issues')
+    await ui.press({ key: 'issue-refresh' })
+    const afters = calls.argvs.filter(a => a.some(x => x.startsWith('q=repo:'))).map(a => a.find(x => x.startsWith('after=')) ?? '')
+    expect(afters.slice(-3)).toEqual(['', 'after=c1', 'after=c2'])
+    expect(seen.every(n => n === 100)).toBe(true)
+    expect(await ui.find({ type: 'Text', text: /● 250 open/ })).toBeDefined()
+    expect(await ui.find({ type: 'Button', key: 'iss-more' })).toBeUndefined()
+  })
+
+  test('loading stops at the 1000 hit cap and says so', async ($, on) => {
+    const { world, calls } = await boot($, on)
+    let next = 1
+    world.search = () => {
+      const from = next
+      next += 100
+      return { exitCode: 0, stdout: JSON.stringify({ data: { search: { issueCount: 1400, pageInfo: { hasNextPage: true, endCursor: `c${from}` }, nodes: Array.from({ length: 100 }, (_, i) => node(from + i)) } } }) }
+    }
+    const ui = await pane($, 'issues')
+    await ui.press({ key: 'issue-refresh' })
+    const requests = calls.argvs.filter(a => a.some(x => x.startsWith('q=repo:')))
+    expect(requests.some(a => a.includes('after=c801'))).toBe(true)
+    expect(requests.some(a => a.includes('after=c901'))).toBe(false)
+    expect(await ui.find({ type: 'Text', text: /1000 of 1400 open/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /at most 1000 results/ })).toBeDefined()
+  })
+
   test('more than 1000 hits shows the hint to narrow the search', async ($, on) => {
     const { world } = await boot($, on)
     world.search = () => ({ exitCode: 0, stdout: JSON.stringify({ data: { search: { issueCount: 1500, pageInfo: { hasNextPage: true, endCursor: 'c' }, nodes: [node(3)] } } }) })
@@ -347,10 +431,8 @@ describe('Issues: GitHub requests', () => {
       : { exitCode: 0, stdout: JSON.stringify({ data: { search: { issueCount: 40, pageInfo: { hasNextPage: true, endCursor: 'c' }, nodes: [node(3)] } } }) })
     const ui = await pane($, 'issues')
     await ui.press({ key: 'issue-refresh' })
-    await ui.press({ key: 'iss-more' })
     expect(await ui.find({ type: 'Text', text: /at most 1000 results/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /first 1000 search results/ })).toBeUndefined()
-    expect(await ui.find({ type: 'Button', key: 'iss-more' })).toBeUndefined()
   })
 
   test('→ Claude puts a reference into the input without sending; an invalid number is refused', async ($, on) => {
@@ -369,6 +451,69 @@ describe('Issues: GitHub requests', () => {
     await ui.press({ key: 'issue-ai-8' })
     expect(calls.fills[1]?.mode).toBe('append')
     expect(calls.fills[1]?.text.startsWith(' Look at GitHub issue acme/widgets#8')).toBe(true)
+  })
+})
+
+describe('Issues: ticking tasks', () => {
+  const BODY = 'Intro\n\n- [ ] first\n- [x] second\n```\n- [ ] in fence\n```\n* [ ] third'
+  const issue = (body: string) => node(5, { body })
+  const wrap = (n: unknown) => JSON.stringify({ data: { repository: { issue: n } } })
+  const listOf = (n: unknown) => JSON.stringify({ data: { search: { issueCount: 1, pageInfo: { hasNextPage: false, endCursor: null }, nodes: [n] } } })
+
+  async function open($: Engine, on: On, remote: string) {
+    const ctx = await boot($, on)
+    let detailCalls = 0
+    ctx.world.search = () => ({ exitCode: 0, stdout: listOf(issue(BODY)) })
+    ctx.world.detail = () => {
+      detailCalls++
+      return { exitCode: 0, stdout: wrap(issue(BODY)) }
+    }
+    ctx.world.rest = argv => (argv.includes('PATCH') ? { exitCode: 0, stdout: '{}' } : { exitCode: 0, stdout: JSON.stringify({ body: remote }) })
+    const ui = await pane($, 'issues')
+    await ui.press({ key: 'issue-refresh' })
+    await ui.press({ key: 'issue-open-5' })
+    return { ...ctx, ui, detailCalls: () => detailCalls }
+  }
+
+  const rest = (argvs: string[][]) => argvs.filter(a => a.some(x => x.startsWith('repos/'))).map(a => a.slice(1))
+
+  test('tasks show as toggles, text in between stays Markdown', async ($, on) => {
+    const { ui } = await open($, on, BODY)
+    expect(String((await ui.find({ type: 'Button', key: 'iss-task-5-0' }))?.props['label'])).toBe('☐ first')
+    expect(String((await ui.find({ type: 'Button', key: 'iss-task-5-1' }))?.props['label'])).toBe('☑ second')
+    expect(await ui.find({ type: 'Button', key: 'iss-task-5-2' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', key: 'iss-task-5-3' })).toBeUndefined()
+    expect(await ui.find({ type: 'Markdown', text: /Intro/ })).toBeDefined()
+    expect(await ui.find({ type: 'Markdown', text: /in fence/ })).toBeDefined()
+  })
+
+  test('a click reads the body, writes it back with one task flipped and reloads the detail', async ($, on) => {
+    const { ui, calls, detailCalls } = await open($, on, BODY)
+    const before = detailCalls()
+    await ui.press({ key: 'iss-task-5-2' })
+    expect(rest(calls.argvs)).toEqual([
+      ['api', 'repos/acme/widgets/issues/5'],
+      ['api', '-X', 'PATCH', 'repos/acme/widgets/issues/5', '-f', `body=${BODY.replace('* [ ] third', '* [x] third')}`],
+    ])
+    expect(detailCalls()).toBe(before + 1)
+    expect(calls.toasts).toEqual([])
+  })
+
+  test('a task that changed on GitHub is not written; the detail reloads with a toast', async ($, on) => {
+    const { ui, calls, detailCalls } = await open($, on, BODY.replace('first', 'first, edited'))
+    const before = detailCalls()
+    await ui.press({ key: 'iss-task-5-0' })
+    expect(rest(calls.argvs)).toEqual([['api', 'repos/acme/widgets/issues/5']])
+    expect(calls.toasts).toEqual(['The description changed on GitHub, reloaded.'])
+    expect(detailCalls()).toBe(before + 1)
+  })
+
+  test('a failed write toasts the error, cut to 160 characters', async ($, on) => {
+    const { ui, calls, world } = await open($, on, BODY)
+    world.rest = argv => (argv.includes('PATCH') ? { exitCode: 1, stderr: `HTTP 403 ${'x'.repeat(300)}` } : { exitCode: 0, stdout: JSON.stringify({ body: BODY }) })
+    await ui.press({ key: 'iss-task-5-0' })
+    expect(calls.toasts.length).toBe(1)
+    expect(calls.toasts[0]).toBe(`Could not update the task: HTTP 403 ${'x'.repeat(160 - 'HTTP 403 '.length)}`)
   })
 })
 
@@ -464,8 +609,8 @@ describe('Issues: summaries', () => {
       : { exitCode: 0, stdout: JSON.stringify({ data: { search: { issueCount: 40, pageInfo: { hasNextPage: true, endCursor: 'c' }, nodes: [node(3)] } } }) })
     const ui = await pane($, 'issues')
     await ui.press({ key: 'issue-refresh' })
-    await ui.press({ key: 'iss-more' })
     expect(await ui.find({ type: 'Text', text: /at most 1000 results/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /timeout after 1000 ms/ })).toBeDefined()
   })
 
   test('turning summaries on shows the plan note once; the model picker saves', async ($, on) => {

@@ -41,14 +41,14 @@ export function choice(
     <Box key={key} flexDirection="row" flexWrap="wrap" columnGap={1} alignItems="center">
       <Text dimColor>{title}:</Text>
       {options.map(o => (
-        pill(table, `${key}-${o.value}`, o.label, () => pick(o.value), { variant: o.value === value ? 'primary' : 'secondary' })
+        chip(table, `${key}-${o.value}`, o.label, () => pick(o.value), { variant: o.value === value ? 'primary' : 'secondary' })
       ))}
     </Box>
   )
 }
 
 export function switchBtn(table: Table, key: string, title: string, isOn: boolean, flip: () => void) {
-  return pill(table, key, title, flip, { icon: isOn ? '●' : '○', color: 'success', variant: isOn ? 'primary' : 'secondary' })
+  return chip(table, key, `${isOn ? '●' : '○'} ${title}`, flip, { color: 'success', variant: isOn ? 'primary' : 'secondary' })
 }
 
 export function section(table: Table, key: string, title: string, color: Color, children: RenderChildren, extra?: RenderChildren) {
@@ -70,9 +70,9 @@ export function section(table: Table, key: string, title: string, color: Color, 
 export function settingRow(table: Table, key: string, title: string, labelW: number, width: number, control: RenderChildren) {
   const { Box, Text } = table
   return (
-    <Box key={key} flexDirection="row" columnGap={1} alignItems="center">
+    <Box key={key} flexDirection="row" columnGap={1} alignItems="flex-start">
       <Box width={labelW} flexShrink={0}>
-        <Text>{title}</Text>
+        <Text wrap="wrap">{title}</Text>
       </Box>
       <Box width={Math.max(10, width - labelW - 1)} flexShrink={0} flexDirection="row" flexWrap="wrap" columnGap={1}>
         {control}
@@ -84,14 +84,13 @@ export function settingRow(table: Table, key: string, title: string, labelW: num
 export function segmented(table: Table, key: string, value: string, options: ReadonlyArray<Option>, pick: (v: string) => void) {
   return options.map(o => {
     const isOn = o.value === value
-    return pill(table, `${key}-${o.value}`, o.label, () => pick(o.value), { icon: isOn ? '●' : undefined, variant: isOn ? 'primary' : 'secondary' })
+    return chip(table, `${key}-${o.value}`, o.label, () => pick(o.value), { variant: isOn ? 'primary' : 'secondary' })
   })
 }
 
 export type PillLook = { icon?: string; color?: Color; badge?: string; variant?: 'primary' | 'secondary'; dimColor?: boolean }
 
 // The button style of the whole pane: a rounded frame around icon, label and badge, three rows high.
-// As wide as `[ label ]` (frame 2 + padding 2), so width math made for plain buttons still holds.
 // Primary takes the color on frame and icon, secondary a dim frame.
 export function pill(table: Table, key: string, label: string, onPress: () => void, look: PillLook = {}) {
   const { Box, Button, Text } = table
@@ -106,6 +105,25 @@ export function pill(table: Table, key: string, label: string, onPress: () => vo
   )
 }
 
+// One-row button for dense rows (tables, settings, lists): ` label ` on the color when primary, colored text
+// when secondary. Two columns wider than the label, two narrower than `[ label ]`.
+export function chip(table: Table, key: string, label: string, onPress: () => void, look: Pick<PillLook, 'color' | 'variant' | 'dimColor'> = {}) {
+  const { Box, Button, Text } = table
+  const color = look.color ?? 'claude'
+  const isPrimary = look.variant === 'primary'
+  // The hover needs a keyed Box around the button
+  return (
+    <Box key={`${key}-chip`} flexShrink={0}>
+      <Button key={key} plain label={label} variant={isPrimary ? 'primary' : 'secondary'} dimColor={look.dimColor} hover={{ color }} onPress={onPress}>
+        <Text backgroundColor={isPrimary ? color : undefined} color={isPrimary ? 'inverseText' : color} bold={isPrimary} dimColor={!isPrimary && look.dimColor}>
+          {` ${label} `}
+        </Text>
+      </Button>
+    </Box>
+  )
+}
+export const CHIP_PAD = 2
+
 export type Pill = { id: string; icon: string; label: string; color: Color; badge?: string }
 export function pills(table: Table, key: string, value: string, options: ReadonlyArray<Pill>, pick: (id: string) => void) {
   const { Box } = table
@@ -119,7 +137,7 @@ export function pills(table: Table, key: string, value: string, options: Readonl
   )
 }
 
-// Widths include the pill frame and padding; an inherited state is dimmed.
+// Widths are label + CHIP_PAD; an inherited state is dimmed.
 // Stored as on/off/never; the labels follow the locale.
 export const STATE_LABEL: Record<State, string> = {
   get on() { return t('state.on') },
@@ -128,14 +146,14 @@ export const STATE_LABEL: Record<State, string> = {
 }
 const STATE_COLOR: Record<State, Color> = { on: 'success', off: 'inactive', never: 'error' }
 // Wide enough for both locales: on/an, off/aus, never/nie
-export const STATE_COLS = [6, 7, 9] as const
+export const STATE_COLS = [2 + CHIP_PAD, 3 + CHIP_PAD, 5 + CHIP_PAD] as const
 export const STATE_W = STATE_COLS[0] + STATE_COLS[1] + STATE_COLS[2] + 2
 export function stateButtons(table: Table, key: string, value: State, isInherited: boolean, pick: (v: State) => void) {
   const { Box } = table
   const options: ReadonlyArray<State> = ['on', 'off', 'never']
   return options.map((v, i) => (
     <Box key={`${key}-col${i}`} width={STATE_COLS[i] ?? 7} flexShrink={0}>
-      {pill(table, `${key}-${v}`, STATE_LABEL[v], () => pick(v), {
+      {chip(table, `${key}-${v}`, STATE_LABEL[v], () => pick(v), {
         color: STATE_COLOR[v],
         variant: v === value ? 'primary' : 'secondary',
         dimColor: v === value && isInherited,
@@ -164,7 +182,7 @@ export function textField(table: Table, key: string, title: string, value: strin
 
 export function dangerBtn($: Eng, table: Table, pending: string, key: string, title: string, run: () => void) {
   const isPending = pending === key
-  return pill(table, key, isPending ? t('common.confirm', { title }) : title, () => void confirmThen($, key, run), { color: 'error', variant: isPending ? 'primary' : 'secondary' })
+  return chip(table, key, isPending ? t('common.confirm', { title }) : title, () => void confirmThen($, key, run), { color: 'error', variant: isPending ? 'primary' : 'secondary' })
 }
 
 export type CardTitle = { icon?: string; tone?: Color; text: string; badge?: string }

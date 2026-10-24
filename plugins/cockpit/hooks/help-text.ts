@@ -49,7 +49,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
         '- **;name:** `;github` in the prompt loads every source whose name or name part starts that way. Tab after `;git` suggests matching sources, switched-off ones first.',
         '- **Naming it:** A distinctive name as a whole word is enough, such as "with the humanizer". General words like "plugin" or "server" do not count.',
         '- **/command:** Cockpit never hides slash commands. If you type `/humanizer-de:humanizer-de`, the plugin loads.',
-        '- **keep on:** sets the source to "on" and saves it. **undo:** removes the grant, the saved state applies again.',
+        '- **always on** (Global view) or **keep** (Local view): sets the source to "on" and saves it. **undo:** removes the grant, the saved state applies again.',
         '- **Detours:** A Bash command that hits a known rule (say `curl` on a page for which an MCP server is installed) is stopped; Cockpit loads the first matching source that is not set to "never", and Claude uses it instead. The rules live under `redirects` in `cockpit.json`.',
         '- A plugin disabled in `enabledPlugins` cannot be loaded, because Claude Code does not know it at all. Turn it on under Sources → Manage plugins.',
       ],
@@ -83,8 +83,9 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       title: 'Issues',
       color: 'warning',
       lines: [
-        '- Issues of the repo with AI summary, labels, epic, blockers and PRs. Search, plus filters for status, sort order, label, issue type and assignee that GitHub applies, so counts and "Load more" stay right. "Reset filters" appears once one is set.',
-        '- The title opens the issue here, "↗ Browser" opens it on GitHub, "→ Claude" puts a reference to it into the input, where you add what Claude should do.',
+        '- Issues of the repo with AI summary, labels, epic, blockers and PRs. All issues load, 100 per request up to the 1000 results GitHub search allows; the list shows after the first request. Search, plus filters for status, sort order, label, issue type and assignee that GitHub applies, so the counts stay right. "Reset filters" appears once one is set. The page size ("Issues per page") is set in Settings: auto fits the window, or 5, 10, 20.',
+        '- The title opens the issue here, "↗" opens it on GitHub, "→ Claude" puts a reference to it into the input, where you add what Claude should do.',
+        '- Task lists (`- [ ]`) in the description are buttons: a click ticks the task on GitHub (it edits the issue description). If the text changed there in the meantime, nothing is written and the issue reloads.',
       ],
     },
     {
@@ -106,7 +107,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       color: 'suggestion',
       lines: [
         'Jeder Skill, jedes Plugin, jeder MCP-Server und jeder eigene Agent hat einen gespeicherten Standard. Er gilt global; pro Ordner lässt sich davon abweichen (siehe unten).',
-        '- **Global oder Lokal:** oben in der Übersicht umschalten. „Global“ setzt den Standard überall. „Lokal“ setzt eine Abweichung nur für das Git-Repo der Session (außerhalb eines Repos: den Startordner); gedimmte Knöpfe zeigen den globalen Stand, `↺` löscht die Abweichung. In der Ansicht „Global“ steht eine Abweichung als „hier an/aus/nie“ hinter dem Namen. Gespeichert wird alles in `cockpit.json` unter `folders`, nichts im Repo. Eine Session in einem Ordner mit Abweichungen startet auf „Lokal“; „hier dauerhaft“ unter „Nachgeladen (diese Session)“ speichert dann für diesen Ordner.',
+        '- **Global oder Lokal:** oben in der Übersicht umschalten. „Global“ setzt den Standard überall. „Lokal“ setzt eine Abweichung nur für das Git-Repo der Session (außerhalb eines Repos: den Startordner); gedimmte Knöpfe zeigen den globalen Stand, `↺` löscht die Abweichung. In der Ansicht „Global“ steht eine Abweichung als „hier an/aus/nie“ hinter dem Namen. Gespeichert wird alles in `cockpit.json` unter `folders`, nichts im Repo. Eine Session in einem Ordner mit Abweichungen startet auf „Lokal“; „behalten“ unter „Nachgeladen (diese Session)“ speichert dann für diesen Ordner.',
         '- **an:** sichtbar wie gewohnt.',
         '- **aus:** ausgeblendet. Claude sieht nur den Namen; die Quelle lädt beim ersten Aufruf ohne Rückfrage nach und meldet das kurz.',
         '- **nie:** wird nie geladen. Ein Aufruf wird abgelehnt, die Ablehnung nennt den besseren Weg (der Hinweis steht in `cockpit.json` unter `hints`). Auch Nennen im Prompt oder ein Bash-Umweg ändern das nicht.',
@@ -127,7 +128,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
         '- **;name:** `;github` im Prompt lädt jede Quelle nach, deren Name oder Namensteil so beginnt. Tab nach `;git` schlägt passende Quellen vor, ausgeschaltete zuerst.',
         '- **Beim Namen nennen:** Ein markanter Name als ganzes Wort reicht, etwa „mit dem Humanizer“. Allgemeine Wörter wie „plugin“ oder „server“ zählen nicht.',
         '- **/befehl:** Slash-Befehle blendet das Cockpit nie aus. Tippst du `/humanizer-de:humanizer-de`, lädt das Plugin nach.',
-        '- **dauerhaft an:** setzt die Quelle auf „an“ und speichert sie. **zurücknehmen:** entfernt die Freigabe, es gilt wieder der gespeicherte Zustand.',
+        '- **immer an** (Ansicht „Global“) oder **behalten** (Ansicht „Lokal“): setzt die Quelle auf „an“ und speichert sie. **zurücknehmen:** entfernt die Freigabe, es gilt wieder der gespeicherte Zustand.',
         '- **Umwege:** Ein Bash-Befehl, der eine bekannte Regel trifft (etwa `curl` auf eine Seite, für die ein MCP-Server installiert ist), wird gestoppt; das Cockpit lädt die erste passende Quelle, die nicht auf „nie“ steht, und Claude nimmt sie stattdessen. Die Regeln stehen unter `redirects` in `cockpit.json`.',
         '- Nicht nachladen lässt sich, was in `enabledPlugins` wirklich aus ist: Das kennt Claude Code gar nicht. Einschalten unter Quellen → Plugins verwalten.',
       ],
@@ -161,8 +162,9 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       title: 'Issues',
       color: 'warning',
       lines: [
-        '- Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Suche und Filter für Status, Sortierung, Label, Issue-Typ und Zugewiesene wendet GitHub selbst an, deshalb stimmen Zähler und „weitere laden“. „Filter zurücksetzen“ erscheint, sobald einer gesetzt ist.',
-        '- Der Titel öffnet das Issue hier, „↗ Browser“ auf GitHub, „→ Claude“ setzt einen Verweis darauf in die Eingabe; dort ergänzt du, was Claude tun soll.',
+        '- Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Es werden alle Issues geladen, 100 pro Anfrage bis zu den 1000 Treffern, die die GitHub-Suche erlaubt; die Liste erscheint nach der ersten Anfrage. Suche und Filter für Status, Sortierung, Label, Issue-Typ und Zugewiesene wendet GitHub selbst an, deshalb stimmen die Zähler. „Filter zurücksetzen“ erscheint, sobald einer gesetzt ist. Die Seitengröße („Issues pro Seite“) stellst du in den Einstellungen ein: automatisch passend zum Fenster oder 5, 10, 20.',
+        '- Der Titel öffnet das Issue hier, „↗“ auf GitHub, „→ Claude“ setzt einen Verweis darauf in die Eingabe; dort ergänzt du, was Claude tun soll.',
+        '- Aufgabenlisten (`- [ ]`) in der Beschreibung sind Schaltflächen: Ein Klick hakt die Aufgabe bei GitHub ab (die Issue-Beschreibung wird geändert). Hat sich der Text dort inzwischen geändert, wird nichts geschrieben und das Issue neu geladen.',
       ],
     },
     {

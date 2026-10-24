@@ -55,6 +55,8 @@ export type IssueList = {
   retryAt: number
   // The search runs into GitHub's limit of 1000 results
   isCapped: boolean
+  // More pages are being fetched
+  isLoading: boolean
 }
 
 export type IssueState = 'open' | 'closed' | 'all'
@@ -203,6 +205,7 @@ declare module 'claude-code' {
       issueDetail: IssueDetail | null
       summaries: Record<string, string>
       issuePage: number
+      issueTaskBusy: string
       actView: ActView
       actAllRepos: boolean
       actOpen: ActOpen | null

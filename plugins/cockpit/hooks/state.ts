@@ -40,7 +40,6 @@ export const AI_MODEL = 'sonnet'
 export const HEALTH_EVERY_MS = 60_000
 export const CI_INTERVAL_SECS = [0, 60, 90, 180, 300]
 export const QUEUED_MINUTES = [3, 5, 10, 15, 30]
-export const ISSUE_LIMITS = ['20', '40', '80', '100'].map(v => ({ value: v, label: v }))
 export const SUMMARY_MODELS = ['haiku', 'sonnet'].map(v => ({ value: v, label: v === 'haiku' ? 'Haiku' : 'Sonnet' }))
 // Rows summarized before the pane has reported its page size, and $.store entries kept
 export const SUMMARY_ROWS = 15

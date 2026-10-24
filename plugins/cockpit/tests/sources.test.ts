@@ -147,7 +147,7 @@ describe('resolver stateOf', () => {
 
 const V2_FILE = {
   version: 2,
-  settings: { toasts: true, openOnStart: true, ciEverySec: 60, queuedAlertMin: 5, issueLimit: 80, demo: false, issueSummaries: false },
+  settings: { toasts: true, openOnStart: true, ciEverySec: 60, queuedAlertMin: 5, issuesPerPage: 'auto', demo: false, issueSummaries: false },
   states: { 'skill:docs-lookup': 'an', 'mcp:context7': 'an', 'plugin:superpowers': 'aus', 'skill:anthropic-skills:chrome-browser': 'nie' },
   folders: { '/repo': { 'plugin:superpowers': 'an', 'mcp:x': 'nie' }, '/other': { 'plugin:a': 'aus' } },
   hints: { 'skill:anthropic-skills:chrome-browser': BROWSER_HINT },
@@ -253,7 +253,18 @@ describe('reading cockpit.json', () => {
     expect(read({ ciEverySec: 1 }).ciEverySec).toBe(30)
     expect(read({ ciEverySec: 0 }).ciEverySec).toBe(0)
     expect(read({ ciEverySec: 90.4 }).ciEverySec).toBe(90)
-    expect(read({ issueLimit: 1.5 }).issueLimit).toBe(2)
+  })
+
+  test('issuesPerPage takes auto, 5, 10 and 20; anything else is an error; the old issueLimit is dropped quietly', () => {
+    const parse = (settings: Record<string, unknown>) => parseConfig(JSON.stringify({ version: 3, states: {}, settings }), DEFAULT_CONFIG)
+    expect(DEFAULT_CONFIG.settings.issuesPerPage).toBe('auto')
+    expect(parse({}).config.settings.issuesPerPage).toBe('auto')
+    for (const v of ['auto', 5, 10, 20]) expect(parse({ issuesPerPage: v }).config.settings.issuesPerPage).toBe(v)
+    expect(parse({ issuesPerPage: 7 }).error?.code).toBe('badValues')
+    const old = parse({ issueLimit: 80 })
+    expect(old.error).toBeNull()
+    expect(old.config.settings.issuesPerPage).toBe('auto')
+    expect(old.config.unknown).toBeUndefined()
   })
 
   test('redirect patterns: long, nested-quantifier and invalid ones are rejected', () => {

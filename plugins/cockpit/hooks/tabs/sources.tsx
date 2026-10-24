@@ -8,7 +8,7 @@ import { showSourcesScope, showSourcesView } from '../nav'
 import { bareName, folderEntry, groupSources, norm, ownerOf } from '../sources'
 import { SOURCES_SCOPES, SOURCES_VIEWS, S } from '../state'
 import type { Eng } from '../state'
-import { STATE_LABEL, STATE_W, dangerBtn, pill, pills, section, stateButtons } from './ui'
+import { CHIP_PAD, STATE_LABEL, STATE_W, chip, dangerBtn, pills, section, stateButtons } from './ui'
 import { loadPlugins, pluginAction } from '../plugins-io'
 import type { PaneView, Table } from './ui'
 import type { SourcesScope, SourcesView } from '../../types'
@@ -19,8 +19,8 @@ const sourcesScopeA = atom({ plugin: 'cockpit', key: 'sourcesScope' } as const, 
 
 // Color and icon of the switches
 const VIEW_LOOK: Record<SourcesView, { icon: string; color: Color }> = {
-  overview: { icon: '☰', color: 'claude' },
-  plugins: { icon: '⚙', color: 'merged' },
+  overview: { icon: '☰', color: 'autoAccept' },
+  plugins: { icon: '⚙', color: 'planMode' },
 }
 const SCOPE_LOOK: Record<SourcesScope, { icon: string; color: Color }> = {
   global: { icon: '◍', color: 'suggestion' },
@@ -202,10 +202,10 @@ function sourceRow($: Eng, table: Table, inner: number, row: Row) {
 
 const isOn = (src: string): boolean => resolve(ownerOf(src, S.knownPlugins)).effective === 'on'
 
-// Loaded (this session): every session grant with a counter; "keep on" saves it, "undo" drops it.
-// Widths follow the longest label of the active locale (+4 for brackets and padding).
-const keepW = (): number => Math.max(t('src.keepHere').length, t('src.keepOn').length) + 4
-const dropW = (): number => t('src.drop').length + 4
+// Loaded (this session): every session grant with a counter; "always on" or "keep" saves it, "undo" drops it.
+// Widths follow the longest label of the active locale (+CHIP_PAD).
+const keepW = (): number => Math.max(t('src.keepHere').length, t('src.keepOn').length) + CHIP_PAD
+const dropW = (): number => t('src.drop').length + CHIP_PAD
 
 function loadedBox($: Eng, table: Table, W: number, isHere: boolean) {
   const { Box, Text } = table
@@ -222,10 +222,10 @@ function loadedBox($: Eng, table: Table, W: number, isHere: boolean) {
         const name = `${src}${uses > 1 ? ` ×${uses}` : ''}`
         const buttons = [
           <Box key={`load-c1-${src}`} width={keep} flexShrink={0}>
-            {pill(table, `load-keep-${src}`, isHere ? t('src.keepHere') : t('src.keepOn'), () => void keepGrant($, src, isHere), { color: 'success', variant: 'primary' })}
+            {chip(table, `load-keep-${src}`, isHere ? t('src.keepHere') : t('src.keepOn'), () => void keepGrant($, src, isHere), { color: 'remember', variant: 'primary' })}
           </Box>,
           <Box key={`load-c2-${src}`} width={drop} flexShrink={0}>
-            {pill(table, `load-drop-${src}`, t('src.drop'), () => void dropGrant($, src))}
+            {chip(table, `load-drop-${src}`, t('src.drop'), () => void dropGrant($, src), { color: 'remember' })}
           </Box>,
         ]
         return isWide ? (
@@ -286,9 +286,9 @@ function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
   const { Box, Text } = table
   const inner = W - 4
   // Status 1 | name | origin | toggle | delete, four gaps. Button widths follow the longest label of the
-  // active locale, including the confirm form (+4 brackets).
-  const toggleW = Math.max(...[t('plg.disable'), t('plg.enable'), t('common.confirm', { title: t('plg.disableShort') }), t('common.confirm', { title: t('plg.enableShort') })].map(l => l.length)) + 4
-  const deleteW = t('common.confirm', { title: t('plg.delete') }).length + 4
+  // active locale, including the confirm form (+CHIP_PAD).
+  const toggleW = Math.max(...[t('plg.disable'), t('plg.enable'), t('common.confirm', { title: t('plg.disableShort') }), t('common.confirm', { title: t('plg.enableShort') })].map(l => l.length)) + CHIP_PAD
+  const deleteW = t('common.confirm', { title: t('plg.delete') }).length + CHIP_PAD
   const srcW = Math.min(20, Math.max(8, Math.floor(inner / 5)))
   const nameW = Math.max(12, inner - 1 - srcW - toggleW - deleteW - 4)
   const groups = [
@@ -302,7 +302,7 @@ function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
         {S.pluginBusy !== '' && <Text color="warning">{S.pluginBusy}</Text>}
         {S.pluginError !== '' && <Text color="error">{S.pluginError}</Text>}
         <Box flexGrow={1} />
-        {pill(table, 'plg-refresh', t('plg.refresh'), () => void loadPlugins($))}
+        {chip(table, 'plg-refresh', t('plg.refresh'), () => void loadPlugins($))}
       </Box>
       {S.plugins.length === 0 && S.pluginError === '' && <Text dimColor>{t('plg.loading')}</Text>}
       {groups.map(g => {
@@ -337,7 +337,7 @@ function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
                         void pluginAction($, p, p.isEnabled ? 'disable' : 'enable'),
                       )
                     ) : (
-                      pill(table, `plg-tog-${p.id}-${p.scope}`, p.isEnabled ? t('plg.disable') : t('plg.enable'), () => void pluginAction($, p, p.isEnabled ? 'disable' : 'enable'), {
+                      chip(table, `plg-tog-${p.id}-${p.scope}`, p.isEnabled ? t('plg.disable') : t('plg.enable'), () => void pluginAction($, p, p.isEnabled ? 'disable' : 'enable'), {
                         color: 'success',
                         variant: p.isEnabled ? 'secondary' : 'primary',
                       })

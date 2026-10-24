@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { Color, Register } from 'claude-code'
 
 import { MCP_HEADING, agentOwner, filterMcpInstructions, filterSkillListing, findRedirect, folderStates, hintOf, loadSource, lspAllowed, lspOwner, mcpOwner, mcpServerOf, neverReason, norm, redirectHint, requestedSources, skillOwner, sourceSuggestions } from './sources'
 import type { Owner } from './sources'
@@ -25,6 +25,8 @@ const confirmA = atom({ plugin: 'cockpit', key: 'confirm' } as const, '')
 const noticeA = atom({ plugin: 'cockpit', key: 'notice' } as const, '')
 const tabA = atom({ plugin: 'cockpit', key: 'tab' } as const, 'sources')
 const isPaneOpenA = atom({ plugin: 'cockpit', key: 'isPaneOpen' } as const, false)
+
+const TAB_COLOR: Record<string, Color> = { sources: 'claude', actions: 'merged', issues: 'success', settings: 'warning', help: 'suggestion' }
 
 // MCP servers and plugin skills report in late after start: scan twice, then on every turn
 const LATE_DISCOVER_MS = [5_000, 20_000]
@@ -293,7 +295,7 @@ export const register: Register = on => {
     const tabs = (
       <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
         {TABS.map(tb => (
-          pill(table, `tab-${tb.id}`, t(tb.labelKey), () => void showTab($, tb.id), { variant: tab === tb.id ? 'primary' : 'secondary' })
+          pill(table, `tab-${tb.id}`, t(tb.labelKey), () => void showTab($, tb.id), { color: TAB_COLOR[tb.id], variant: tab === tb.id ? 'primary' : 'secondary' })
         ))}
       </Box>
     )

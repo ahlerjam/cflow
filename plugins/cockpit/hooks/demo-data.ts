@@ -73,7 +73,7 @@ export function demoIssues(now: number): { list: IssueList; summaries: Record<st
   })
   const items: Issue[] = [
     { ...base(251, 'Epic: Single sign-on', [L.epic, L.auth], 3, '## Goal\nSign in through the company identity provider.\n\n- [x] #243 Session model\n- [ ] #255 Provider config\n- [ ] #258 Audit log'), subTotal: 3, subDone: 1, comments: 7, assignees: ['alice'] },
-    { ...base(248, 'Login fails with SSO', [L.bug, L.auth], 2, 'With more than 5 tenants `list_tenants` times out.\n\nSteps:\n1. Sign in with 6 tenants\n2. Error 504'), comments: 2, assignees: ['alice'], prs: [{ number: 312, title: 'fix(auth): load tenants in batches', state: 'OPEN' }], kind: 'Bug' },
+    { ...base(248, 'Login fails with SSO', [L.bug, L.auth], 2, 'With more than 5 tenants `list_tenants` times out.\n\nSteps:\n1. Sign in with 6 tenants\n2. Error 504\n\n- [x] Reproduce\n- [ ] Load tenants in batches\n- [ ] Add a regression test'), comments: 2, assignees: ['alice'], prs: [{ number: 312, title: 'fix(auth): load tenants in batches', state: 'OPEN' }], kind: 'Bug' },
     { ...base(255, 'Auth: validate provider config (Epic #251)', [L.auth, L.feat], 6, 'Part of Epic #251. Reject incomplete provider settings at startup.'), blockedBy: [{ number: 243, title: 'Auth: session model', state: 'CLOSED' }], comments: 1 },
     { ...base(258, 'Auth: audit log for sign-ins (Epic #251)', [L.auth], 20, 'After Epic #251, due 07.11.'), blockedBy: [{ number: 255, title: 'Auth: validate provider config', state: 'OPEN' }] },
     { ...base(246, 'Search: add a relevance score to results', [L.feat, L.search], 26, 'Results should carry a score so clients can sort by relevance.'), comments: 2, kind: 'Feature' },
@@ -97,7 +97,7 @@ export function demoIssues(now: number): { list: IssueList; summaries: Record<st
   }
   const demoRepo = t('iss.demoRepo', { repo })
   return {
-    list: { at: now, repo: demoRepo, items, total: items.length, cursor: null, error: null, problem: null, retryAt: 0, isCapped: false },
+    list: { at: now, repo: demoRepo, items, total: items.length, cursor: null, error: null, problem: null, retryAt: 0, isCapped: false, isLoading: false },
     summaries: Object.fromEntries(items.map(i => [summaryKey(demoRepo, i, S.locale), summaries[i.number] ?? ''])),
     comments,
   }

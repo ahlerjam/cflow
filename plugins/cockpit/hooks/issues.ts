@@ -312,3 +312,80 @@ export function subtasksOf(epic: Issue, list: readonly Issue[]): Subtask[] {
     .map(i => ({ ...i, title: strip(i.title) }))
     .sort((a, b) => Number(a.isDone) - Number(b.isDone) || a.number - b.number)
 }
+
+export type BodyPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'task'; index: number; isDone: boolean; text: string }
+
+type TaskLine = { index: number; at: number; isDone: boolean; text: string }
+
+const TASK_LINE = /^([ \t]*[-*] \[)( |x|X)(\] )(.*)$/
+const FENCE = /^ {0,3}(`{3,}|~{3,})/
+
+// Task list items outside code fences, in order; `at` is the offset of the check character
+function scanTasks(body: string): Array<TaskLine & { line: number }> {
+  const out: Array<TaskLine & { line: number }> = []
+  let fence = ''
+  let offset = 0
+  body.split('\n').forEach((raw, line) => {
+    const text = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+    const f = FENCE.exec(text)?.[1]
+    if (f && !fence) fence = f
+    else if (f && fence && f[0] === fence[0] && f.length >= fence.length) fence = ''
+    else if (!fence) {
+      const m = TASK_LINE.exec(text)
+      if (m) out.push({ index: out.length, at: offset + (m[1] ?? '').length, isDone: m[2] !== ' ', text: stripControl(m[4] ?? '').trim(), line })
+    }
+    offset += raw.length + 1
+  })
+  return out
+}
+
+export const taskItems = (body: string): TaskLine[] => scanTasks(body).map(t => ({ index: t.index, at: t.at, isDone: t.isDone, text: t.text }))
+
+// Text between task items stays one block each, so it can go through the Markdown renderer
+export function splitBody(body: string): BodyPart[] {
+  const tasks = scanTasks(body)
+  if (tasks.length === 0) return [{ kind: 'text', text: body }]
+  const lines = body.split('\n')
+  const parts: BodyPart[] = []
+  let from = 0
+  const flush = (to: number) => {
+    const text = lines.slice(from, to).join('\n')
+    if (text.trim()) parts.push({ kind: 'text', text })
+  }
+  for (const t of tasks) {
+    flush(t.line)
+    parts.push({ kind: 'task', index: t.index, isDone: t.isDone, text: t.text })
+    from = t.line + 1
+  }
+  flush(lines.length)
+  return parts
+}
+
+// The body with task `index` flipped, or null when that task is gone or its text is no longer `text`
+export function flipTask(body: string, index: number, text: string): string | null {
+  const task = scanTasks(body)[index]
+  if (!task || task.text !== text) return null
+  return `${body.slice(0, task.at)}${task.isDone ? ' ' : 'x'}${body.slice(task.at + 1)}`
+}
+
+export type Seg = { text: string; color?: string; bold?: boolean; dim?: boolean }
+
+// Segments separated by `gap` columns, cut so the line never exceeds `width`; the last one that fits is ended with "…"
+export function clipSegs(segs: readonly Seg[], width: number, gap = 2): Seg[] {
+  const out: Seg[] = []
+  let used = 0
+  for (const s of segs) {
+    const room = width - used - (out.length > 0 ? gap : 0)
+    if (room < 1) break
+    if (s.text.length <= room) {
+      out.push(s)
+      used += s.text.length + (out.length > 1 ? gap : 0)
+    } else {
+      if (room >= 4) out.push({ ...s, text: `${s.text.slice(0, room - 1)}…` })
+      break
+    }
+  }
+  return out
+}
