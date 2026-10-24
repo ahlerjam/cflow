@@ -42,6 +42,7 @@ export function pageNumbers(page: number, pages: number): Array<number | '…'> 
 export async function issuesTab($: Eng, table: Table, pane: PaneView) {
   const { Box, Button, Markdown, Text } = table
   const Input = 'Input' in table ? table.Input : undefined
+  const hasSelect = 'Select' in table
   const list = await read($, issuesA)
   const query = await read($, queryA)
   const filters = normalizeFilters({
@@ -281,8 +282,9 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
               { value: 'created-asc', label: t('iss.sortOldest') },
               { value: 'comments-desc', label: t('iss.sortComments') },
             ], pick('sort'))}
-            {choice(table, 'issue-f-label', t('iss.fLabel'), filters.label, [any, { value: NO_LABEL, label: t('iss.noLabel') }, ...named(options?.labels ?? [])], pick('label'))}
-            {S.hasNativeFields && (options?.kinds.length ?? 0) > 0 &&
+            {/* Label and type lists can be long: without a dropdown they would be a wall of buttons */}
+            {hasSelect && choice(table, 'issue-f-label', t('iss.fLabel'), filters.label, [any, { value: NO_LABEL, label: t('iss.noLabel') }, ...named(options?.labels ?? [])], pick('label'))}
+            {hasSelect && S.hasNativeFields && (options?.kinds.length ?? 0) > 0 &&
               choice(table, 'issue-f-type', t('iss.fType'), filters.kind, [any, ...named(options?.kinds ?? [])], pick('kind'))}
             {choice(table, 'issue-f-assignee', t('iss.fAssignee'), filters.assignee, [
               any,
