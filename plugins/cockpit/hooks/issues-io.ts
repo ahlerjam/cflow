@@ -1,10 +1,11 @@
 import { atom, read, update } from 'claude-code'
 
-import type { Issue, IssueList } from '../types'
+import type { Issue, IssueList, IssueOptions } from '../types'
 import { cleanQuery, isIssueRef, issuePrompt } from './ci'
 import { currentRepo, ghPath, ghReady, note, runGh, setSetting, toast } from './core'
 import { demoIssues } from './demo-data'
-import { ISSUE_PAGE_MAX, cleanSummary, detailQuery, isFieldError, isSearchCapError, listQuery, parseDetail, parseListPage, searchString, summaryKey, summaryPrompt, summarySystem } from './issues'
+import { ANY, DEFAULT_FILTERS, ISSUE_PAGE_MAX, NAMED, cleanSummary, detailQuery, filterDemo, isFieldError, isSearchCapError, listQuery, normalizeFilters, optionsQuery, parseDetail, parseListPage, parseOptions, searchString, summaryKey, summaryPrompt, summarySystem } from './issues'
+import type { IssueFilters } from './issues'
 import { t } from './i18n'
 import { S, SEARCH_CAP, SUMMARY_INDEX, SUMMARY_KEEP } from './state'
 import type { Eng } from './state'
@@ -13,7 +14,12 @@ import type { Eng } from './state'
 const detailA = atom({ plugin: 'cockpit', key: 'issueDetail' } as const, null)
 const issuesA = atom({ plugin: 'cockpit', key: 'issues' } as const, null)
 const pageA = atom({ plugin: 'cockpit', key: 'issuePage' } as const, 0)
-const mineA = atom({ plugin: 'cockpit', key: 'isMineOnly' } as const, false)
+const stateA = atom({ plugin: 'cockpit', key: 'issueState' } as const, 'open')
+const sortA = atom({ plugin: 'cockpit', key: 'issueSort' } as const, 'updated-desc')
+const labelA = atom({ plugin: 'cockpit', key: 'issueLabel' } as const, 'any')
+const kindA = atom({ plugin: 'cockpit', key: 'issueKind' } as const, 'any')
+const assigneeA = atom({ plugin: 'cockpit', key: 'issueAssignee' } as const, 'any')
+const optionsA = atom({ plugin: 'cockpit', key: 'issueOptions' } as const, null)
 const openIssueA = atom({ plugin: 'cockpit', key: 'openIssue' } as const, 0)
 const queryA = atom({ plugin: 'cockpit', key: 'issueQuery' } as const, '')
 const summariesA = atom({ plugin: 'cockpit', key: 'summaries' } as const, {})
@@ -29,13 +35,64 @@ async function queryGh($: Eng, bin: string, args: (isNative: boolean) => string[
   return res
 }
 
+async function readFilters($: Eng): Promise<IssueFilters> {
+  return normalizeFilters({
+    state: await read($, stateA),
+    sort: await read($, sortA),
+    label: await read($, labelA),
+    kind: await read($, kindA),
+    assignee: await read($, assigneeA),
+  })
+}
+
+async function writeFilters($: Eng, f: IssueFilters): Promise<void> {
+  await update($, stateA, () => f.state)
+  await update($, sortA, () => f.sort)
+  await update($, labelA, () => f.label)
+  await update($, kindA, () => f.kind)
+  await update($, assigneeA, () => f.assignee)
+}
+
+// A label or type picked in another repo is not offered here: back to "any"
+async function storeOptions($: Eng, options: IssueOptions): Promise<void> {
+  await update($, optionsA, () => options)
+  const f = await readFilters($)
+  const isKnown = (value: string, names: readonly string[]) => value === ANY || value === 'none' || (value.startsWith(NAMED) && names.includes(value.slice(NAMED.length)))
+  await writeFilters($, { ...f, label: isKnown(f.label, options.labels) ? f.label : ANY, kind: isKnown(f.kind, options.kinds) ? f.kind : ANY })
+}
+
+// Once per repo and session; a failed fetch is retried with the next refresh
+async function loadOptions($: Eng, bin: string, repo: string, cwd: string): Promise<IssueOptions> {
+  const cached = await read($, optionsA)
+  if (cached?.repo === repo) return cached
+  const [owner, name] = repo.split('/')
+  try {
+    const res = await queryGh(
+      $, bin,
+      isNative => ['api', 'graphql', '-f', `query=${optionsQuery(isNative)}`, '-f', `owner=${owner ?? ''}`, '-f', `name=${name ?? ''}`],
+      { cwd, timeoutMs: 20_000 },
+    )
+    if (res.exitCode === 0) {
+      const options = parseOptions(res.stdout, repo)
+      await storeOptions($, options)
+      return options
+    }
+  } catch {
+    // the list still loads, only the pickers stay empty
+  }
+  return { repo, labels: [], kinds: [] }
+}
+
 // isMore appends the next issues behind the loaded ones; otherwise reload from page 1
 export async function refreshIssues($: Eng, isMore = false): Promise<void> {
   const now = await $.clock.now()
   if (!isMore) await update($, pageA, () => 0)
   if (S.cfg.settings.demo) {
     const demo = demoIssues(now)
-    await update($, issuesA, () => demo.list)
+    const kinds = demo.list.items.map(i => i.kind).filter((k): k is string => !!k)
+    await storeOptions($, { repo: demo.list.repo ?? '', labels: [...new Set(demo.list.items.flatMap(i => i.labels.map(l => l.name)))], kinds: [...new Set(kinds)] })
+    const items = filterDemo(demo.list.items, await readFilters($))
+    await update($, issuesA, () => ({ ...demo.list, items, total: items.length }))
     await update($, summariesA, m => ({ ...m, ...demo.summaries }))
     return
   }
@@ -48,7 +105,8 @@ export async function refreshIssues($: Eng, isMore = false): Promise<void> {
   const list: IssueList = { at: now, repo: null, items: before?.items ?? [], total: before?.total ?? 0, cursor: after, error: null, problem: ready.problem ?? (here ? null : 'noRepo'), retryAt: 0, isCapped: before?.isCapped ?? false }
   if (ready.bin && here) {
     list.repo = here.full
-    const q = searchString(here.full, cleanQuery(await read($, queryA)), await read($, mineA))
+    const options = await loadOptions($, ready.bin, here.full, here.root)
+    const q = searchString(here.full, cleanQuery(await read($, queryA)), await readFilters($), options)
     try {
       const res = await queryGh(
         $, ready.bin,
@@ -218,7 +276,12 @@ export async function searchIssues($: Eng, value: string): Promise<void> {
   await refreshIssues($)
 }
 
-export async function toggleMine($: Eng): Promise<void> {
-  await update($, mineA, v => !v)
+export async function setIssueFilter($: Eng, name: keyof IssueFilters, value: string): Promise<void> {
+  await writeFilters($, normalizeFilters({ ...(await readFilters($)), [name]: value }))
+  await refreshIssues($)
+}
+
+export async function resetIssueFilters($: Eng): Promise<void> {
+  await writeFilters($, DEFAULT_FILTERS)
   await refreshIssues($)
 }

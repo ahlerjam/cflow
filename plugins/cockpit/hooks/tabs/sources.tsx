@@ -8,7 +8,7 @@ import { showSourcesScope, showSourcesView } from '../nav'
 import { bareName, folderEntry, groupSources, norm, ownerOf } from '../sources'
 import { SOURCES_SCOPES, SOURCES_VIEWS, S } from '../state'
 import type { Eng } from '../state'
-import { STATE_LABEL, STATE_W, dangerBtn, pills, section, stateButtons } from './ui'
+import { STATE_LABEL, STATE_W, dangerBtn, pill, pills, section, stateButtons } from './ui'
 import { loadPlugins, pluginAction } from '../plugins-io'
 import type { PaneView, Table } from './ui'
 import type { SourcesScope, SourcesView } from '../../types'
@@ -61,7 +61,7 @@ export async function sourcesTab($: Eng, table: Table, pane: PaneView) {
           id: sc.id,
           label: t(sc.labelKey),
           ...SCOPE_LOOK[sc.id],
-          // "This folder" carries the folder name and the number of its deviations
+          // "Local" carries the folder name and the number of its deviations
           ...(sc.id === 'folder' ? { label: `${t(sc.labelKey)} · ${folderName(S.folderLabel)}`, ...(nHere > 0 ? { badge: `${nHere}` } : {}) } : {}),
         })), id => void showSourcesScope($, id as SourcesScope))}
       {view !== 'plugins' && (
@@ -108,7 +108,7 @@ type Row = {
   name: string
   count?: number
   isRepo?: boolean
-  // "This folder" view: buttons show and set the deviation here
+  // "Local" view: buttons show and set the deviation here
   isHere: boolean
 }
 
@@ -131,7 +131,7 @@ function sourceRow($: Eng, table: Table, inner: number, row: Row) {
   const entry = S.folder ? folderEntry(S.cfg, S.folder, src) : undefined
   const isChild = kind === 'child'
   const isInherited = isHere ? entry === undefined : isChild && shown.via !== 'own'
-  // ↺ deletes the deviation in "This folder", globally the own state of a plugin child
+  // ↺ deletes the deviation in "Local", globally the own state of a plugin child
   const hasReset = isChild || isHere
   const canReset = isHere ? entry !== undefined : isChild && shown.via === 'own'
   const dot = r.effective === 'on' ? '●' : r.effective === 'never' ? '⊘' : '○'
@@ -148,7 +148,7 @@ function sourceRow($: Eng, table: Table, inner: number, row: Row) {
   const isWide = wideName >= MIN_NAME_W
   const nameW = isWide ? wideName : Math.max(MIN_NAME_W, inner - lead - 1 - extras - (colsWide - 2))
   const buttons = (
-    <Box key={`row-btns-${src}`} flexDirection="row" columnGap={1}>
+    <Box key={`row-btns-${src}`} flexDirection="row" columnGap={1} alignItems="center">
       <Box flexDirection="row" columnGap={1}>
         {stateButtons(table, `src-${src}`, shown.saved, isInherited, v => void setSource($, src, v, isHere))}
       </Box>
@@ -164,7 +164,7 @@ function sourceRow($: Eng, table: Table, inner: number, row: Row) {
     </Box>
   )
   const head = (
-    <Box flexDirection="row" columnGap={1}>
+    <Box flexDirection="row" columnGap={1} alignItems="center">
       {kind === 'plugin' && (
         <Box width={FOLD_W} flexShrink={0}>
           <Button key={`src-fold-${src}`} plain label={open ? '▾' : '▸'} onPress={() => void togglePlugin($, src)} />
@@ -208,7 +208,7 @@ const keepW = (): number => Math.max(t('src.keepHere').length, t('src.keepOn').l
 const dropW = (): number => t('src.drop').length + 4
 
 function loadedBox($: Eng, table: Table, W: number, isHere: boolean) {
-  const { Box, Button, Text } = table
+  const { Box, Text } = table
   if (S.sessionGrants.length === 0) return null
   const inner = W - 4
   const keep = keepW()
@@ -222,14 +222,14 @@ function loadedBox($: Eng, table: Table, W: number, isHere: boolean) {
         const name = `${src}${uses > 1 ? ` ×${uses}` : ''}`
         const buttons = [
           <Box key={`load-c1-${src}`} width={keep} flexShrink={0}>
-            <Button key={`load-keep-${src}`} variant="primary" label={isHere ? t('src.keepHere') : t('src.keepOn')} onPress={() => void keepGrant($, src, isHere)} />
+            {pill(table, `load-keep-${src}`, isHere ? t('src.keepHere') : t('src.keepOn'), () => void keepGrant($, src, isHere), { color: 'success', variant: 'primary' })}
           </Box>,
           <Box key={`load-c2-${src}`} width={drop} flexShrink={0}>
-            <Button key={`load-drop-${src}`} label={t('src.drop')} onPress={() => void dropGrant($, src)} />
+            {pill(table, `load-drop-${src}`, t('src.drop'), () => void dropGrant($, src))}
           </Box>,
         ]
         return isWide ? (
-          <Box key={`load-${src}`} flexDirection="row" columnGap={1}>
+          <Box key={`load-${src}`} flexDirection="row" columnGap={1} alignItems="center">
             <Box width={nameW} flexShrink={0}>
               <Text>{fit(name, nameW)}</Text>
             </Box>
@@ -283,7 +283,7 @@ function overview($: Eng, table: Table, W: number, isHere: boolean) {
 
 // Plugins of this session: user scope and project/local of the current folder, one frame per scope
 function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
-  const { Box, Button, Text } = table
+  const { Box, Text } = table
   const inner = W - 4
   // Status 1 | name | origin | toggle | delete, four gaps. Button widths follow the longest label of the
   // active locale, including the confirm form (+4 brackets).
@@ -298,11 +298,11 @@ function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
   ]
   return (
     <Box flexDirection="column" rowGap={1}>
-      <Box flexDirection="row" columnGap={1}>
+      <Box flexDirection="row" columnGap={1} alignItems="center">
         {S.pluginBusy !== '' && <Text color="warning">{S.pluginBusy}</Text>}
         {S.pluginError !== '' && <Text color="error">{S.pluginError}</Text>}
         <Box flexGrow={1} />
-        <Button key="plg-refresh" label={t('plg.refresh')} onPress={() => void loadPlugins($)} />
+        {pill(table, 'plg-refresh', t('plg.refresh'), () => void loadPlugins($))}
       </Box>
       {S.plugins.length === 0 && S.pluginError === '' && <Text dimColor>{t('plg.loading')}</Text>}
       {groups.map(g => {
@@ -320,7 +320,7 @@ function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
             {list.map(p => {
               const [name = p.id, market = ''] = p.id.split('@')
               return (
-                <Box key={`plg-${p.id}-${p.scope}`} flexDirection="row" columnGap={1}>
+                <Box key={`plg-${p.id}-${p.scope}`} flexDirection="row" columnGap={1} alignItems="center">
                   <Box width={1} flexShrink={0}>
                     <Text color={p.isEnabled ? 'success' : undefined} dimColor={!p.isEnabled}>{p.isEnabled ? '●' : '○'}</Text>
                   </Box>
@@ -337,12 +337,10 @@ function pluginsView($: Eng, table: Table, pane: PaneView, W: number) {
                         void pluginAction($, p, p.isEnabled ? 'disable' : 'enable'),
                       )
                     ) : (
-                      <Button
-                        key={`plg-tog-${p.id}-${p.scope}`}
-                        label={p.isEnabled ? t('plg.disable') : t('plg.enable')}
-                        variant={p.isEnabled ? 'secondary' : 'primary'}
-                        onPress={() => void pluginAction($, p, p.isEnabled ? 'disable' : 'enable')}
-                      />
+                      pill(table, `plg-tog-${p.id}-${p.scope}`, p.isEnabled ? t('plg.disable') : t('plg.enable'), () => void pluginAction($, p, p.isEnabled ? 'disable' : 'enable'), {
+                        color: 'success',
+                        variant: p.isEnabled ? 'secondary' : 'primary',
+                      })
                     )}
                   </Box>
                   <Box width={deleteW} flexShrink={0}>

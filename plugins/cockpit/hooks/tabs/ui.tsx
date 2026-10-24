@@ -33,28 +33,22 @@ export function choice(
   options: ReadonlyArray<Option>,
   pick: (v: string) => void,
 ) {
-  const { Box, Button, Text } = table
+  const { Box, Text } = table
   const Select = 'Select' in table ? table.Select : undefined
   return Select ? (
     <Select key={key} label={title} value={value} options={options} onSelect={v => pick(v)} />
   ) : (
-    <Box key={key} flexDirection="row" flexWrap="wrap" columnGap={1}>
+    <Box key={key} flexDirection="row" flexWrap="wrap" columnGap={1} alignItems="center">
       <Text dimColor>{title}:</Text>
       {options.map(o => (
-        <Button
-          key={`${key}-${o.value}`}
-          label={o.label}
-          variant={o.value === value ? 'primary' : 'secondary'}
-          onPress={() => pick(o.value)}
-        />
+        pill(table, `${key}-${o.value}`, o.label, () => pick(o.value), { variant: o.value === value ? 'primary' : 'secondary' })
       ))}
     </Box>
   )
 }
 
 export function switchBtn(table: Table, key: string, title: string, isOn: boolean, flip: () => void) {
-  const { Button } = table
-  return <Button key={key} label={`${isOn ? '●' : '○'} ${title}`} variant={isOn ? 'primary' : 'secondary'} onPress={flip} />
+  return pill(table, key, title, flip, { icon: isOn ? '●' : '○', color: 'success', variant: isOn ? 'primary' : 'secondary' })
 }
 
 export function section(table: Table, key: string, title: string, color: Color, children: RenderChildren, extra?: RenderChildren) {
@@ -76,7 +70,7 @@ export function section(table: Table, key: string, title: string, color: Color, 
 export function settingRow(table: Table, key: string, title: string, labelW: number, width: number, control: RenderChildren) {
   const { Box, Text } = table
   return (
-    <Box key={key} flexDirection="row" columnGap={1}>
+    <Box key={key} flexDirection="row" columnGap={1} alignItems="center">
       <Box width={labelW} flexShrink={0}>
         <Text>{title}</Text>
       </Box>
@@ -88,15 +82,10 @@ export function settingRow(table: Table, key: string, title: string, labelW: num
 }
 
 export function segmented(table: Table, key: string, value: string, options: ReadonlyArray<Option>, pick: (v: string) => void) {
-  const { Button } = table
-  return options.map(o => (
-    <Button
-      key={`${key}-${o.value}`}
-      label={o.value === value ? `● ${o.label}` : o.label}
-      variant={o.value === value ? 'primary' : 'secondary'}
-      onPress={() => pick(o.value)}
-    />
-  ))
+  return options.map(o => {
+    const isOn = o.value === value
+    return pill(table, `${key}-${o.value}`, o.label, () => pick(o.value), { icon: isOn ? '●' : undefined, variant: isOn ? 'primary' : 'secondary' })
+  })
 }
 
 export type PillLook = { icon?: string; color?: Color; badge?: string; variant?: 'primary' | 'secondary'; dimColor?: boolean }
@@ -130,22 +119,27 @@ export function pills(table: Table, key: string, value: string, options: Readonl
   )
 }
 
-// Widths include the button brackets; an inherited state is dimmed.
+// Widths include the pill frame and padding; an inherited state is dimmed.
 // Stored as on/off/never; the labels follow the locale.
 export const STATE_LABEL: Record<State, string> = {
   get on() { return t('state.on') },
   get off() { return t('state.off') },
   get never() { return t('state.never') },
 }
+const STATE_COLOR: Record<State, Color> = { on: 'success', off: 'inactive', never: 'error' }
 // Wide enough for both locales: on/an, off/aus, never/nie
 export const STATE_COLS = [6, 7, 9] as const
 export const STATE_W = STATE_COLS[0] + STATE_COLS[1] + STATE_COLS[2] + 2
 export function stateButtons(table: Table, key: string, value: State, isInherited: boolean, pick: (v: State) => void) {
-  const { Box, Button } = table
+  const { Box } = table
   const options: ReadonlyArray<State> = ['on', 'off', 'never']
   return options.map((v, i) => (
     <Box key={`${key}-col${i}`} width={STATE_COLS[i] ?? 7} flexShrink={0}>
-      <Button key={`${key}-${v}`} label={STATE_LABEL[v]} variant={v === value ? 'primary' : 'secondary'} dimColor={isInherited && v === value} onPress={() => pick(v)} />
+      {pill(table, `${key}-${v}`, STATE_LABEL[v], () => pick(v), {
+        color: STATE_COLOR[v],
+        variant: v === value ? 'primary' : 'secondary',
+        dimColor: v === value && isInherited,
+      })}
     </Box>
   ))
 }
@@ -169,15 +163,8 @@ export function textField(table: Table, key: string, title: string, value: strin
 }
 
 export function dangerBtn($: Eng, table: Table, pending: string, key: string, title: string, run: () => void) {
-  const { Button } = table
-  return (
-    <Button
-      key={key}
-      label={pending === key ? t('common.confirm', { title }) : title}
-      variant={pending === key ? 'primary' : 'secondary'}
-      onPress={() => void confirmThen($, key, run)}
-    />
-  )
+  const isPending = pending === key
+  return pill(table, key, isPending ? t('common.confirm', { title }) : title, () => void confirmThen($, key, run), { color: 'error', variant: isPending ? 'primary' : 'secondary' })
 }
 
 export type CardTitle = { icon?: string; tone?: Color; text: string; badge?: string }

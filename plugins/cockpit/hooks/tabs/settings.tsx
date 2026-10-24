@@ -8,7 +8,7 @@ import { setSummaryModel, toggleSummaries } from '../issues-io'
 import { addMarker, reloadAll, resetConfig, toggleDemo } from '../nav'
 import { httpsHost, setMarker } from '../sources'
 import type { Eng } from '../state'
-import { STATE_LABEL, dangerBtn, onOff, section, segmented, settingRow, textField } from './ui'
+import { STATE_LABEL, dangerBtn, onOff, pill, section, segmented, settingRow, textField } from './ui'
 import type { PaneView, Table } from './ui'
 
 // Wide enough for the longest row title in English and German
@@ -16,7 +16,7 @@ const LABEL_W = 26
 
 // Sections with a row per setting: name on the left, every choice as a button on the right
 export async function settingsTab($: Eng, table: Table, pane: PaneView) {
-  const { Box, Button, Text } = table
+  const { Box, Text } = table
   const { pending } = pane
   const s = S.cfg.settings
   const inner = Math.max(44, (pane.bodyColumns || 70) - 1) - 4
@@ -66,13 +66,13 @@ export async function settingsTab($: Eng, table: Table, pane: PaneView) {
       {section(table, 'sec-marker', t('set.markers'), 'warning',
         <Box flexDirection="column">
           {markers.map(([plugin, marker]) => (
-            <Box key={`marker-${plugin}`} flexDirection="row" columnGap={1}>
+            <Box key={`marker-${plugin}`} flexDirection="row" columnGap={1} alignItems="center">
               <Box width={LABEL_W} flexShrink={0}>
                 <Text color="warning">{plugin}</Text>
               </Box>
               <Text>{t('set.markerQuoted', { marker })}</Text>
               <Box flexGrow={1} />
-              <Button key={`marker-del-${plugin}`} label={t('set.remove')} onPress={() => void edit($, c => setMarker(c, plugin, null))} />
+              {pill(table, `marker-del-${plugin}`, t('set.remove'), () => void edit($, c => setMarker(c, plugin, null)), { color: 'error' })}
             </Box>
           ))}
           {textField(table, 'set-marker', t('set.new'), '', t('set.markerPlaceholder'), v => void addMarker($, v))}
@@ -86,8 +86,8 @@ export async function settingsTab($: Eng, table: Table, pane: PaneView) {
             {S.cfgPath}
           </Text>
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-            <Button key="set-reload" label={t('set.reload')} onPress={() => void reloadAll($)} />
-            <Button key="set-rescan" label={t('set.rescan')} onPress={() => void discover($)} />
+            {pill(table, 'set-reload', t('set.reload'), () => void reloadAll($))}
+            {pill(table, 'set-rescan', t('set.rescan'), () => void discover($))}
           </Box>
           <Box flexDirection="row">
             {dangerBtn($, table, pending, 'reset', t('set.reset'), () => void resetConfig($))}

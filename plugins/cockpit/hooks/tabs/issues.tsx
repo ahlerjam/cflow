@@ -5,18 +5,23 @@ import type { Issue, IssueRef } from '../../types'
 import { S } from '../state'
 import { t } from '../i18n'
 import { ghProblemText, openUrl } from '../core'
-import { closeIssue, openIssue, refreshIssues, searchIssues, setIssuePage, toggleMine, toggleSummaries, workOnIssue } from '../issues-io'
+import { closeIssue, openIssue, refreshIssues, resetIssueFilters, searchIssues, setIssueFilter, setIssuePage, toggleSummaries, workOnIssue } from '../issues-io'
 import { ago, bar } from '../ci'
 import { fit } from '../actions'
-import { childrenOf, epicOf, subtasksOf, summaryKey } from '../issues'
+import { ANY, NAMED, NO_LABEL, childrenOf, epicOf, isFiltered, normalizeFilters, subtasksOf, summaryKey } from '../issues'
 import type { Eng } from '../state'
-import { card, switchBtn } from './ui'
-import type { PaneView, Table } from './ui'
+import { card, choice, pill } from './ui'
+import type { Option, PaneView, Table } from './ui'
 
 // Declared in every file that reads them: the mod loader only finds the source in a const of its own file.
 const detailA = atom({ plugin: 'cockpit', key: 'issueDetail' } as const, null)
 const issuesA = atom({ plugin: 'cockpit', key: 'issues' } as const, null)
-const mineA = atom({ plugin: 'cockpit', key: 'isMineOnly' } as const, false)
+const stateA = atom({ plugin: 'cockpit', key: 'issueState' } as const, 'open')
+const sortA = atom({ plugin: 'cockpit', key: 'issueSort' } as const, 'updated-desc')
+const labelA = atom({ plugin: 'cockpit', key: 'issueLabel' } as const, 'any')
+const kindA = atom({ plugin: 'cockpit', key: 'issueKind' } as const, 'any')
+const assigneeA = atom({ plugin: 'cockpit', key: 'issueAssignee' } as const, 'any')
+const optionsA = atom({ plugin: 'cockpit', key: 'issueOptions' } as const, null)
 const openIssueA = atom({ plugin: 'cockpit', key: 'openIssue' } as const, 0)
 const pageA = atom({ plugin: 'cockpit', key: 'issuePage' } as const, 0)
 const queryA = atom({ plugin: 'cockpit', key: 'issueQuery' } as const, '')
@@ -39,7 +44,14 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
   const Input = 'Input' in table ? table.Input : undefined
   const list = await read($, issuesA)
   const query = await read($, queryA)
-  const isMineOnly = await read($, mineA)
+  const filters = normalizeFilters({
+    state: await read($, stateA),
+    sort: await read($, sortA),
+    label: await read($, labelA),
+    kind: await read($, kindA),
+    assignee: await read($, assigneeA),
+  })
+  const options = await read($, optionsA)
   const summaries = await read($, summariesA)
   const openNo = await read($, openIssueA)
   const now = await $.clock.now()
@@ -160,7 +172,7 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
     const hasRel = !!i && (i.isEpic || i.blockedBy.length > 0 || i.blocking.length > 0 || i.prs.length > 0 || !!epicOf(i, items))
     return (
       <Box flexDirection="column" rowGap={1}>
-        <Button key="iss-back" plain label={t('iss.back')} onPress={() => void closeIssue($)} />
+        {pill(table, 'iss-back', t('iss.back'), () => void closeIssue($))}
         {!detail && <Text dimColor>{t('iss.loadingOne', { n: openNo })}</Text>}
         {detail?.error && <Text color="error">{detail.error}</Text>}
         {i &&
@@ -191,9 +203,9 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
           )}
         {i && (
           <Box flexDirection="row" flexWrap="wrap" columnGap={1} width={W}>
-            <Button key="iss-claude" variant="primary" label={t('act.toClaude')} onPress={() => void workOnIssue($, i)} />
-            <Button key="iss-browser" label={t('act.browser')} onPress={() => void openUrl($, i.url)} />
-            <Button key="iss-reload" label={t('common.refresh')} onPress={() => void openIssue($, openNo)} />
+            {pill(table, 'iss-claude', t('act.toClaude'), () => void workOnIssue($, i), { variant: 'primary' })}
+            {pill(table, 'iss-browser', t('act.browser'), () => void openUrl($, i.url))}
+            {pill(table, 'iss-reload', t('common.refresh'), () => void openIssue($, openNo))}
           </Box>
         )}
         {i && hasRel && section('iss-rel', t('iss.relations'), 'permission', relations(i, true))}
@@ -220,15 +232,21 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
     const AI_W = t('act.toClaude').length + 4
     const REF_W = t('common.refresh').length + 4
     const titleW = Math.max(10, inner - 1 - WEB_W - AI_W - 3)
-    // A page holds as many issues as fit the window: about four rows each, eleven for header and pager
-    const room = Math.max(3, Math.floor(((pane.rows ?? 40) - 11) / 4))
+    // A page holds as many issues as fit the window: about six rows each (a pill row is three high), nineteen for header and pager
+    const room = Math.max(3, Math.floor(((pane.rows ?? 40) - 19) / 6))
     S.issueRows = room
     const pages = Math.max(1, Math.ceil(items.length / room))
     const page = Math.min(await read($, pageA), pages - 1)
     const shown = items.slice(page * room, page * room + room)
     const total = list?.total ?? items.length
-    const countText = total > items.length ? t('iss.countOfTotal', { n: items.length, total }) : t('iss.count', { n: items.length })
-    const repoW = Math.max(8, inner - REF_W - countText.length - 7)
+    const stateWord = filters.state === 'open' ? t('iss.stateOpen') : filters.state === 'closed' ? t('iss.stateClosed') : t('iss.totalWord')
+    const countText = total > items.length ? t('iss.countOfTotal', { n: items.length, total, state: stateWord }) : t('iss.count', { n: items.length, state: stateWord })
+    const isActive = isFiltered(filters)
+    const RESET_W = t('iss.resetFilters').length + 4
+    const repoW = Math.max(8, inner - REF_W - countText.length - 7 - (isActive ? RESET_W + 1 : 0))
+    const pick = (name: 'state' | 'sort' | 'label' | 'kind' | 'assignee') => (v: string) => void setIssueFilter($, name, v)
+    const named = (names: readonly string[]): Option[] => names.map(n => ({ value: `${NAMED}${n}`, label: n }))
+    const any: Option = { value: ANY, label: t('iss.any') }
     return (
       <Box flexDirection="column" rowGap={1}>
         {S.cfg.settings.demo && <Text color="warning">{t('iss.demoNotice')}</Text>}
@@ -238,39 +256,64 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
             <Text bold color="claude">{fit(list?.repo ?? t('tab.issues'), repoW).trimEnd()}</Text>
             <Text bold color={items.length > 0 ? 'success' : 'inactive'}>● {countText}</Text>
             <Box flexGrow={1} />
-            <Button key="issue-refresh" label={t('common.refresh')} onPress={() => void refreshIssues($)} />
+            {isActive && pill(table, 'issue-reset', t('iss.resetFilters'), () => void resetIssueFilters($), { variant: 'primary', color: 'warning' })}
+            {pill(table, 'issue-refresh', t('common.refresh'), () => void refreshIssues($))}
           </Box>
           <Box flexDirection="row" flexWrap="wrap" columnGap={1} width={inner}>
             {Input && (
               <Input key="issue-search" placeholder={t('iss.searchPlaceholder')} value={query} submitLabel={t('iss.search')} onSubmit={value => void searchIssues($, value)} />
             )}
-            {switchBtn(table, 'issue-mine', t('iss.onlyMine'), isMineOnly, () => void toggleMine($))}
-            {switchBtn(table, 'issue-sum', t('set.aiSummary'), S.cfg.settings.issueSummaries, () => void toggleSummaries($))}
+            {pill(table, 'issue-sum', t('set.aiSummary'), () => void toggleSummaries($), {
+              icon: S.cfg.settings.issueSummaries ? '●' : '○',
+              variant: S.cfg.settings.issueSummaries ? 'primary' : 'secondary',
+            })}
+          </Box>
+          <Box flexDirection="row" flexWrap="wrap" columnGap={2} width={inner}>
+            {choice(table, 'issue-f-state', t('iss.status'), filters.state, [
+              { value: 'open', label: t('iss.stateOpen') },
+              { value: 'closed', label: t('iss.stateClosed') },
+              { value: 'all', label: t('iss.stateAll') },
+            ], pick('state'))}
+            {choice(table, 'issue-f-sort', t('iss.fSort'), filters.sort, [
+              { value: 'updated-desc', label: t('iss.sortUpdated') },
+              { value: 'updated-asc', label: t('iss.sortUpdatedAsc') },
+              { value: 'created-desc', label: t('iss.sortNewest') },
+              { value: 'created-asc', label: t('iss.sortOldest') },
+              { value: 'comments-desc', label: t('iss.sortComments') },
+            ], pick('sort'))}
+            {choice(table, 'issue-f-label', t('iss.fLabel'), filters.label, [any, { value: NO_LABEL, label: t('iss.noLabel') }, ...named(options?.labels ?? [])], pick('label'))}
+            {S.hasNativeFields && (options?.kinds.length ?? 0) > 0 &&
+              choice(table, 'issue-f-type', t('iss.fType'), filters.kind, [any, ...named(options?.kinds ?? [])], pick('kind'))}
+            {choice(table, 'issue-f-assignee', t('iss.fAssignee'), filters.assignee, [
+              any,
+              { value: 'me', label: t('iss.assigneeMe') },
+              { value: 'none', label: t('iss.assigneeNone') },
+            ], pick('assignee'))}
           </Box>
         </Box>
         {list === null && <Text dimColor>{t('common.loading')}</Text>}
         {list?.problem && <Text color="warning">{ghProblemText(list.problem, list.retryAt)}</Text>}
         {list?.error && <Text color="error">{list.error}</Text>}
         {list?.isCapped && <Text color="warning">{t('iss.capped')}</Text>}
-        {list && !list.problem && !list.error && items.length === 0 && <Text dimColor>{t('iss.none')}</Text>}
+        {list && !list.problem && !list.error && items.length === 0 && <Text dimColor>{t(isActive || query ? 'iss.noneFiltered' : 'iss.none')}</Text>}
         {items.length > 0 && (
           <Box flexDirection="column" borderStyle="round" paddingX={1} width={W}>
             {shown.map((i, n) => {
               const sum = sumOf(i)
               return (
                 <Box key={`issue-${i.number}`} flexDirection="column" width={inner} marginTop={n > 0 ? 1 : 0}>
-                  <Box flexDirection="row" columnGap={1}>
+                  <Box flexDirection="row" columnGap={1} alignItems="center">
                     <Box width={1} flexShrink={0}>
-                      <Text bold color="success">○</Text>
+                      <Text bold color={i.state === 'OPEN' ? 'success' : 'merged'}>{i.state === 'OPEN' ? '○' : '✓'}</Text>
                     </Box>
                     <Box width={titleW} flexShrink={0}>
                       <Button key={`issue-open-${i.number}`} plain label={fit(`#${i.number} ${i.title}`, titleW).trimEnd()} onPress={() => void openIssue($, i.number)} />
                     </Box>
                     <Box width={WEB_W} flexShrink={0}>
-                      <Button key={`issue-web-${i.number}`} label={t('act.browser')} onPress={() => void openUrl($, i.url)} />
+                      {pill(table, `issue-web-${i.number}`, t('act.browser'), () => void openUrl($, i.url))}
                     </Box>
                     <Box width={AI_W} flexShrink={0}>
-                      <Button key={`issue-ai-${i.number}`} variant="primary" label={t('act.toClaude')} onPress={() => void workOnIssue($, i)} />
+                      {pill(table, `issue-ai-${i.number}`, t('act.toClaude'), () => void workOnIssue($, i), { variant: 'primary' })}
                     </Box>
                   </Box>
                   <Box flexDirection="column" paddingLeft={2} width={inner}>
@@ -296,15 +339,15 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
           <Box flexDirection="column" width={W}>
             {pages > 1 && (
               <Box flexDirection="row" flexWrap="wrap" columnGap={1} width={W}>
-                <Button key="iss-prev" label={t('iss.prev')} dimColor={page === 0} onPress={() => void setIssuePage($, page - 1, room)} />
+                {pill(table, 'iss-prev', t('iss.prev'), () => void setIssuePage($, page - 1, room), { dimColor: page === 0 })}
                 {pageNumbers(page, pages).map((n, k) =>
                   n === '…' ? (
                     <Text key={`iss-gap-${k}`} dimColor>…</Text>
                   ) : (
-                    <Button key={`iss-page-${n}`} label={String(n + 1)} variant={n === page ? 'primary' : 'secondary'} onPress={() => void setIssuePage($, n, room)} />
+                    pill(table, `iss-page-${n}`, String(n + 1), () => void setIssuePage($, n, room), { variant: n === page ? 'primary' : 'secondary' })
                   ),
                 )}
-                <Button key="iss-next" label={t('iss.next')} dimColor={page === pages - 1} onPress={() => void setIssuePage($, Math.min(pages - 1, page + 1), room)} />
+                {pill(table, 'iss-next', t('iss.next'), () => void setIssuePage($, Math.min(pages - 1, page + 1), room), { dimColor: page === pages - 1 })}
               </Box>
             )}
             <Box flexDirection="row" columnGap={1} width={W}>
@@ -313,13 +356,13 @@ export async function issuesTab($: Eng, table: Table, pane: PaneView) {
                 {total > items.length ? t('iss.atGithub', { total }) : ''}
               </Text>
               <Box flexGrow={1} />
-              {list?.cursor && (
-                <Button
-                  key="iss-more"
-                  label={t('iss.loadMore', { n: Math.min(S.cfg.settings.issueLimit, total - items.length) })}
-                  onPress={() => void refreshIssues($, true).then(() => setIssuePage($, Math.floor(items.length / room), room))}
-                />
-              )}
+              {list?.cursor &&
+                pill(
+                  table,
+                  'iss-more',
+                  t('iss.loadMore', { n: Math.min(S.cfg.settings.issueLimit, total - items.length) }),
+                  () => void refreshIssues($, true).then(() => setIssuePage($, Math.floor(items.length / room), room)),
+                )}
             </Box>
           </Box>
         )}

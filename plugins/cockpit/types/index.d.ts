@@ -57,6 +57,13 @@ export type IssueList = {
   isCapped: boolean
 }
 
+export type IssueState = 'open' | 'closed' | 'all'
+export type IssueSort = 'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'comments-desc'
+export type IssueAssignee = 'any' | 'me' | 'none'
+
+// Labels and issue types of the repo that the filters offer (the first 100 labels)
+export type IssueOptions = { repo: string; labels: string[]; kinds: string[] }
+
 export type CiCheckCount = { passed: number; failed: number; pending: number }
 
 export type CiRun = {
@@ -185,7 +192,12 @@ declare module 'claude-code' {
       notice: string
       issues: IssueList | null
       issueQuery: string
-      isMineOnly: boolean
+      issueState: IssueState
+      issueSort: IssueSort
+      issueLabel: string
+      issueKind: string
+      issueAssignee: IssueAssignee
+      issueOptions: IssueOptions | null
       sourcesView: SourcesView
       openIssue: number
       issueDetail: IssueDetail | null

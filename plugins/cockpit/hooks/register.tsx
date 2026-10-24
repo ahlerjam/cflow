@@ -14,6 +14,7 @@ import { issuesTab } from './tabs/issues'
 import { sourcesTab } from './tabs/sources'
 import { settingsTab } from './tabs/settings'
 import { helpTab } from './tabs/help'
+import { pill } from './tabs/ui'
 
 // A literal in this file so the loader can read the hook matchers (id, requestId); same value as PANE in state.ts
 const PANE = 'cockpit'
@@ -292,12 +293,7 @@ export const register: Register = on => {
     const tabs = (
       <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
         {TABS.map(tb => (
-          <Button
-            key={`tab-${tb.id}`}
-            label={t(tb.labelKey)}
-            variant={tab === tb.id ? 'primary' : 'secondary'}
-            onPress={() => void showTab($, tb.id)}
-          />
+          pill(table, `tab-${tb.id}`, t(tb.labelKey), () => void showTab($, tb.id), { variant: tab === tb.id ? 'primary' : 'secondary' })
         ))}
       </Box>
     )

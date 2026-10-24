@@ -5,8 +5,8 @@ import type { On } from 'claude-code'
 import { isIssueRef, issuePrompt } from '../hooks/ci'
 import { DEFAULT_CONFIG } from '../hooks/defaults'
 import {
-  childrenOf, cleanSummary, detailQuery, emptyIssue, epicRefOf, isFieldError, listQuery, parseDetail, parseNode, stripControl, subtasksOf,
-  summaryKey, summaryPrompt,
+  DEFAULT_FILTERS, childrenOf, cleanSummary, detailQuery, emptyIssue, epicRefOf, filterDemo, isFieldError, isFiltered, listQuery, normalizeFilters,
+  optionsQuery, parseDetail, parseNode, parseOptions, searchString, stripControl, subtasksOf, summaryKey, summaryPrompt,
 } from '../hooks/issues'
 import { parseConfig } from '../hooks/sources'
 
@@ -83,6 +83,74 @@ describe('Issues: queries and foreign text', () => {
     expect(epicRefOf('x', 'This is part of #12 and more')).toBeNull()
     expect(epicRefOf('x', 'see the epic #12 for details')).toBeNull()
     expect(epicRefOf('Audit log (Epic #251)', '')).toBe(251)
+  })
+})
+
+describe('Issues: filters', () => {
+  const known = { repo: 'a/b', labels: ['bug', 'help wanted', 'we"ird\\'], kinds: ['Bug', 'Task'] }
+  const search = (extra: Partial<typeof DEFAULT_FILTERS>, query = '') => searchString('a/b', query, { ...DEFAULT_FILTERS, ...extra }, known)
+
+  test('the default is open, newest update first, nothing else', () => {
+    expect(search({})).toBe('repo:a/b is:issue is:open sort:updated-desc')
+    expect(isFiltered(DEFAULT_FILTERS)).toBe(false)
+  })
+
+  test('state, sort and assignee map to their qualifiers', () => {
+    expect(search({ state: 'closed' })).toContain(' is:closed ')
+    expect(search({ state: 'all' })).not.toMatch(/is:(open|closed)/)
+    for (const sort of ['updated-asc', 'created-desc', 'created-asc', 'comments-desc'] as const) expect(search({ sort })).toContain(`sort:${sort}`)
+    expect(search({ assignee: 'me' })).toContain('assignee:@me')
+    expect(search({ assignee: 'none' })).toContain('no:assignee')
+    expect(isFiltered({ ...DEFAULT_FILTERS, sort: 'created-asc' })).toBe(true)
+  })
+
+  test('label and type are quoted and must be known', () => {
+    expect(search({ label: 'name:bug' })).toContain('label:"bug"')
+    expect(search({ label: 'name:help wanted' })).toContain('label:"help wanted"')
+    expect(search({ label: 'none' })).toContain('no:label')
+    expect(search({ kind: 'name:Bug' })).toContain('type:"Bug"')
+    expect(search({ label: 'name:unlisted', kind: 'name:Epic' })).toBe(search({}))
+    expect(searchString('a/b', '', { ...DEFAULT_FILTERS, label: 'name:bug' })).not.toContain('label:')
+  })
+
+  test('quotes, backslashes and control characters cannot leave the quoted term', () => {
+    const odd = { repo: 'a/b', labels: ['we"ird\\', 'x\u001b[2J\ny" is:closed'], kinds: [] }
+    const q = (label: string) => searchString('a/b', '', { ...DEFAULT_FILTERS, label }, odd)
+    expect(q('name:we"ird\\')).toContain('label:"weird"')
+    expect(q('name:x\u001b[2J\ny" is:closed')).toBe('repo:a/b is:issue is:open sort:updated-desc label:"x[2Jy is:closed"')
+    // a value that was not listed never reaches the string, even with an injected qualifier
+    expect(q('name:bug" is:closed')).not.toContain('bug')
+  })
+
+  test('unknown atom values fall back to the default', () => {
+    expect(normalizeFilters({ state: 'x', sort: 'y', label: 'any', kind: 'any', assignee: 'z' })).toEqual(DEFAULT_FILTERS)
+  })
+
+  test('options come from labels and issue types, the plain query leaves types out', () => {
+    expect(optionsQuery()).toContain('issueTypes')
+    expect(optionsQuery(false)).not.toContain('issueTypes')
+    const text = JSON.stringify({ data: { repository: { labels: { nodes: [{ name: 'bug', color: 'f00' }, { name: 'a\u001bb', color: '000' }] }, issueTypes: null } } })
+    expect(parseOptions(text, 'a/b')).toEqual({ repo: 'a/b', labels: ['bug', 'ab'], kinds: [] })
+    expect(parseOptions('{}', 'a/b')).toEqual({ repo: 'a/b', labels: [], kinds: [] })
+  })
+
+  test('demo data is filtered and sorted here', () => {
+    const issue = (number: number, extra: Partial<ReturnType<typeof emptyIssue>>) => ({ ...emptyIssue(), number, updatedAt: `2026-10-0${number}T00:00:00Z`, ...extra })
+    const items = [
+      issue(1, { labels: [{ name: 'bug', color: '000' }], comments: 5, kind: 'Bug', assignees: ['alice'] }),
+      issue(2, { comments: 9 }),
+      issue(3, { state: 'CLOSED', labels: [{ name: 'bug', color: '000' }] }),
+    ]
+    const run = (extra: Partial<typeof DEFAULT_FILTERS>) => filterDemo(items, { ...DEFAULT_FILTERS, ...extra }).map(i => i.number)
+    expect(run({})).toEqual([2, 1])
+    expect(run({ state: 'closed' })).toEqual([3])
+    expect(run({ state: 'all', sort: 'comments-desc' })).toEqual([2, 1, 3])
+    expect(run({ sort: 'created-asc' })).toEqual([1, 2])
+    expect(run({ label: 'none' })).toEqual([2])
+    expect(run({ label: 'name:bug' })).toEqual([1])
+    expect(run({ kind: 'name:Bug' })).toEqual([1])
+    expect(run({ assignee: 'none' })).toEqual([2])
+    expect(run({ assignee: 'me' })).toEqual([1])
   })
 })
 
@@ -257,7 +325,7 @@ describe('Issues: GitHub requests', () => {
     await ui.press({ key: 'issue-refresh' })
     expect(await ui.find({ type: 'Text', text: '[Epic]' })).toBeDefined()
     await ui.press({ key: 'issue-open-9' })
-    const detail = calls.argvs.find(a => a.some(x => x.startsWith('owner=')))
+    const detail = calls.argvs.find(a => a.some(x => x.startsWith('owner=')) && a.some(x => x.includes('issue(number')))
     expect(detail?.some(a => a.includes('subIssues(first: 50)'))).toBe(true)
     expect(await ui.find({ type: 'Button', key: 'sub-open-9-11' })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: 'sub-open-9-12' })).toBeDefined()
