@@ -284,6 +284,37 @@ describe('Pane: Issues paging', () => {
   })
 })
 
+// openPane mounts with `as never`, which leaves the typed Pane without its Select act
+const pick = (ui: unknown, key: string, value: string) => (ui as { select: (t: { key: string; value: string }) => Promise<unknown> }).select({ key, value })
+
+describe('Pane: Issues filters', () => {
+  test('a filter reloads from GitHub with its qualifier, reset brings the default back', async ($, on) => {
+    const calls = await boot($, on, false)
+    const ui = await openPane($, 'issues')
+    await ui.press({ key: 'tab-issues' })
+    await ui.press({ key: 'issue-refresh' })
+    expect(await ui.find({ type: 'Button', key: 'issue-reset' })).toBeUndefined()
+    const lastQuery = () => calls.argvs.filter(a => a.some(x => x.startsWith('q=repo:'))).at(-1)?.find(x => x.startsWith('q=')) ?? ''
+    expect(lastQuery()).toBe('q=repo:acme/widgets is:issue is:open sort:updated-desc')
+
+    await pick(ui, 'issue-f-state', 'closed')
+    await pick(ui, 'issue-f-assignee', 'none')
+    expect(lastQuery()).toBe('q=repo:acme/widgets is:issue is:closed sort:updated-desc no:assignee')
+    await ui.press({ key: 'issue-reset' })
+    expect(lastQuery()).toBe('q=repo:acme/widgets is:issue is:open sort:updated-desc')
+    expect(await ui.find({ type: 'Button', key: 'issue-reset' })).toBeUndefined()
+  })
+
+  test('demo data is filtered here', async ($, on) => {
+    await boot($, on)
+    const ui = await openPane($, 'issues')
+    await ui.press({ key: 'tab-issues' })
+    await pick(ui, 'issue-f-assignee', 'none')
+    expect(await ui.find({ type: 'Button', key: 'issue-open-248' })).toBeUndefined()
+    expect(await ui.find({ type: 'Button', key: 'issue-open-246' })).toBeDefined()
+  })
+})
+
 describe('Pane: Sources', () => {
   test('overview and manage plugins are two views, the status line counts', async ($, on) => {
     const calls = await boot($, on)

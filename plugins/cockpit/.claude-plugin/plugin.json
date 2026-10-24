@@ -1,6 +1,6 @@
 {
   "name": "cockpit",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Side pane next to the chat that switches every skill, plugin, MCP server and agent on, off or never, and shows GitHub Actions runs and issues of the current repo.",
   "author": {
     "name": "ahlerjam"

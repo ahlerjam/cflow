@@ -28,7 +28,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       color: 'suggestion',
       lines: [
         'Every skill, plugin, MCP server and custom agent has a saved default. It applies globally; a folder can deviate from it (see below).',
-        '- **Global or this folder:** switch at the top of the overview. "Global" sets the default everywhere. "This folder" sets a deviation only for the session\'s git repo (outside a repo: the start folder); dimmed buttons show the global state, `↺` removes the deviation. In the "Global" view a deviation appears as "here on/off/never" after the name. Everything is saved in `cockpit.json` under `folders`, nothing in the repo.',
+        '- **Global or Local:** switch at the top of the overview. "Global" sets the default everywhere. "Local" sets a deviation only for the session\'s git repo (outside a repo: the start folder); dimmed buttons show the global state, `↺` removes the deviation. In the "Global" view a deviation appears as "here on/off/never" after the name. Everything is saved in `cockpit.json` under `folders`, nothing in the repo. A session in a folder with deviations opens on "Local"; "keep" under "Loaded (this session)" then saves for this folder.',
         '- **on:** visible as usual.',
         '- **off:** hidden. Claude only sees the name; the source loads on its first call without asking and shows a short notice.',
         '- **never:** never loaded. A call is refused, and the refusal names the better way (the hint lives in `cockpit.json` under `hints`). Mentioning it in the prompt or a Bash detour does not change that.',
@@ -83,8 +83,8 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       title: 'Issues',
       color: 'warning',
       lines: [
-        '- Open issues of the repo with AI summary, labels, epic, blockers and PRs. Search and "Mine only" filter.',
-        '- The title opens the issue here, "↗ Browser" opens it on GitHub, "→ Claude" hands it to Claude to work on.',
+        '- Issues of the repo with AI summary, labels, epic, blockers and PRs. Search, plus filters for status, sort order, label, issue type and assignee that GitHub applies, so counts and "Load more" stay right. "Reset filters" appears once one is set.',
+        '- The title opens the issue here, "↗ Browser" opens it on GitHub, "→ Claude" puts a reference to it into the input, where you add what Claude should do.',
       ],
     },
     {
@@ -106,7 +106,7 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       color: 'suggestion',
       lines: [
         'Jeder Skill, jedes Plugin, jeder MCP-Server und jeder eigene Agent hat einen gespeicherten Standard. Er gilt global; pro Ordner lässt sich davon abweichen (siehe unten).',
-        '- **Global oder dieser Ordner:** oben in der Übersicht umschalten. „Global“ setzt den Standard überall. „Dieser Ordner“ setzt eine Abweichung nur für das Git-Repo der Session (außerhalb eines Repos: den Startordner); gedimmte Knöpfe zeigen den globalen Stand, `↺` löscht die Abweichung. In der Ansicht „Global“ steht eine Abweichung als „hier an/aus/nie“ hinter dem Namen. Gespeichert wird alles in `cockpit.json` unter `folders`, nichts im Repo.',
+        '- **Global oder Lokal:** oben in der Übersicht umschalten. „Global“ setzt den Standard überall. „Lokal“ setzt eine Abweichung nur für das Git-Repo der Session (außerhalb eines Repos: den Startordner); gedimmte Knöpfe zeigen den globalen Stand, `↺` löscht die Abweichung. In der Ansicht „Global“ steht eine Abweichung als „hier an/aus/nie“ hinter dem Namen. Gespeichert wird alles in `cockpit.json` unter `folders`, nichts im Repo. Eine Session in einem Ordner mit Abweichungen startet auf „Lokal“; „hier dauerhaft“ unter „Nachgeladen (diese Session)“ speichert dann für diesen Ordner.',
         '- **an:** sichtbar wie gewohnt.',
         '- **aus:** ausgeblendet. Claude sieht nur den Namen; die Quelle lädt beim ersten Aufruf ohne Rückfrage nach und meldet das kurz.',
         '- **nie:** wird nie geladen. Ein Aufruf wird abgelehnt, die Ablehnung nennt den besseren Weg (der Hinweis steht in `cockpit.json` unter `hints`). Auch Nennen im Prompt oder ein Bash-Umweg ändern das nicht.',
@@ -161,8 +161,8 @@ export const HELP_SECTIONS: Record<Locale, readonly HelpSection[]> = {
       title: 'Issues',
       color: 'warning',
       lines: [
-        '- Offene Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Suche und „Nur meine“ filtern.',
-        '- Der Titel öffnet das Issue hier, „↗ Browser“ auf GitHub, „→ Claude“ gibt es Claude zum Bearbeiten.',
+        '- Issues des Repos mit KI-Zusammenfassung, Labels, Epic, Blockaden und PRs. Suche und Filter für Status, Sortierung, Label, Issue-Typ und Zugewiesene wendet GitHub selbst an, deshalb stimmen Zähler und „weitere laden“. „Filter zurücksetzen“ erscheint, sobald einer gesetzt ist.',
+        '- Der Titel öffnet das Issue hier, „↗ Browser“ auf GitHub, „→ Claude“ setzt einen Verweis darauf in die Eingabe; dort ergänzt du, was Claude tun soll.',
       ],
     },
     {

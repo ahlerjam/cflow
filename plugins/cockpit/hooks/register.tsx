@@ -6,7 +6,7 @@ import type { Owner } from './sources'
 import { refreshLight, startCiTimer } from './actions-io'
 import { discover, grantFor, grantOnRequest, loadConfig, note, noteMcpServer, noteUse, readFolder, readPlugins, refreshSkills, registerCommand, resolve, restoreSession, showStatus, stateFor, stateForKey } from './core'
 import { describeSuggestion, t } from './i18n'
-import { isClosedByPerson, isPaneShown, notePaneClosed, notePaneOpen, openPane, showTab } from './nav'
+import { defaultSourcesScope, isClosedByPerson, isPaneShown, notePaneClosed, notePaneOpen, openPane, showTab } from './nav'
 import { S, TABS, normalizeTab } from './state'
 import type { Eng } from './state'
 import { actionsTab } from './tabs/actions'
@@ -14,6 +14,7 @@ import { issuesTab } from './tabs/issues'
 import { sourcesTab } from './tabs/sources'
 import { settingsTab } from './tabs/settings'
 import { helpTab } from './tabs/help'
+import { pill } from './tabs/ui'
 
 // A literal in this file so the loader can read the hook matchers (id, requestId); same value as PANE in state.ts
 const PANE = 'cockpit'
@@ -59,6 +60,7 @@ export const register: Register = on => {
     // A reload fires session.start again: loaded sources and the source list stay
     await restoreSession($)
     await readFolder($, e.cwd).catch(err => logDiscover($, err))
+    await defaultSourcesScope($)
     // Before the first prompt: the gating assigns plugin servers and repo plugins by it
     await readPlugins($).catch(err => logDiscover($, err))
     await refreshSkills($).catch(err => logDiscover($, err))
@@ -291,12 +293,7 @@ export const register: Register = on => {
     const tabs = (
       <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
         {TABS.map(tb => (
-          <Button
-            key={`tab-${tb.id}`}
-            label={t(tb.labelKey)}
-            variant={tab === tb.id ? 'primary' : 'secondary'}
-            onPress={() => void showTab($, tb.id)}
-          />
+          pill(table, `tab-${tb.id}`, t(tb.labelKey), () => void showTab($, tb.id), { variant: tab === tb.id ? 'primary' : 'secondary' })
         ))}
       </Box>
     )

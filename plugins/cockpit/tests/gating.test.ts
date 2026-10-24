@@ -464,6 +464,22 @@ describe('Pane: Sources', () => {
     expect(saved().folders).toEqual({})
   })
 
+  test('a folder with deviations opens on "Local", a pick stays across a reload', async ($, on) => {
+    const files = { [COCKPIT]: JSON.stringify({ ...DEFAULT_CONFIG, settings: SETTINGS, folders: { '/r': { 'plugin:superpowers': 'on' } } }) }
+    const calls = await boot($, on, { files, scopes: { user: { 'superpowers@official': true } } })
+    const btn = (key: string) => calls.ui.find({ type: 'Button', key })
+    expect((await btn('scope-folder'))?.props['variant']).toBe('primary')
+    expect((await btn('scope-folder'))?.props['label']).toMatch(/^Local/)
+    await calls.ui.press({ key: 'scope-global' })
+    await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true } as never)
+    expect((await btn('scope-global'))?.props['variant']).toBe('primary')
+  })
+
+  test('a folder without deviations opens on "Global"', async ($, on) => {
+    const calls = await boot($, on, { scopes: { user: { 'superpowers@official': true } } })
+    expect((await calls.ui.find({ type: 'Button', key: 'scope-global' }))?.props['variant']).toBe('primary')
+  })
+
   test('/cockpit jobs (old name) opens the sources', async ($, on) => {
     const { ui } = await boot($, on)
     await ui.press({ key: 'tab-actions' })

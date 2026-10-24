@@ -1,4 +1,4 @@
-import type { Issue, IssueComment, IssueDetail, IssueRef } from '../types'
+import type { Issue, IssueAssignee, IssueComment, IssueDetail, IssueOptions, IssueRef, IssueSort, IssueState } from '../types'
 import { t } from './i18n'
 import type { Locale } from './i18n'
 
@@ -36,6 +36,22 @@ export const detailQuery = (isNative = true) => `query($owner: String!, $name: S
   }
 }`
 
+// Labels and issue types a filter can pick from; issue types are one of the newer fields
+export const optionsQuery = (isNative = true) => `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    labels(first: 100) { nodes { name color } }
+    ${isNative ? 'issueTypes(first: 25) { nodes { name } }' : ''}
+  }
+}`
+
+export function parseOptions(text: string, repo: string): IssueOptions {
+  const d = JSON.parse(text) as {
+    data?: { repository?: { labels?: { nodes: Array<{ name: string }> } | null; issueTypes?: { nodes: Array<{ name: string }> } | null } | null }
+  }
+  const names = (list?: { nodes: Array<{ name: string }> } | null) => (list?.nodes ?? []).map(n => stripControl(n.name)).filter(Boolean)
+  return { repo, labels: names(d.data?.repository?.labels), kinds: names(d.data?.repository?.issueTypes) }
+}
+
 export const LIST_QUERY = listQuery()
 export const DETAIL_QUERY = detailQuery()
 
@@ -49,10 +65,86 @@ export const isSearchCapError = (text: string): boolean => /only the first 1000 
 // Control characters (except newline and tab) in foreign text could drive the terminal or hide content
 export const stripControl = (text: string): string => text.replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '')
 
-export function searchString(repo: string, query: string, isMineOnly: boolean): string {
-  return [`repo:${repo}`, 'is:issue', 'is:open', 'sort:updated-desc', isMineOnly ? 'assignee:@me' : '', query]
+export const ISSUE_STATES = ['open', 'closed', 'all'] as const
+export const ISSUE_SORTS = ['updated-desc', 'updated-asc', 'created-desc', 'created-asc', 'comments-desc'] as const
+export const ISSUE_ASSIGNEES = ['any', 'me', 'none'] as const
+
+export type IssueFilters = {
+  state: IssueState
+  sort: IssueSort
+  // 'any', 'none' (no label) or NAMED + the label name
+  label: string
+  // 'any' or NAMED + the issue type name
+  kind: string
+  assignee: IssueAssignee
+}
+
+export const ANY = 'any'
+export const NO_LABEL = 'none'
+export const NAMED = 'name:'
+
+export const DEFAULT_FILTERS: IssueFilters = { state: 'open', sort: 'updated-desc', label: ANY, kind: ANY, assignee: ANY }
+
+export const isFiltered = (f: IssueFilters): boolean =>
+  f.state !== DEFAULT_FILTERS.state || f.sort !== DEFAULT_FILTERS.sort || f.label !== ANY || f.kind !== ANY || f.assignee !== ANY
+
+const oneOf = <T extends string>(list: readonly T[], value: string, fallback: T): T => list.find(v => v === value) ?? fallback
+
+// Atom values can be anything; unknown ones fall back to the default
+export const normalizeFilters = (f: { state: string; sort: string; label: string; kind: string; assignee: string }): IssueFilters => ({
+  state: oneOf(ISSUE_STATES, f.state, DEFAULT_FILTERS.state),
+  sort: oneOf(ISSUE_SORTS, f.sort, DEFAULT_FILTERS.sort),
+  label: f.label,
+  kind: f.kind,
+  assignee: oneOf(ISSUE_ASSIGNEES, f.assignee, DEFAULT_FILTERS.assignee),
+})
+
+// `cleanQuery` would strip the quotes that make a name with spaces one term, so names are checked on their own:
+// only names GitHub listed for the repo, with the characters that could end the quoted term removed
+export function quotedName(value: string, known: readonly string[]): string | null {
+  if (!value.startsWith(NAMED)) return null
+  const name = value.slice(NAMED.length)
+  if (!known.includes(name)) return null
+  const safe = name.replace(/[\u0000-\u001F\u007F-\u009F"\\]/g, '').trim()
+  return safe ? `"${safe}"` : null
+}
+
+export function searchString(repo: string, query: string, filters: IssueFilters, known: IssueOptions = { repo, labels: [], kinds: [] }): string {
+  const label = quotedName(filters.label, known.labels)
+  const kind = quotedName(filters.kind, known.kinds)
+  return [
+    `repo:${repo}`,
+    'is:issue',
+    filters.state === 'all' ? '' : `is:${filters.state}`,
+    `sort:${filters.sort}`,
+    filters.assignee === 'me' ? 'assignee:@me' : filters.assignee === 'none' ? 'no:assignee' : '',
+    filters.label === NO_LABEL ? 'no:label' : label ? `label:${label}` : '',
+    kind ? `type:${kind}` : '',
+    query,
+  ]
     .filter(Boolean)
     .join(' ')
+}
+
+// The demo has no GitHub to ask, so the sample list is filtered and sorted here
+export function filterDemo(items: readonly Issue[], f: IssueFilters): Issue[] {
+  const label = f.label.startsWith(NAMED) ? f.label.slice(NAMED.length) : null
+  const kind = f.kind.startsWith(NAMED) ? f.kind.slice(NAMED.length) : null
+  const out = items.filter(i =>
+    (f.state === 'all' || (f.state === 'open') === (i.state === 'OPEN')) &&
+    (f.label === NO_LABEL ? i.labels.length === 0 : label === null || i.labels.some(l => l.name === label)) &&
+    (kind === null || i.kind === kind) &&
+    (f.assignee === 'any' || (f.assignee === 'none' ? i.assignees.length === 0 : i.assignees.includes('alice'))),
+  )
+  const time = (i: Issue) => Date.parse(i.updatedAt)
+  const by: Record<IssueSort, (a: Issue, b: Issue) => number> = {
+    'updated-desc': (a, b) => time(b) - time(a),
+    'updated-asc': (a, b) => time(a) - time(b),
+    'created-desc': (a, b) => b.number - a.number,
+    'created-asc': (a, b) => a.number - b.number,
+    'comments-desc': (a, b) => b.comments - a.comments,
+  }
+  return out.sort(by[f.sort])
 }
 
 type Node = {

@@ -6,7 +6,7 @@ import { HELP_SYSTEM, helpAsText, helpCommands, helpSections } from '../help-tex
 import { t } from '../i18n'
 import { AI_MODEL, S } from '../state'
 import type { Eng } from '../state'
-import { section, textField } from './ui'
+import { pill, section, textField } from './ui'
 import type { PaneView, Table } from './ui'
 
 // Atoms are declared in every file that reads them: the mod loader only finds the source in a const of its own file.
@@ -42,7 +42,7 @@ export async function askHelp($: Eng, question: string): Promise<void> {
 }
 
 export async function helpTab($: Eng, table: Table, pane: PaneView) {
-  const { Box, Button, Markdown, Text } = table
+  const { Box, Markdown, Text } = table
   const W = Math.max(44, (pane.bodyColumns || 70) - 1)
   const inner = W - 4
   const cmdW = Math.min(36, Math.max(20, Math.floor(inner * 0.42)))
@@ -68,9 +68,9 @@ export async function helpTab($: Eng, table: Table, pane: PaneView) {
       {section(table, 'help-cmd', t('help.cmdTitle'), 'success',
         <Box flexDirection="column">
           {helpCommands().map((c, i) => (
-            <Box key={`help-cmd-${i}`} flexDirection="row" columnGap={1}>
+            <Box key={`help-cmd-${i}`} flexDirection="row" columnGap={1} alignItems="center">
               <Box width={cmdW} flexShrink={0}>
-                <Button key={`help-run-${i}`} label={fit(c.cmd, cmdW - 4).trimEnd()} onPress={() => void fillCommand($, c.fill)} />
+                {pill(table, `help-run-${i}`, fit(c.cmd, cmdW - 4).trimEnd(), () => void fillCommand($, c.fill))}
               </Box>
               <Box width={Math.max(10, inner - cmdW - 1)} flexShrink={0}>
                 <Text wrap="wrap">{c.what}</Text>

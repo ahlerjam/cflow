@@ -9,7 +9,7 @@ import { analyzeLog, analyzeRunDetail, closeLog, closeRun, dispatchWorkflow, fil
 import { bar, poolVerdict, shortRepo, vmsPerRepo } from '../ci'
 import { LOG_LINES_STEP, age, fit, fitLeft, isErrorLine, runColumns, runHeader, runRow, span, verdict } from '../actions'
 import type { Eng } from '../state'
-import { card, choice, dangerBtn, switchBtn } from './ui'
+import { card, choice, dangerBtn, pill, switchBtn } from './ui'
 import type { PaneView, Table } from './ui'
 
 // Atoms are declared in every file that reads them: the mod loader only finds the source in a const of the file itself.
@@ -80,17 +80,14 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
   const header = (
     <Box flexDirection="column" rowGap={1}>
       {hasPool ? poolCard : summaryCard}
-      <Box flexDirection="row" columnGap={1}>
+      <Box flexDirection="row" columnGap={1} alignItems="center">
         {views.map(v => (
-          <Button
-            key={`act-${v}`}
-            label={t(v === 'runs' ? 'act.viewRuns' : v === 'runners' ? 'act.viewRunners' : 'act.viewWorkflows')}
-            variant={view === v && !opened ? 'primary' : 'secondary'}
-            onPress={() => void showActView($, v)}
-          />
+          pill(table, `act-${v}`, t(v === 'runs' ? 'act.viewRuns' : v === 'runners' ? 'act.viewRunners' : 'act.viewWorkflows'), () => void showActView($, v), {
+            variant: view === v && !opened ? 'primary' : 'secondary',
+          })
         ))}
         <Box flexGrow={1} />
-        <Button key="act-refresh" label={t('common.refresh')} onPress={() => void refreshCi($)} />
+        {pill(table, 'act-refresh', t('common.refresh'), () => void refreshCi($))}
       </Box>
     </Box>
   )
@@ -107,7 +104,7 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
     const lv = verdict(logJob?.status ?? 'completed', logJob?.conclusion ?? '')
     content = (
       <Box flexDirection="column" rowGap={1}>
-        <Button key="log-back" plain label={t('act.backRun')} onPress={() => void closeLog($)} />
+        {pill(table, 'log-back', t('act.backRun'), () => void closeLog($))}
         {card(
           table,
           'log-card',
@@ -125,10 +122,10 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           {switchBtn(table, 'log-err', t('act.onlyErrors'), onlyErrors, () => void update($, actOnlyErrA, v => !v))}
           {all.length > shown.length && (
-            <Button key="log-more" label={t('act.moreLines', { n: LOG_LINES_STEP })} onPress={() => void update($, actLogLimitA, v => v + LOG_LINES_STEP)} />
+            pill(table, 'log-more', t('act.moreLines', { n: LOG_LINES_STEP }), () => void update($, actLogLimitA, v => v + LOG_LINES_STEP))
           )}
-          <Button key="log-ai" label={t('act.toClaude')} onPress={() => void analyzeLog($)} />
-          {run && <Button key="log-web" label={t('act.browser')} onPress={() => void openUrl($, logJob?.url ?? run.url)} />}
+          {pill(table, 'log-ai', t('act.toClaude'), () => void analyzeLog($), { color: 'claude', variant: 'primary' })}
+          {run && pill(table, 'log-web', t('act.browser'), () => void openUrl($, logJob?.url ?? run.url))}
         </Box>
         {log.steps.length > 1 &&
           choice(table,
@@ -159,12 +156,12 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
     const runningJobs = run ? run.jobs.filter(j => j.status !== 'completed').length : 0
     content = !run || !rv ? (
       <Box flexDirection="column" rowGap={1}>
-        <Button key="run-back" plain label={t('act.backRuns')} onPress={() => void closeRun($)} />
+        {pill(table, 'run-back', t('act.backRuns'), () => void closeRun($))}
         <Text dimColor>{t('act.runLoading', { id: opened.runId })}</Text>
       </Box>
     ) : (
       <Box flexDirection="column" rowGap={1}>
-        <Button key="run-back" plain label={t('act.backRuns')} onPress={() => void closeRun($)} />
+        {pill(table, 'run-back', t('act.backRuns'), () => void closeRun($))}
         {card(
           table,
           'run-card',
@@ -181,8 +178,8 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
           run.title || undefined,
         )}
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-          <Button key="run-web" label={t('act.browser')} onPress={() => void openUrl($, run.url)} />
-          {hasFailed && <Button key="run-ai" label={t('act.toClaude')} onPress={() => void analyzeRunDetail($, run)} />}
+          {pill(table, 'run-web', t('act.browser'), () => void openUrl($, run.url))}
+          {hasFailed && pill(table, 'run-ai', t('act.toClaude'), () => void analyzeRunDetail($, run), { color: 'claude', variant: 'primary' })}
           {hasFailed && dangerBtn($, table, pending, 'run-rerun-failed', t('act.rerunFailed'), () => void runAction($, run, 'rerun-failed'))}
           {!isRunning && dangerBtn($, table, pending, 'run-rerun', t('act.rerunAll'), () => void runAction($, run, 'rerun'))}
           {isRunning && dangerBtn($, table, pending, 'run-cancel', t('act.cancel'), () => void runAction($, run, 'cancel'))}
@@ -226,10 +223,10 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
                         />
                       </Box>
                     ))}
-                    <Box flexDirection="row" columnGap={1}>
+                    <Box flexDirection="row" columnGap={1} alignItems="center">
                       <Text dimColor>└</Text>
-                      <Button key={`job-log-${j.id}`} label={t('act.viewLog')} onPress={() => void openLog($, j)} />
-                      <Button key={`job-web-${j.id}`} plain label={t('act.browser')} onPress={() => void openUrl($, j.url)} />
+                      {pill(table, `job-log-${j.id}`, t('act.viewLog'), () => void openLog($, j))}
+                      {pill(table, `job-web-${j.id}`, t('act.browser'), () => void openUrl($, j.url))}
                     </Box>
                   </Box>
                 )}
@@ -328,7 +325,7 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
           const last = ci?.runs.find(r => r.name === w.name && r.repo === S.workflowRepo)
           const isActive = w.state === 'active'
           return (
-            <Box key={`wf-${w.id}`} flexDirection="row" columnGap={1}>
+            <Box key={`wf-${w.id}`} flexDirection="row" columnGap={1} alignItems="center">
               {last ? vIcon(`wf-icon-${w.id}`, last.status, last.conclusion) : <Text dimColor>·</Text>}
               <Button key={`wf-runs-${w.id}`} plain dimColor={!isActive} label={`${fit(w.name, nameW)}${isActive ? '' : t('act.wfOff')}`} onPress={() => void filterWorkflow($, w.name)} />
               {isActive && dangerBtn($, table, pending, `wf-run-${w.id}`, t('act.start'), () => void dispatchWorkflow($, w))}
@@ -347,7 +344,7 @@ export async function actionsTab($: Eng, table: Table, pane: PaneView) {
       <Box flexDirection="column" rowGap={1}>
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           {switchBtn(table, 'act-all', t('act.allRepos'), isAll, () => void toggleAllRepos($))}
-          {wfFilter && <Button key="act-unfilter" label={`× ${wfFilter}`} onPress={() => void update($, actWfFilterA, () => '')} />}
+          {wfFilter && pill(table, 'act-unfilter', wfFilter, () => void update($, actWfFilterA, () => ''), { icon: '×', color: 'warning', variant: 'primary' })}
           {ci?.pr && (
             <Button
               key="ci-pr"

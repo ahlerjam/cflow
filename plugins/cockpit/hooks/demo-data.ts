@@ -73,12 +73,12 @@ export function demoIssues(now: number): { list: IssueList; summaries: Record<st
   })
   const items: Issue[] = [
     { ...base(251, 'Epic: Single sign-on', [L.epic, L.auth], 3, '## Goal\nSign in through the company identity provider.\n\n- [x] #243 Session model\n- [ ] #255 Provider config\n- [ ] #258 Audit log'), subTotal: 3, subDone: 1, comments: 7, assignees: ['alice'] },
-    { ...base(248, 'Login fails with SSO', [L.bug, L.auth], 2, 'With more than 5 tenants `list_tenants` times out.\n\nSteps:\n1. Sign in with 6 tenants\n2. Error 504'), comments: 2, assignees: ['alice'], prs: [{ number: 312, title: 'fix(auth): load tenants in batches', state: 'OPEN' }] },
+    { ...base(248, 'Login fails with SSO', [L.bug, L.auth], 2, 'With more than 5 tenants `list_tenants` times out.\n\nSteps:\n1. Sign in with 6 tenants\n2. Error 504'), comments: 2, assignees: ['alice'], prs: [{ number: 312, title: 'fix(auth): load tenants in batches', state: 'OPEN' }], kind: 'Bug' },
     { ...base(255, 'Auth: validate provider config (Epic #251)', [L.auth, L.feat], 6, 'Part of Epic #251. Reject incomplete provider settings at startup.'), blockedBy: [{ number: 243, title: 'Auth: session model', state: 'CLOSED' }], comments: 1 },
     { ...base(258, 'Auth: audit log for sign-ins (Epic #251)', [L.auth], 20, 'After Epic #251, due 07.11.'), blockedBy: [{ number: 255, title: 'Auth: validate provider config', state: 'OPEN' }] },
-    { ...base(246, 'Search: add a relevance score to results', [L.feat, L.search], 26, 'Results should carry a score so clients can sort by relevance.'), comments: 2 },
-    { ...base(239, 'CI: unit tests on large runners take over 30 min', [L.ci], 48, 'Since the matrix added Python 3.13 the run takes twice as long.'), blocking: [{ number: 248, title: 'Login fails with SSO', state: 'OPEN' }], assignees: ['bob'] },
-    { ...base(230, 'Docs: update the deploy guide for the new server', [L.docs], 120, 'The steps for the map service are missing.') },
+    { ...base(246, 'Search: add a relevance score to results', [L.feat, L.search], 26, 'Results should carry a score so clients can sort by relevance.'), comments: 2, kind: 'Feature' },
+    { ...base(239, 'CI: unit tests on large runners take over 30 min', [L.ci], 48, 'Since the matrix added Python 3.13 the run takes twice as long.'), blocking: [{ number: 248, title: 'Login fails with SSO', state: 'OPEN' }], assignees: ['bob'], kind: 'Task' },
+    { ...base(230, 'Docs: update the deploy guide for the new server', [L.docs], 120, 'The steps for the map service are missing.'), kind: 'Task' },
   ]
   const summaries: Record<string, string> = {
     251: 'Umbrella epic: sign-in should go through the company identity provider.',
