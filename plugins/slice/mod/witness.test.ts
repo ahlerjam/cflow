@@ -34,7 +34,8 @@ test('a pass is cached per tree, a failure never is', async ($, on) => {
   expect(spawned).toBe(1)
   ;[tree, code] = ['t2', 1]
   expect(await slice($, { action: 'prove', cwd: '/wt/a' })).toMatch(/FAIL make verify \(exit 1\)\nran/)
-  await slice($, { action: 'prove', cwd: '/wt/a' })
+  code = 3
+  expect(await slice($, { action: 'prove', cwd: '/wt/a' })).toMatch(/^\[slice harness\] BUSY make verify/)
   expect(spawned).toBe(3)
 })
 test('done needs a pass on the current tree and the verdict of its level', async ($, on) => {

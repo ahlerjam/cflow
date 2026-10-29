@@ -21,16 +21,25 @@ const { path, base } = await agent(
 )
 
 let findings = []
+if (proof !== 'make verify') {
+  const red = await agent(`Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}" before any change. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`, { label: 'red baseline', phase: 'Prove', schema: RESULT })
+  if (red?.passed) findings = [`The proof ${proof} already passes before any change, so it does not prove the claim. Write or change a check that fails without the feature first.`]
+}
 for (let round = 1; round <= 3; round++) {
   const hint = round === 3 ? ' Rounds 1 and 2 failed: rethink the approach before you change code.' : ''
   await agent(
     `Worktree: ${path}\nClaim:\n${claim}\nQuality brief:\n${brief}\nFindings to fix (empty on round 1):\n${findings.join('\n')}${hint}`,
     { agentType: 'slice:builder', label: `builder r${round}`, phase: 'Build' },
   )
-  const proved = await agent(
-    `Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}". Load the tool with ToolSearch if needed. Do not run anything else and do not interpret the answer. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`,
-    { label: `prove r${round}`, phase: 'Prove', schema: RESULT },
-  )
+  let proved
+  for (let t = 0; t < 3; t++) {
+    proved = await agent(
+      `Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}". Load the tool with ToolSearch if needed. Do not run anything else and do not interpret the answer. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`,
+      { label: `prove r${round}`, phase: 'Prove', schema: RESULT },
+    )
+    if (!/\] BUSY /.test(proved?.text ?? '')) break
+    await agent('Run: sleep 60', { label: 'wait for lock', phase: 'Prove', model: 'haiku' })
+  }
   if (!/^\[slice harness\] PASS /.test(proved?.text ?? '')) {
     findings = [`The harness proof failed:\n${proved?.text ?? 'no answer'}`]
     continue

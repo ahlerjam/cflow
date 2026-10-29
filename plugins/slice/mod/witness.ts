@@ -43,7 +43,7 @@ async function prove($: Eng, a: Record<string, unknown>, cwd: string, agentId?: 
   while (!r.done) [out, r] = [(out + r.value.text).slice(-8000), await g.next()]
   const [t1, pass] = [await $.clock.now(), r.value.code === 0]
   await logEvent($, 'prove', { cmd, tree, pass })
-  if (!pass) return `FAIL ${cmd} (exit ${r.value.code ?? r.value.signal})\n${out.trim().split('\n').slice(-40).join('\n')}`
+  if (!pass) return r.value.code === 3 ? `BUSY ${cmd}: another slice proof holds the machine lock. Fix: call prove again in a minute; this is not a failure of the code.` : `FAIL ${cmd} (exit ${r.value.code ?? r.value.signal})\n${out.trim().split('\n').slice(-40).join('\n')}`
   await $.fs.write(`${S.dir}/cache/${cacheKey(tree, cmd)}`, JSON.stringify({ t: t1, cmd }))
   return `PASS ${cmd} on ${short} (${Math.round((t1 - t0) / 1000)}s)`
 }
