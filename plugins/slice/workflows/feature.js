@@ -45,11 +45,11 @@ for (let round = 1; round <= 3; round++) {
     continue
   }
   const { sha } = await agent(
-    `In ${path}: git add -A -- . ':!.slice-env' && git commit -q -m "slice: candidate ${id}" && git rev-parse HEAD. Return the sha.`,
+    `In ${path}: git add -A -- . ':!.slice-env' && git commit -q --allow-empty -m "slice: candidate ${id}" && git rev-parse HEAD. Return the sha.`,
     { label: 'candidate', phase: 'Verify', schema: SHA },
   )
   const v = await agent(
-    `Work in ${path}. Diff: git diff ${base}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md and any .claude/skills/run-* recipe there.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nRecord your verdict with mcp__slice__slice (action verdict, cwd ${path}), then end with the VERDICT line and copy it to raw.`,
+    `Work in ${path}. Diff: git diff ${base}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md, any .claude/skills/run-* recipe there and .slice-env for ports and paths.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nRecord your verdict with mcp__slice__slice (action verdict, cwd ${path}), then end with the VERDICT line and copy it to raw.`,
     { agentType: 'slice:verifier', label: `verifier r${round}`, phase: 'Verify', schema: VERDICT, ...(risk === 'high' ? { model: 'opus' } : {}) },
   )
   const fence = await agent(`Run: git -C ${path} status --porcelain; git -C ${path} rev-parse HEAD. If the status is not empty or HEAD is not ${sha}, run git -C ${path} reset --hard ${sha} && git -C ${path} clean -fd. Return clean=true only if nothing had to be reset.`, { label: 'fence', phase: 'Verify', schema: { type: 'object', properties: { clean: { type: 'boolean' } }, required: ['clean'] } })

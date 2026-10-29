@@ -10,7 +10,7 @@ paths:
   - "**/*.css"
   - "**/*.html"
 ---
-Active only when `.claude/slice.json` exists, otherwise ignore this skill. Taste belongs to the person; you carry it out against references. `DESIGN.md` belongs to the person too: tokens, references, named anti-patterns, target widths and a scroll allowlist, as the lines `widths: 360, 768, 1280` and `scroll-allow: .table-wrap, pre` that `ui-check` reads. Edits to it ask the person. If it does not exist, ask once; without an answer propose tokens and write them as a draft the person can change.
+Active only when `.claude/slice.json` exists, otherwise ignore this skill. Taste belongs to the person; you carry it out against references. `DESIGN.md` belongs to the person too: tokens, references, named anti-patterns, target widths and a scroll allowlist, as the lines `widths: 360, 768, 1280`, `scroll-allow: .table-wrap, pre` and `console-allow: <expected error text>` that `ui-check` reads. Edits to it ask the person. If it does not exist, ask once; without an answer propose tokens and write them as a draft the person can change.
 
 ## Direction
 Take the look from the subject's world, not from generic SaaS: paper and typesetting for a text editor, game material for game hosting. Name two real references and one anti-reference before drawing.

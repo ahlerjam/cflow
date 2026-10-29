@@ -10,6 +10,7 @@ const gitDir = () => { try { return execFileSync('git', ['rev-parse', '--path-fo
 const [url, states, designPath, out] = [arg('url'), arg('states'), arg('design') ?? 'DESIGN.md', arg('out') ?? `${gitDir()}/slice/shots`]
 if (!url || !states) fail(`missing arguments. ${USAGE}`)
 const list = (() => { try { return JSON.parse(states) } catch { fail(`--states is not valid JSON. ${USAGE}`) } })()
+if (!Array.isArray(list) || !list.length || list.some(s => !s?.name || typeof s.path !== 'string')) fail(`--states must be a non-empty array of {name, path}. ${USAGE}`)
 
 function fail(msg) {
   console.error(`ui-check: ${msg}`)
@@ -19,7 +20,7 @@ function fail(msg) {
 const design = existsSync(designPath) ? readFileSync(designPath, 'utf8') : ''
 const line = key => (new RegExp(`^[\\s>*-]*\\*{0,2}\`?${key}\`?\\*{0,2}:\\*{0,2}\\s*(.+)$`, 'mi').exec(design)?.[1] ?? '').split(',').map(s => s.trim().replace(/^`|`$/g, '')).filter(Boolean)
 const widths = line('widths').map(w => parseInt(w, 10)).filter(Boolean)
-const scrollAllow = line('scroll-allow')
+const [scrollAllow, consoleAllow] = [line('scroll-allow'), line('console-allow')]
 if (!widths.length) widths.push(360, 768, 1280)
 
 let chromium
@@ -55,7 +56,7 @@ for (const state of list) {
     }, scrollAllow)
     await page.screenshot({ path: join(out, `${String(state.name).replace(/[^\w.-]/g, '_')}-${width}.png`), fullPage: true })
     if (overflow.length) problems.push(`${state.name} @${width}px overflows horizontally (${overflow.join(', ')}). Fix: constrain the element or list its selector under scroll-allow in DESIGN.md.`)
-    for (const e of errors) problems.push(`${state.name} @${width}px console error: ${e}. Fix: remove the cause of the error.`)
+    for (const e of errors.filter(e => !consoleAllow.some(a => e.includes(a)))) problems.push(`${state.name} @${width}px console error: ${e}. Fix: remove the cause, or list an expected error text under console-allow in DESIGN.md.`)
     await page.close()
   }
 }

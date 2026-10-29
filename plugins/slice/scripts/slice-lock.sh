@@ -7,7 +7,7 @@ dir=$(git rev-parse --path-format=absolute --git-common-dir)/slice; mkdir -p "$d
 x=$dir/idx.$$; tree=$(GIT_INDEX_FILE=$x git add -A 2>/dev/null && GIT_INDEX_FILE=$x git write-tree); rm -f "$x"
 hit=$dir/cache/sh-$tree-$(echo "$*" | sed 's/[^A-Za-z0-9_]\{1,\}/_/g')
 [ -n "$tree" ] && [ -f "$hit" ] && { echo "slice-lock: cached pass for this tree, not running: $*"; exit 0; }
-d=/tmp/slice-lock-$(id -u).l; w=$d.want; n=${SLICE_LOCK_WAIT:-90}; own=0; st=0; start=$(date +%s)
+d=/tmp/slice-lock-$(id -u).l; w=$d.want; n=${SLICE_LOCK_WAIT:-90}; case $n in ""|*[!0-9]*) n=90;; esac; own=0; st=0; start=$(date +%s)
 i=0; [ -z "$SLICE_RUN" ] && i=1
 cleanup() { [ $own = 1 ] && rm -f "$d"; [ $st = 1 ] && rm -f "$d.steal"; rm -f "$w.$$"; }
 trap cleanup EXIT; trap 'exit 143' INT TERM HUP
