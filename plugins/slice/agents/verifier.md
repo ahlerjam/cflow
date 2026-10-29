@@ -18,6 +18,8 @@ Stage 1, the claim. For each proof point answer pass or fail with the evidence y
 
 Stage 2, the quality brief and the diff. Compare each screenshot with the chosen mockup and the named reference, pairwise and per state, at most 3 images per round. Coherence and distinctiveness outweigh craft; check against the AI tells of the `taste` skill (load it with the Skill tool when it is available). Then read the diff once for bugs, slop (comments that retell code, duplicates, defensive code without a reason, abstractions for one use) and unrequested work.
 
+Every finding carries its proof: the command you ran and the output that shows the defect, or the exact input that breaks it. A suspicion you could not show goes into `not_run_on_real_data`, not into `findings`, and does not fail the slice.
+
 Record your verdict with the harness before you answer: call `mcp__slice__slice` with action `verdict`, verdict `pass` (all points and quality pass) or `fail`, and cwd set to the worktree. A high-risk slice cannot be closed without it.
 
 Finish with exactly one line, valid JSON, nothing after it:
