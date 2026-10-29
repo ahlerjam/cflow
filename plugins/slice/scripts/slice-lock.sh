@@ -1,7 +1,8 @@
 #!/bin/sh
 # Same lock and cache as the slice mod (mod/lock.ts), for make targets and the hook. Inactive in CI and without the marker.
 top=$(git rev-parse --show-toplevel 2>/dev/null)
-{ [ -n "$CI" ] || [ ! -f "$top/.claude/slice.json" ] || [ $# -eq 0 ]; } && exec "$@"
+[ $# -eq 0 ] && { echo "Usage: slice-lock.sh <command...>" >&2; exit 2; }
+{ [ -n "$CI" ] || [ -n "$SLICE_LOCK_HELD" ] || [ ! -f "$top/.claude/slice.json" ]; } && exec "$@"
 dir=$(git rev-parse --path-format=absolute --git-common-dir)/slice; mkdir -p "$dir/cache"
 x=$dir/idx.$$; tree=$(GIT_INDEX_FILE=$x git add -A 2>/dev/null && GIT_INDEX_FILE=$x git write-tree); rm -f "$x"
 hit=$dir/cache/$tree-$(echo "$*" | sed 's/[^A-Za-z0-9_]\{1,\}/_/g')
@@ -26,5 +27,5 @@ while :; do
 done
 rm -f "$w.$$"
 "$@"; code=$?
-[ $code = 0 ] && [ -n "$tree" ] && printf '{"t":"%s","cmd":"%s"}' "$(date -u +%FT%TZ)" "$*" > "$hit"
+[ $code = 0 ] && [ -n "$tree" ] && printf '{"t":"%s","cmd":"%s"}' "$(date -u +%FT%TZ)" "$(printf %s "$*" | sed 's/\\/\\\\/g; s/"/\\"/g')" > "$hit.tmp" && mv "$hit.tmp" "$hit"
 exit $code

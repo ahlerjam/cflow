@@ -5,16 +5,19 @@ export const meta = {
 }
 
 const RESULT = { type: 'object', properties: { text: { type: 'string' }, passed: { type: 'boolean' } }, required: ['text', 'passed'] }
+const WORKTREE = { type: 'object', properties: { path: { type: 'string' }, base: { type: 'string' } }, required: ['path', 'base'] }
+const SHA = { type: 'object', properties: { sha: { type: 'string' } }, required: ['sha'] }
 const VERDICT = {
   type: 'object',
-  properties: { pass: { type: 'boolean' }, findings: { type: 'array', items: { type: 'string' } }, raw: { type: 'string' } },
-  required: ['pass', 'findings', 'raw'],
+  properties: { pass: { type: 'boolean' }, quality: { type: 'string', enum: ['pass', 'fail'] }, findings: { type: 'array', items: { type: 'string' } }, raw: { type: 'string' } },
+  required: ['pass', 'quality', 'findings', 'raw'],
 }
 
-const { claim, brief, proof = 'make verify' } = args
+if (!args?.claim || !args?.brief || !args?.id) throw new Error('feature needs args {id, claim, brief, proof?, risk?}. Fix: pass a short id, the claim as checkable points and the quality brief.')
+const { id, claim, brief, proof = 'make verify', risk = 'medium' } = args
 const { path, base } = await agent(
-  `Run in the repo root: BASE=$(git rev-parse HEAD); P=$HOME/.cache/slice/$(basename "$PWD")-$(git rev-parse --short HEAD)/wt/f1; git worktree add -b slice-f1 "$P" HEAD; if [ -f .slice-env ]; then cp .slice-env "$P/"; fi. Return the absolute worktree path and BASE.`,
-  { label: 'worktree', phase: 'Build', schema: { type: 'object', properties: { path: { type: 'string' }, base: { type: 'string' } }, required: ['path', 'base'] } },
+  `Run in the repo root and return the absolute worktree path and BASE: BASE=$(git rev-parse HEAD); P=$HOME/.cache/slice/$(git rev-parse --show-toplevel | cksum | cut -d' ' -f1)/wt/${id}; git worktree add -b slice-${id} "$P" HEAD; [ -f .slice-env ] && cp .slice-env "$P/"`,
+  { label: 'worktree', phase: 'Build', schema: WORKTREE },
 )
 
 let findings = []
@@ -25,19 +28,22 @@ for (let round = 1; round <= 3; round++) {
     { agentType: 'slice:builder', label: `builder r${round}`, phase: 'Build' },
   )
   const proved = await agent(
-    `Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}". Do not run anything else and do not interpret the answer. Return passed=true only if the answer starts with PASS or "cached", and put the answer verbatim in text.`,
+    `Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}". Do not run anything else and do not interpret the answer. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`,
     { label: `prove r${round}`, phase: 'Prove', schema: RESULT },
   )
-  if (!proved.passed) {
-    findings = [`The harness proof failed:\n${proved.text}`]
+  if (!proved?.passed) {
+    findings = [`The harness proof failed:\n${proved?.text ?? 'no answer'}`]
     continue
   }
-  const sha = await agent(`In ${path}: git add -A && git commit -qm "slice: candidate" && git rev-parse HEAD. Return the sha only.`, { label: 'candidate', phase: 'Verify' })
-  const v = await agent(
-    `Worktree: ${path}\nDiff: git diff ${base}..${String(sha).trim()}\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nEnd with the VERDICT line, copy it to raw.`,
-    { agentType: 'slice:verifier', label: `verifier r${round}`, phase: 'Verify', schema: VERDICT },
+  const { sha } = await agent(
+    `In ${path}: git add -A -- . ':!.slice-env' && git commit -q -m "slice: candidate ${id}" && git rev-parse HEAD. Return the sha.`,
+    { label: 'candidate', phase: 'Verify', schema: SHA },
   )
-  if (v.pass) return { status: 'verified', worktree: path, base, sha: String(sha).trim(), proof: proved.text, verdict: v.raw }
-  findings = v.findings
+  const v = await agent(
+    `Work in ${path}. Diff: git diff ${base}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md and any .claude/skills/run-* recipe there.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nEnd with the VERDICT line and copy it to raw.`,
+    { agentType: 'slice:verifier', label: `verifier r${round}`, phase: 'Verify', schema: VERDICT, ...(risk === 'high' ? { model: 'opus' } : {}) },
+  )
+  if (v?.pass && v.quality === 'pass') return { status: 'verified', worktree: path, base, sha, proof: proved.text, verdict: v.raw }
+  findings = v?.findings ?? ['The verifier gave no answer.']
 }
-return { status: 'stuck', worktree: path, findings, ask: 'Three rounds failed; the person decides how to continue.' }
+return { status: 'stuck', worktree: path, findings, question: 'Three rounds failed. Options: change the approach, narrow the claim, or stop. Which?' }

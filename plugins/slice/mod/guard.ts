@@ -22,7 +22,7 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const segments = (cmd: string) => cmd.replace(/\b((?:ba|z)?sh\s+-c)\s+["']/g, '$1 ').split(/&&|\|\||[;|&\n()]/)
 const gitSeg = (cmd: string, re: RegExp) => segments(cmd).some(s => GIT.test(s) && re.test(s))
 export const runsTests = (cmd: string): boolean => segments(cmd).some(s => RUNNER.test(s))
-export const isSliceState = (s: string, dir: string): boolean => /\.git\/slice\/(state|notes)/.test(s) || [`${dir}/state`, `${dir}/notes`].some(p => s.includes(p))
+export const isSliceState = (s: string, dir: string): boolean => /\.git\/slice\/(state|notes|cache)/.test(s) || [`${dir}/state`, `${dir}/notes`, `${dir}/cache`].some(p => s.includes(p))
 export const writesState = (cmd: string, dir: string): boolean =>
   segments(cmd.replace(/\d?>&\d|\d?>\s*\/dev\/null/g, '')).some(s => isSliceState(s, dir) && (/>|\b(tee|rm|truncate|dd)\b|sed\s+-i/.test(s) || (/\b(cp|mv|ln)\b/.test(s) && isSliceState(s.trim().split(/\s+/).at(-1) ?? '', dir))))
 export const addedLines = (i: Input, prior: string[] = []): string[] =>

@@ -31,7 +31,7 @@ while :; do
   sleep 1
 done
 rm -f "$w.$$"
-"$@"`
+SLICE_LOCK_HELD=1 "$@"`
 
 export function lockArgv(argv: string[], opts: { interactive: boolean; waitSec?: number }): string[] {
   const secs = Math.floor(opts.waitSec ?? NaN)

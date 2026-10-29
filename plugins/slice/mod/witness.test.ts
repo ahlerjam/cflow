@@ -23,7 +23,7 @@ test('prove rejects a bad diff, a foreign command and a foreign cwd before runni
   diff = add('a.test.ts', "it('x', () => { run() })")
   expect(await slice($, { action: 'prove' })).toContain('a.test.ts: test without a value assertion')
   diff = ''
-  expect(await slice($, { action: 'prove', cmd: 'rm -rf x' })).toContain('freeze it first')
+  expect([await slice($, { action: 'prove', cmd: 'rm -rf x' }), await slice($, { action: 'prove', cmd: 'make verify SHELL=/x' })].join()).toContain('freeze it first')
   expect(await slice($, { action: 'prove', cwd: '/o/wt' })).toContain('git worktree add')
   expect(spawned).toBe(0)
 })

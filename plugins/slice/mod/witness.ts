@@ -2,12 +2,12 @@ import type { EngineInterface as Eng, On, ToolSpec } from 'claude-code'
 import { lockArgv } from './lock'
 import { S, loadState, logEvent, modeOf, saveState } from './state'
 
-const MAKE = /^make (?:check|verify|test-affected|verify-[\w-]+)(?: \w+=[\w./,:@+-]*)*$/
+const MAKE = /^make (?:check|verify|test-affected|verify-[\w-]+)(?: (?!SHELL=|MAKE\w*=)\w+=[\w./,:@+-]*)*$/
 const MD_OK = /^(?:docs\/adr\/|(?:.*\/)?(?:README|AGENTS|CLAUDE|CLAUDE\.local|DESIGN|NORTHSTAR)\.md$)/
 const SCANS: [RegExp, string][] = [[/\b(TO|FIX)(DO|ME)\b/, 'TODO/FIXME left in'], [/not impl[e]mented|NotImpl[e]mented|unimpl[e]mented!|pass\s+# stub/, 'stub left in'], [/lorem ipsum|placeholder text|\bTB[D]\b/i, 'placeholder text']] // character classes keep the scans from flagging their own source
-const IS_TEST = /\.(test|spec)\.|(^|\/)test_|_test\.|(^|\/)tests?\//
-const HAS_TEST = /\b(it|test)\s*\(|def test_|func Test/
-const HAS_VALUE = /\.to[A-Z]\w*\(|\bassert|\brequire\.|\bt\.(Error|Fatal)f?\(|\bshould\b/
+const IS_TEST = /\.(test|spec)\.|(^|\/)test_|_test\.|(^|\/)(tests?|__tests__)\//
+const HAS_TEST = /\b(it|test)(\.\w+)*\s*\(|def test_|func Test/
+const HAS_VALUE = /\bexpect\s*\(|\bassert|\brequire\.|\bt\.(Error|Fatal)f?\(|\.should\b|pytest\.raises/
 const VERDICT = { low: /^/, medium: /^(reviewed|skip|pass)$/, high: /^pass$/ }
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 export const allowed = (cmd: string, proofs: Record<string, { cmd: string }>): boolean => MAKE.test(cmd) || Object.values(proofs).some(p => p.cmd === cmd)
@@ -51,14 +51,14 @@ async function done($: Eng, a: Record<string, unknown>, cwd: string): Promise<st
   const [level, verdict] = [str(a.level) as keyof typeof VERDICT, str(a.verdict)]
   if (!VERDICT[level]) return 'Rejected: level is required. Fix: pass level low, medium or high.'
   const { tree } = await snapshot($, cwd)
-  if (!(await hit($, tree, str(a.cmd) || 'make verify'))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
+  if (!allowed(str(a.cmd) || 'make verify', (await loadState($))?.proofs ?? {}) || !(await hit($, tree, str(a.cmd) || 'make verify'))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
   if (!VERDICT[level].test(verdict)) return level === 'medium' ? "Refused. Medium: run /code-review high, or pass verdict 'skip'." : "Refused. High needs verdict 'pass' from the verifier."
   return (await logEvent($, 'done', { level, verdict, tree }), 'done')
 }
 async function note($: Eng, a: Record<string, unknown>): Promise<string> {
   const [cmd, text, state, files] = [str(a.cmd), str(a.text), await loadState($), (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string')]
   if (!cmd) return text ? (await logEvent($, 'note', { text }), 'noted') : 'Rejected: nothing to note. Fix: pass text, or cmd and files to freeze a proof.'
-  if (!state || !files.length || !/^make\s/.test(cmd)) return 'Rejected: freezing needs a make command and the files it proves. Fix: pass both, or restart the session.'
+  if (!state || !files.length || !/^make [\w][\w.-]*(?: (?!SHELL=|MAKE\w*=)\w+=[\w./,:@+-]*)*$/.test(cmd)) return 'Rejected: freezing needs a make command and the files it proves. Fix: pass both, or restart the session.'
   await saveState($, { ...state, proofs: { ...state.proofs, [text || cmd]: { cmd, files } } })
   return (await logEvent($, 'freeze', { cmd, files }), `frozen ${cmd}`)
 }

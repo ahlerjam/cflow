@@ -5,8 +5,9 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 const USAGE = 'Usage: ui-check.mjs --url <base url> --states \'[{"name":"empty","path":"/?state=empty"}]\' [--design DESIGN.md] [--out dir]'
-const arg = n => process.argv[process.argv.indexOf(`--${n}`) + 1]
-const [url, states, designPath, out] = [arg('url'), arg('states'), arg('design') ?? 'DESIGN.md', arg('out') ?? '.git/slice/shots']
+const arg = n => (process.argv.includes(`--${n}`) ? process.argv[process.argv.indexOf(`--${n}`) + 1] : undefined)
+const gitDir = () => { try { return execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() } catch { return '.git' } }
+const [url, states, designPath, out] = [arg('url'), arg('states'), arg('design') ?? 'DESIGN.md', arg('out') ?? `${gitDir()}/slice/shots`]
 if (!url || !states) fail(`missing arguments. ${USAGE}`)
 
 function fail(msg) {
@@ -15,8 +16,8 @@ function fail(msg) {
 }
 
 const design = existsSync(designPath) ? readFileSync(designPath, 'utf8') : ''
-const line = key => (new RegExp(`^\\s*${key}:\\s*(.+)$`, 'mi').exec(design)?.[1] ?? '').split(',').map(s => s.trim()).filter(Boolean)
-const widths = line('widths').map(Number).filter(Boolean)
+const line = key => (new RegExp(`^[\\s>*-]*\\*{0,2}\`?${key}\`?\\*{0,2}:\\*{0,2}\\s*(.+)$`, 'mi').exec(design)?.[1] ?? '').split(',').map(s => s.trim().replace(/^`|`$/g, '')).filter(Boolean)
+const widths = line('widths').map(w => parseInt(w, 10)).filter(Boolean)
 const scrollAllow = line('scroll-allow')
 if (!widths.length) widths.push(360, 768, 1280)
 
@@ -37,13 +38,14 @@ for (const state of JSON.parse(states)) {
     const errors = []
     page.on('pageerror', e => errors.push(String(e)))
     page.on('console', m => m.type() === 'error' && errors.push(m.text()))
-    await page.goto(new URL(state.path, url).href, { waitUntil: 'networkidle' })
+    await page.goto(new URL(state.path, url).href, { waitUntil: 'load' })
+    await page.waitForTimeout(300)
     const overflow = await page.evaluate(allow => {
-      const cut = el => allow.some(sel => el.closest(sel))
-      const wide = [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1 && !cut(el))
-      return wide.slice(0, 3).map(el => el.tagName.toLowerCase() + (el.className ? `.${String(el.className).split(' ')[0]}` : ''))
+      const cut = el => allow.some(sel => { try { return el.closest(sel) } catch { return false } })
+      const wide = [...document.querySelectorAll('body *')].filter(el => (el.getBoundingClientRect().right > innerWidth + 1 || el.getBoundingClientRect().left < -1) && !cut(el))
+      return wide.slice(0, 3).map(el => el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? `.${el.className.split(' ')[0]}` : ''))
     }, scrollAllow)
-    await page.screenshot({ path: join(out, `${state.name}-${width}.png`), fullPage: true })
+    await page.screenshot({ path: join(out, `${String(state.name).replace(/[^\w.-]/g, '_')}-${width}.png`), fullPage: true })
     if (overflow.length) problems.push(`${state.name} @${width}px overflows horizontally (${overflow.join(', ')}). Fix: constrain the element or list its selector under scroll-allow in DESIGN.md.`)
     for (const e of errors) problems.push(`${state.name} @${width}px console error: ${e}. Fix: remove the cause of the error.`)
     await page.close()
