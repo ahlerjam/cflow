@@ -34,7 +34,7 @@ export const register: Register = on => {
       } else if (modeOf(undefined, S.isRun, S.interactive) === 'run' && state.startVersion !== version) {
         S.halt = `Claude Code is ${version}, the run started on ${state.startVersion}. Fix: switch back to ${state.startVersion}, or delete ${S.dir}/state.json outside the session to accept ${version}.`
       } else {
-        await saveState($, state)
+        await saveState($, S.interactive ? { ...state, startVersion: version } : state)
       }
     } catch (err) {
       S.halt = err instanceof Error ? err.message : String(err)
@@ -43,8 +43,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // No .catch: a mod error must block the call
-  on('tool.check', async (_$, e, next) => (S.active && S.halt ? { decision: 'deny', reason: S.halt } : next(e)))
+  // A failed hook counts as absent, so the catch turns a mod error into a deny
+  on('tool.check', async (_$, e, next) => (S.active && S.halt ? { decision: 'deny', reason: S.halt } : next(e))).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
 
   guard(on)
   witness(on)

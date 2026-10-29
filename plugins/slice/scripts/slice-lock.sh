@@ -1,6 +1,6 @@
 #!/bin/sh
 # Same lock and cache as the slice mod (mod/lock.ts), for make targets and the hook. Inactive in CI and without the marker.
-top=$(git rev-parse --show-toplevel 2>/dev/null)
+top=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")
 [ $# -eq 0 ] && { echo "Usage: slice-lock.sh <command...>" >&2; exit 2; }
 { [ -n "$CI" ] || [ -n "$SLICE_LOCK_HELD" ] || [ ! -f "$top/.claude/slice.json" ]; } && exec "$@"
 dir=$(git rev-parse --path-format=absolute --git-common-dir)/slice; mkdir -p "$dir/cache"
@@ -26,6 +26,6 @@ while :; do
   sleep 1
 done
 rm -f "$w.$$"
-"$@"; code=$?
+SLICE_LOCK_HELD=1 "$@"; code=$?
 [ $code = 0 ] && [ -n "$tree" ] && printf '{"t":"%s","cmd":"%s"}' "$(date -u +%FT%TZ)" "$(printf %s "$*" | sed 's/\\/\\\\/g; s/"/\\"/g')" > "$hit.tmp" && mv "$hit.tmp" "$hit"
 exit $code

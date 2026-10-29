@@ -28,10 +28,10 @@ for (let round = 1; round <= 3; round++) {
     { agentType: 'slice:builder', label: `builder r${round}`, phase: 'Build' },
   )
   const proved = await agent(
-    `Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}". Do not run anything else and do not interpret the answer. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`,
+    `Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}". Load the tool with ToolSearch if needed. Do not run anything else and do not interpret the answer. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`,
     { label: `prove r${round}`, phase: 'Prove', schema: RESULT },
   )
-  if (!proved?.passed) {
+  if (!/^\[slice harness\] PASS /.test(proved?.text ?? '')) {
     findings = [`The harness proof failed:\n${proved?.text ?? 'no answer'}`]
     continue
   }
@@ -43,7 +43,8 @@ for (let round = 1; round <= 3; round++) {
     `Work in ${path}. Diff: git diff ${base}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md and any .claude/skills/run-* recipe there.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nEnd with the VERDICT line and copy it to raw.`,
     { agentType: 'slice:verifier', label: `verifier r${round}`, phase: 'Verify', schema: VERDICT, ...(risk === 'high' ? { model: 'opus' } : {}) },
   )
-  if (v?.pass && v.quality === 'pass') return { status: 'verified', worktree: path, base, sha, proof: proved.text, verdict: v.raw }
+  const fence = await agent(`Run: git -C ${path} status --porcelain; git -C ${path} rev-parse HEAD. If the status is not empty or HEAD is not ${sha}, run git -C ${path} reset --hard ${sha} && git -C ${path} clean -fd. Return clean=true only if nothing had to be reset.`, { label: 'fence', phase: 'Verify', schema: { type: 'object', properties: { clean: { type: 'boolean' } }, required: ['clean'] } })
+  if (v?.pass && v.quality === 'pass' && fence?.clean) return { status: 'verified', worktree: path, base, sha, proof: proved.text, verdict: v.raw }
   findings = v?.findings ?? ['The verifier gave no answer.']
 }
 return { status: 'stuck', worktree: path, findings, question: 'Three rounds failed. Options: change the approach, narrow the claim, or stop. Which?' }

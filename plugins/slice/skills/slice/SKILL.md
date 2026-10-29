@@ -13,7 +13,7 @@ Active only when `.claude/slice.json` exists in the repo. Otherwise ignore this 
 
 ## Risk comes from the diff, not the path
 - low: text, styles, additive, under about 50 lines.
-- medium: logic in core paths (`coreCmds` and paths in `.claude/slice.json`). `done` refuses until it gets `verdict: reviewed` (after the person ran `/code-review high`, if available) or `verdict: skip`; pass `skip` only after the person says skip.
+- medium: logic in core paths (`coreCmds` in `.claude/slice.json`). `done` refuses until it gets `verdict: reviewed` (after the person ran `/code-review high`, if available) or `verdict: skip`; pass `skip` only after the person says skip.
 - high: data migration, auth, areas named in a recent `/slice-miss` note (`misses` in the slice state). Use `/slice:feature` with `risk: high` (Opus verifier) and add security points to the claim; `done` needs `verdict: pass` from that verifier.
 
 ## The claim
@@ -38,3 +38,6 @@ Do what was asked. Everything else becomes a suggestion in your report, not code
 
 ## Report
 Result first. Then: which proofs the mod ran, what you added beyond the claim and what you discarded (each with a reason), what could not run on real data, and one better idea if you have one.
+
+## After a feature
+`/slice:feature` returns the worktree path and branch `slice-<id>`. Review the result with the person, merge or cherry-pick it, then `git worktree remove <path>` and delete the branch; a `stuck` result keeps the worktree for inspection.

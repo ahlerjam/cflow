@@ -3,7 +3,7 @@ import { lockArgv } from './lock'
 import { S, loadState, logEvent, modeOf, saveState } from './state'
 
 const MAKE = /^make (?:check|verify|test-affected|verify-[\w-]+)(?: (?!SHELL=|MAKE\w*=)\w+=[\w./,:@+-]*)*$/
-const MD_OK = /^(?:docs\/adr\/|(?:.*\/)?(?:README|AGENTS|CLAUDE|CLAUDE\.local|DESIGN|NORTHSTAR)\.md$)/
+const MD_OK = /^(?:(?:.*\/)?(?:README|AGENTS|CLAUDE|CLAUDE\.local|DESIGN|NORTHSTAR)\.md$)/
 const SCANS: [RegExp, string][] = [[/\b(TO|FIX)(DO|ME)\b/, 'TODO/FIXME left in'], [/not impl[e]mented|NotImpl[e]mented|unimpl[e]mented!|pass\s+# stub/, 'stub left in'], [/lorem ipsum|placeholder text|\bTB[D]\b/i, 'placeholder text']] // character classes keep the scans from flagging their own source
 const IS_TEST = /\.(test|spec)\.|(^|\/)test_|_test\.|(^|\/)(tests?|__tests__)\//
 const HAS_TEST = /\b(it|test)(\.\w+)*\s*\(|def test_|func Test/
@@ -17,7 +17,7 @@ export const scan = (diff: string): string[] =>
     const [f, text] = [/^\+\+\+ b\/(.*)$/m.exec(b)?.[1] ?? '', b.slice(b.indexOf('\n@@')).split('\n').filter(l => l[0] === '+').join('\n')]
     const why = SCANS.filter(([re]) => re.test(text)).map(([, w]) => w)
     if (IS_TEST.test(f) && HAS_TEST.test(text) && !HAS_VALUE.test(text)) why.push('test without a value assertion')
-    if (/^--- \/dev\/null/m.test(b) && f.endsWith('.md') && !MD_OK.test(f)) why.push('new Markdown file outside the allowlist')
+    if (/^--- \/dev\/null/m.test(b) && f.endsWith('.md')  && !MD_OK.test(f)) why.push('new Markdown file outside the allowlist')
     return why.map(w => `${f}: ${w}`)
   })
 async function snapshot($: Eng, cwd: string): Promise<{ tree: string; diff: string }> {
@@ -51,7 +51,7 @@ async function done($: Eng, a: Record<string, unknown>, cwd: string): Promise<st
   const [level, verdict] = [str(a.level) as keyof typeof VERDICT, str(a.verdict)]
   if (!VERDICT[level]) return 'Rejected: level is required. Fix: pass level low, medium or high.'
   const { tree } = await snapshot($, cwd)
-  if (!allowed(str(a.cmd) || 'make verify', (await loadState($))?.proofs ?? {}) || !(await hit($, tree, str(a.cmd) || 'make verify'))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
+  if ((str(a.cmd) || 'make verify') !== 'make verify' && !Object.values((await loadState($))?.proofs ?? {}).some(p => p.cmd === str(a.cmd)) || !(await hit($, tree, str(a.cmd) || 'make verify'))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
   if (!VERDICT[level].test(verdict)) return level === 'medium' ? "Refused. Medium: run /code-review high, or pass verdict 'skip'." : "Refused. High needs verdict 'pass' from the verifier."
   return (await logEvent($, 'done', { level, verdict, tree }), 'done')
 }

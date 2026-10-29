@@ -15,7 +15,7 @@ test('scans reject placeholders, assertion-less tests and stray Markdown; the al
   expect(scan(add('a.ts', '// TO' + 'DO later'))).toEqual(['a.ts: TODO/FIXME left in'])
   expect(scan(add('a.test.ts', "it('x', () => { run() })"))).toEqual(['a.test.ts: test without a value assertion'])
   expect(scan(add('a.test.ts', "it('x', () => { expect(run()).toBe(1) })"))).toEqual([])
-  expect([scan(add('notes.md', 'x')).length, scan(add('docs/adr/1.md', 'x')).length, scan(add('s.py', 'raise NotImpl' + 'ementedError')).length]).toEqual([1, 0, 1])
+  expect([scan(add('notes.md', 'x')).length, scan(add('docs/adr/1.md', 'x')).length, scan(add('s.py', 'raise NotImpl' + 'ementedError')).length]).toEqual([1, 1, 1])
   expect([allowed('make verify-x FILE=a', {}), allowed('make verify; rm', {}), allowed('npm test', {}), allowed('npm test', { p: { cmd: 'npm test' } })]).toEqual([true, false, false, true])
 })
 test('prove rejects a bad diff, a foreign command and a foreign cwd before running anything', async ($, on) => {

@@ -14,14 +14,14 @@ const GIT_MUT = new RegExp(String.raw`\bgit(?:\s+(?:-[Cc]\s+\S+|-\S+))*\s+(?:com
 const GIT_RUN = /--no-verify|core\.hooksPath|\bcommit\b.*\s-[a-z]*n\b|\bpush\b.*(?:--force|\s-[a-z]*f|\s\+\S)/
 const SKIP = /\.(?:skip|only)\s*\(|\b(?:xit|xtest|xdescribe|fit|fdescribe)\s*\(|\bit\.todo\b|test\.fixme|@pytest\.mark\.skip/
 const CI_SCRIPT = /(^|\/)(Makefile|package\.json|\.gitlab-ci\.yml|[^/]+\.(sh|mk)|\.github\/workflows\/[^/]+)$/
-const ASK_PATH = /(^|\/)(\.git\/hooks\/|\.husky\/|\.github\/workflows\/|\.claude\/(slice\.json|settings[^/]*$))/
+const ASK_PATH = /(^|\/)(\.git\/hooks\/|\.husky\/|\.github\/workflows\/|\.claude\/(slice\.json|settings[^/]*$)|Makefile$|[^/]+\.mk$|scripts\/(slice-lock\.sh|ui-check\.mjs)$|(DESIGN|NORTHSTAR)\.md$)/
 const OWN_STATE = 'slice writes its own state and notes. Fix: use the slice tool (note, prove, done).'
 const deny = (reason: string): Verdict => ({ decision: 'deny', reason })
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
 const segments = (cmd: string) => cmd.replace(/\b((?:ba|z)?sh\s+-c)\s+["']/g, '$1 ').split(/&&|\|\||[;|&\n()]/)
 const gitSeg = (cmd: string, re: RegExp) => segments(cmd).some(s => GIT.test(s) && re.test(s))
-export const runsTests = (cmd: string): boolean => segments(cmd).some(s => RUNNER.test(s))
+export const runsTests = (cmd: string): boolean => segments(cmd).some(s => RUNNER.test(s) || /^\s*(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test\b|^\s*node\s+--test\b|^\s*mocha\b/.test(s))
 export const isSliceState = (s: string, dir: string): boolean => /\.git\/slice\/(state|notes|cache)/.test(s) || [`${dir}/state`, `${dir}/notes`, `${dir}/cache`].some(p => s.includes(p))
 export const writesState = (cmd: string, dir: string): boolean =>
   segments(cmd.replace(/\d?>&\d|\d?>\s*\/dev\/null/g, '')).some(s => isSliceState(s, dir) && (/>|\b(tee|rm|truncate|dd)\b|sed\s+-i/.test(s) || (/\b(cp|mv|ln)\b/.test(s) && isSliceState(s.trim().split(/\s+/).at(-1) ?? '', dir))))
@@ -68,7 +68,7 @@ async function inWorktree($: EngineInterface, path: string): Promise<boolean> {
 }
 
 export const register = (on: On): void => {
-  // No .catch: a mod error must block the call
+  // A failed hook counts as absent, so the catch turns a mod error into a deny
   on('tool.check', { tool: /^(Bash|Edit|Write|MultiEdit)$/ }, async ($, e, next) => {
     const who = e.agentId ?? 'main'
     if (!S.active) return next(e)
@@ -83,5 +83,5 @@ export const register = (on: On): void => {
     if (v.decision === 'deny') await countDenial($, who, v.reason)
     // The shipped types list only 'host'; 'person' is accepted from Claude Code 2.1.312
     return v.decision === 'ask' ? { ...v, decider: 'person' as never } : v
-  })
+  }).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
 }

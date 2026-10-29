@@ -1,6 +1,7 @@
 ---
 description: "Opts a repo into slice: measures the test suite, writes make targets, the lock, a pre-commit hook, the verification section and the verify skill, then sets the marker."
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+disable-model-invocation: true
 ---
 Set up slice in the current repo. This runs in an interactive session because the run profile cannot edit `.git`, `.husky` or `.claude`. Without a person to ask, use the defaults named below and say so. Change nothing that exists without showing it first; merge instead of skipping.
 
