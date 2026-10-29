@@ -1,6 +1,6 @@
 import type { EngineInterface as Eng, On, ToolSpec } from 'claude-code'
 import { lockArgv } from './lock'
-import { S, loadState, logEvent, modeOf, saveState } from './state'
+import { S, loadState, logEvent, modeOf, saveState, tailLog, typeOf } from './state'
 
 const MAKE = /^make (?:check|verify|test-affected|verify-[\w-]+)(?: (?!SHELL=|MAKE\w*=)\w+=[\w./,:@+-]*)*$/
 const MD_OK = /^(?:(?:.*\/)?(?:README|AGENTS|CLAUDE|CLAUDE\.local|DESIGN|NORTHSTAR)\.md$)/
@@ -8,7 +8,7 @@ const SCANS: [RegExp, string][] = [[/\b(TO|FIX)(DO|ME)\b/, 'TODO/FIXME left in']
 const IS_TEST = /\.(test|spec)\.|(^|\/)test_|_test\.|(^|\/)(tests?|__tests__)\//
 const HAS_TEST = /\b(it|test)(\.\w+)*\s*\(|def test_|func Test/
 const HAS_VALUE = /\bexpect\s*\(|\bassert|\brequire\.|\bt\.(Error|Fatal)f?\(|\.should\b|pytest\.raises/
-const VERDICT = { low: /^/, medium: /^(reviewed|skip|pass)$/, high: /^pass$/ }
+const VERDICT = { low: /^/, medium: /^(reviewed|skip|pass)$/, high: /^/ }
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 export const allowed = (cmd: string, proofs: Record<string, { cmd: string }>): boolean => MAKE.test(cmd) || Object.values(proofs).some(p => p.cmd === cmd)
 export const cacheKey = (tree: string, cmd: string): string => `${tree}-${cmd.replace(/\W+/g, '_')}`
@@ -43,7 +43,7 @@ async function prove($: Eng, a: Record<string, unknown>, cwd: string, agentId?: 
   while (!r.done) [out, r] = [(out + r.value.text).slice(-8000), await g.next()]
   const [t1, pass] = [await $.clock.now(), r.value.code === 0]
   await logEvent($, 'prove', { cmd, tree, pass })
-  if (!pass) return r.value.code === 3 ? `BUSY ${cmd}: another slice proof holds the machine lock. Fix: call prove again in a minute; this is not a failure of the code.` : `FAIL ${cmd} (exit ${r.value.code ?? r.value.signal})\n${out.trim().split('\n').slice(-40).join('\n')}`
+  if (!pass) return r.value.code === 3 && out.includes('slice-lock: waited') ? `BUSY ${cmd}: another slice proof holds the machine lock. Fix: call prove again in a minute; this is not a failure of the code.` : `FAIL ${cmd} (exit ${r.value.code ?? r.value.signal})\n${out.trim().split('\n').slice(-40).join('\n')}`
   await $.fs.write(`${S.dir}/cache/${cacheKey(tree, cmd)}`, JSON.stringify({ t: t1, cmd }))
   return `PASS ${cmd} on ${short} (${Math.round((t1 - t0) / 1000)}s)`
 }
@@ -52,8 +52,14 @@ async function done($: Eng, a: Record<string, unknown>, cwd: string): Promise<st
   if (!VERDICT[level]) return 'Rejected: level is required. Fix: pass level low, medium or high.'
   const { tree } = await snapshot($, cwd)
   if ((str(a.cmd) || 'make verify') !== 'make verify' && !Object.values((await loadState($))?.proofs ?? {}).some(p => p.cmd === str(a.cmd)) || !(await hit($, tree, str(a.cmd) || 'make verify'))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
-  if (!VERDICT[level].test(verdict)) return level === 'medium' ? "Refused. Medium: run /code-review high, or pass verdict 'skip'." : "Refused. High needs verdict 'pass' from the verifier."
+  if (!VERDICT[level].test(verdict)) return "Refused. Medium: run /code-review high, or pass verdict 'skip'."
+  if (level === 'high' && (await tailLog($, 5000)).flatMap(l => { try { return [JSON.parse(l)] } catch { return [] } }).filter(x => x.event === 'verdict' && x.tree === tree).at(-1)?.verdict !== 'pass') return 'Refused. High needs a pass the slice:verifier recorded on this tree. Fix: run /slice:feature with risk high.'
   return (await logEvent($, 'done', { level, verdict, tree }), 'done')
+}
+async function verdict($: Eng, a: Record<string, unknown>, cwd: string, type?: string, agentId?: string): Promise<string> {
+  if (type !== 'slice:verifier' || !/^(pass|fail)$/.test(str(a.verdict))) return 'Rejected: only the slice:verifier agent records a verdict, pass or fail.'
+  const { tree } = await snapshot($, cwd)
+  return (await logEvent($, 'verdict', { tree, verdict: a.verdict, agentId }), `verdict ${a.verdict} recorded for ${tree.slice(0, 10)}`)
 }
 async function note($: Eng, a: Record<string, unknown>): Promise<string> {
   const [cmd, text, state, files] = [str(a.cmd), str(a.text), await loadState($), (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string')]
@@ -62,18 +68,20 @@ async function note($: Eng, a: Record<string, unknown>): Promise<string> {
   await saveState($, { ...state, proofs: { ...state.proofs, [text || cmd]: { cmd, files } } })
   return (await logEvent($, 'freeze', { cmd, files }), `frozen ${cmd}`)
 }
-export const TOOL: ToolSpec = { name: 'slice', description: 'The slice harness runs the proof, you do not. prove: run an allowed make target (default make verify) and report PASS or FAIL. done: close a ticket after a passing proof (needs level). note: freeze a proof (cmd, files) or log text.',
-  inputSchema: { type: 'object', required: ['action'], properties: { action: { enum: ['prove', 'done', 'note'] }, cmd: { type: 'string' }, level: { enum: ['low', 'medium', 'high'] }, verdict: { type: 'string' }, text: { type: 'string' }, files: { type: 'array', items: { type: 'string' } }, cwd: { type: 'string', description: 'Absolute path of a worktree of this repo' } } },
+export const TOOL: ToolSpec = { name: 'slice', description: 'The slice harness runs the proof, you do not. prove: run an allowed make target (default make verify) and report PASS or FAIL. done: close a ticket after a passing proof (needs level). note: freeze a proof (cmd, files) or log text. verdict: the slice:verifier records pass or fail for the tree in cwd.',
+  inputSchema: { type: 'object', required: ['action'], properties: { action: { enum: ['prove', 'done', 'note', 'verdict'] }, cmd: { type: 'string' }, level: { enum: ['low', 'medium', 'high'] }, verdict: { type: 'string' }, text: { type: 'string' }, files: { type: 'array', items: { type: 'string' } }, cwd: { type: 'string', description: 'Absolute path of a worktree of this repo' } } },
 }
 export const register = (on: On): void => {
   // No .catch: a mod error must block the call
   on('tool.call', { tool: /^mcp__slice__slice$/ }, async ($, e) => {
     const [a, say] = [e as Record<string, unknown>, (text: string) => ({ result: `[slice harness] ${text}` })]
     if (!S.active) return say('slice is not set up here (run /slice:setup)')
+    const type = await typeOf($, e.agentId)
+    if (type === 'slice:verifier' && a.action !== 'verdict') return say('The verifier only records a verdict. Fix: call action verdict with pass or fail.')
     if (a.action === 'note') return say(await note($, a))
     const cwd = str(a.cwd) || S.root
     const common = cwd.startsWith('/') ? await $.process.run(['git', '-C', cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir']) : undefined
     if (common?.exitCode !== 0 || common.stdout.trim() !== S.dir.replace(/\/slice$/, '')) return say('cwd is not a worktree of this repo. Fix: pass a worktree created with git worktree add.')
-    return say(a.action === 'prove' ? await prove($, a, cwd, e.agentId) : a.action === 'done' ? await done($, a, cwd) : 'Unknown action. Fix: use prove, done or note.')
+    return say(a.action === 'prove' ? await prove($, a, cwd, e.agentId) : a.action === 'done' ? await done($, a, cwd) : a.action === 'verdict' ? await verdict($, a, cwd, type, e.agentId) : 'Unknown action. Fix: use prove, done, note or verdict.')
   })
 }

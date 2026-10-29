@@ -14,7 +14,7 @@ Active only when `.claude/slice.json` exists in the repo. Otherwise ignore this 
 ## Risk comes from the diff, not the path
 - low: text, styles, additive, under about 50 lines.
 - medium: logic in core paths (`coreCmds` in `.claude/slice.json`). `done` refuses until it gets `verdict: reviewed` (after the person ran `/code-review high`, if available) or `verdict: skip`; pass `skip` only after the person says skip.
-- high: data migration, auth, areas named in a recent `/slice-miss` note (`misses` in the slice state). Use `/slice:feature` with `risk: high` (Opus verifier) and add security points to the claim; `done` needs `verdict: pass` from that verifier.
+- high: data migration, auth, areas named in a recent `/slice-miss` note (`misses` in the slice state). Use `/slice:feature` with `risk: high` (Opus verifier) and add security points to the claim; `done` checks that the verifier recorded a pass on the current tree; your own `verdict` does not count.
 
 ## The claim
 Write results as checkable points, each with a command and what it proves. Numbers and references, not adjectives. A feature claim has two parts: proof points (binary: states empty, loading, error, long data; keyboard and a11y minimum; one real document or payload) and a quality brief with references, anti-patterns and the question "what would the impressive version look like". Ask only what the code, NORTHSTAR.md, DESIGN.md or ADRs do not already answer.

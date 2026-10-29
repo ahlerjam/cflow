@@ -1,6 +1,6 @@
 import type { EngineInterface, On } from 'claude-code'
 
-import { S, loadState, logEvent, modeOf } from './state'
+import { S, loadState, logEvent, modeOf, typeOf } from './state'
 import type { Mode } from './state'
 
 type Input = Record<string, unknown>
@@ -22,7 +22,7 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const segments = (cmd: string) => cmd.replace(/\b((?:ba|z)?sh\s+-c)\s+["']/g, '$1 ').split(/&&|\|\||[;|&\n()]/)
 const gitSeg = (cmd: string, re: RegExp) => segments(cmd).some(s => GIT.test(s) && re.test(s))
 export const runsTests = (cmd: string): boolean => segments(cmd).some(s => RUNNER.test(s) || /^\s*(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test\b|^\s*node\s+--test\b|^\s*mocha\b/.test(s))
-export const isSliceState = (s: string, dir: string): boolean => /\.git\/slice\/(state|notes|cache)/.test(s) || [`${dir}/state`, `${dir}/notes`, `${dir}/cache`].some(p => s.includes(p))
+export const isSliceState = (s: string, dir: string): boolean => /\.git\/slice\/(state|notes|cache|log)/.test(s) || [`${dir}/state`, `${dir}/notes`, `${dir}/cache`, `${dir}/log`].some(p => s.includes(p))
 export const writesState = (cmd: string, dir: string): boolean =>
   segments(cmd.replace(/\d?>&\d|\d?>\s*\/dev\/null/g, '')).some(s => isSliceState(s, dir) && (/>|\b(tee|rm|truncate|dd)\b|sed\s+-i/.test(s) || (/\b(cp|mv|ln)\b/.test(s) && isSliceState(s.trim().split(/\s+/).at(-1) ?? '', dir))))
 export const addedLines = (i: Input, prior: string[] = []): string[] =>
@@ -74,7 +74,7 @@ export const register = (on: On): void => {
     if (!S.active) return next(e)
     if (stuck.has(who)) return deny(stuck.get(who)!)
     const [input, isFile] = [(e.input ?? {}) as Input, e.tool !== 'Bash']
-    const [path, type] = [str(input.file_path), e.agentId ? (await $.agent.list()).find(a => a.id === e.agentId)?.type : undefined]
+    const [path, type] = [str(input.file_path), await typeOf($, e.agentId)]
     const frozen = isFile ? Object.values((await loadState($))?.proofs ?? {}).flatMap(p => p.files) : []
     const prior = e.tool === 'Write' && (await $.fs.exists(path)) ? (await $.fs.read(path)).split('\n') : []
     const out = isFile && type === 'slice:builder' && !(await inWorktree($, path))

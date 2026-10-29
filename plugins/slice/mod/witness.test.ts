@@ -6,7 +6,7 @@ import { allowed, scan } from './witness'
 const add = (f: string, ...l: string[]) => `diff --git a/${f} b/${f}\nnew file mode 100644\n--- /dev/null\n+++ b/${f}\n@@ -0,0 +1 @@\n${l.map(x => '+' + x).join('\n')}\n`
 let [tree, diff, code, spawned] = ['t1', '', 0, 0]
 const setup = async ($: Engine, on: On) => {
-  on('process.spawn', async function* () { spawned++; yield { stream: 'stdout' as const, text: 'ran\n' }; return { value: { code, signal: null } } })
+  on('process.spawn', async function* () { spawned++; yield { stream: 'stdout' as const, text: code === 3 ? 'slice-lock: waited 90 s\n' : 'ran\n' }; return { value: { code, signal: null } } })
   const exec = (a: readonly string[]) => (a[3] === 'write-tree' ? { stdout: tree } : a[3] === 'diff' ? { stdout: diff } : a.length === 6 ? { stdout: a[2]?.startsWith('/o') ? '/o/.git' : '/r/.git' } : undefined)
   return boot($, on, { marker: '{}', exec })
 }
@@ -38,15 +38,15 @@ test('a pass is cached per tree, a failure never is', async ($, on) => {
   expect(await slice($, { action: 'prove', cwd: '/wt/a' })).toMatch(/^\[slice harness\] BUSY make verify/)
   expect(spawned).toBe(3)
 })
-test('done needs a pass on the current tree and the verdict of its level', async ($, on) => {
+test('done needs a pass on the current tree, the verdict of its level, and for high a pass the verifier recorded', async ($, on) => {
   await setup($, on)
   ;[tree, code] = ['t3', 0]
   expect(await slice($, { action: 'done', level: 'low' })).toContain('run slice prove again, the tree changed')
   await slice($, { action: 'prove' })
   const d = (level: string, verdict?: string) => slice($, { action: 'done', level, verdict })
-  expect([await d('medium'), await d('high', 'skip'), await d('medium', 'skip'), await d('high', 'pass'), await d('low')]).toEqual([expect.stringContaining("Medium: run /code-review high, or pass verdict 'skip'"), expect.stringContaining('High needs'), ...Array(3).fill('[slice harness] done')])
-  tree = 't4'
-  expect(await d('low')).toContain('tree changed')
+  expect([await d('medium'), await d('high', 'pass'), await d('medium', 'skip'), await d('low')]).toEqual([expect.stringContaining("Medium: run /code-review high, or pass verdict 'skip'"), expect.stringContaining('High needs a pass the slice:verifier recorded'), ...Array(2).fill('[slice harness] done')])
+  expect([await slice($, { action: 'verdict', verdict: 'pass', agentId: 'b1' }), await slice($, { action: 'prove', agentId: 'v1' }), (await $.agent.spawn({ prompt: 'p', subagentType: 'slice:verifier' }), await slice($, { action: 'verdict', verdict: 'pass', agentId: 'w1' }))]).toEqual([expect.stringContaining('only the slice:verifier'), expect.stringContaining('verifier only records a verdict'), '[slice harness] verdict pass recorded for t3'])
+  expect([await d('high'), (await slice($, { action: 'verdict', verdict: 'fail', agentId: 'v1' }), await d('high')), (tree = 't4', await d('low'))]).toEqual(['[slice harness] done', expect.stringContaining('High needs'), expect.stringContaining('tree changed')])
 })
 test('note freezes a proof that prove then accepts', async ($, on) => {
   const { files } = await setup($, on)

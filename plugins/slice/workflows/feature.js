@@ -23,7 +23,7 @@ const { path, base } = await agent(
 let findings = []
 if (proof !== 'make verify') {
   const red = await agent(`Call the tool mcp__slice__slice once with action "prove", cmd "${proof}", cwd "${path}" before any change. Return passed=true only if the answer contains "PASS", and put the answer verbatim in text.`, { label: 'red baseline', phase: 'Prove', schema: RESULT })
-  if (red?.passed) findings = [`The proof ${proof} already passes before any change, so it does not prove the claim. Write or change a check that fails without the feature first.`]
+  if (/^\[slice harness\] PASS /.test(red?.text ?? '')) findings = [`The proof ${proof} already passes before any change, so it does not prove the claim. Write or change a check that fails without the feature first.`]
 }
 for (let round = 1; round <= 3; round++) {
   const hint = round === 3 ? ' Rounds 1 and 2 failed: rethink the approach before you change code.' : ''
@@ -38,7 +38,6 @@ for (let round = 1; round <= 3; round++) {
       { label: `prove r${round}`, phase: 'Prove', schema: RESULT },
     )
     if (!/\] BUSY /.test(proved?.text ?? '')) break
-    await agent('Run: sleep 60', { label: 'wait for lock', phase: 'Prove', model: 'haiku' })
   }
   if (!/^\[slice harness\] PASS /.test(proved?.text ?? '')) {
     findings = [`The harness proof failed:\n${proved?.text ?? 'no answer'}`]
@@ -49,7 +48,7 @@ for (let round = 1; round <= 3; round++) {
     { label: 'candidate', phase: 'Verify', schema: SHA },
   )
   const v = await agent(
-    `Work in ${path}. Diff: git diff ${base}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md and any .claude/skills/run-* recipe there.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nEnd with the VERDICT line and copy it to raw.`,
+    `Work in ${path}. Diff: git diff ${base}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md and any .claude/skills/run-* recipe there.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved.text}\nRecord your verdict with mcp__slice__slice (action verdict, cwd ${path}), then end with the VERDICT line and copy it to raw.`,
     { agentType: 'slice:verifier', label: `verifier r${round}`, phase: 'Verify', schema: VERDICT, ...(risk === 'high' ? { model: 'opus' } : {}) },
   )
   const fence = await agent(`Run: git -C ${path} status --porcelain; git -C ${path} rev-parse HEAD. If the status is not empty or HEAD is not ${sha}, run git -C ${path} reset --hard ${sha} && git -C ${path} clean -fd. Return clean=true only if nothing had to be reset.`, { label: 'fence', phase: 'Verify', schema: { type: 'object', properties: { clean: { type: 'boolean' } }, required: ['clean'] } })

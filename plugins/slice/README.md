@@ -26,7 +26,7 @@ Run `/slice:setup` once per repo. It measures the test suite, writes the make ta
 After a restart, the `slice` skill sizes each job in one line (`ticket · low · proof: make verify-export`). The agent then works as usual and ends with the `slice` tool:
 
 - `prove` runs an allowed make target under a machine-wide lock. It first rejects TODOs, stubs, placeholder text, tests without an assertion and new Markdown files. The result is cached per file tree; the same tree is never proved twice.
-- `done` closes the job. It refuses without a passed proof on the current tree. Medium risk needs `/code-review high` or a spoken skip; high risk needs the verifier's pass.
+- `done` closes the job. It refuses without a passed proof on the current tree. Medium risk needs `/code-review high` or a spoken skip; high risk needs a pass that the verifier recorded on the same tree.
 - `note` logs a decision, or freezes a proof (`cmd` and `files`). Later edits to frozen files need your approval.
 
 For a feature, run `/slice:feature` (or type "ultracode"). The workflow creates a git worktree, lets `slice:builder` write the proof tests and the code, has the tool prove it, and hands the result to a fresh `slice:verifier`. Failures go back to the builder, three rounds at most.

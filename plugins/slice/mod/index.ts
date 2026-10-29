@@ -2,7 +2,7 @@ import type { Register } from 'claude-code'
 
 import { register as guard, resetDenials } from './guard'
 import { TOOL, register as witness } from './witness'
-import { MIN_VERSION, S, loadState, logEvent, modeOf, openRepo, parseMarker, saveState, tailLog, versionAtLeast } from './state'
+import { MIN_VERSION, S, TYPES, loadState, logEvent, modeOf, openRepo, parseMarker, saveState, tailLog, versionAtLeast } from './state'
 export { lockArgv } from './lock'
 export { S, loadState, logEvent, modeOf, saveState } from './state'
 export type { Marker, Mode, State } from './state'
@@ -11,9 +11,8 @@ const OFF = 'slice is not set up here (run /slice:setup)'
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    S.active = false
-    S.halt = ''
-    resetDenials()
+    ;[S.active, S.halt] = [false, '']
+    resetDenials(), TYPES.clear()
     S.interactive = e.isInteractive
     S.isRun = (await $.env.get('SLICE_RUN')) === '1'
     const repo = await openRepo($, e.cwd)
@@ -46,6 +45,7 @@ export const register: Register = on => {
   // A failed hook counts as absent, so the catch turns a mod error into a deny
   on('tool.check', async (_$, e, next) => (S.active && S.halt ? { decision: 'deny', reason: S.halt } : next(e))).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
 
+  on('agent.spawn', async (_$, e, next) => { const r = await next(e); return (r.agentId && TYPES.set(r.agentId, e.subagentType), r) })
   guard(on)
   witness(on)
 

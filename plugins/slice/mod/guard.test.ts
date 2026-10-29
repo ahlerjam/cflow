@@ -15,7 +15,7 @@ const setup = { marker: '{}', state: STATE }
 test('pure checks', () => {
   for (const c of ['FOO="a b" npx -y vitest', './node_modules/.bin/vitest', 'bash -c "cd x && jest"', 'timeout 5 pytest', '(cargo test)', 'ls\ngo test', 'env A=1 uv run pytest']) expect(runsTests(c)).toBe(true)
   for (const c of ['make test-affected FILES=a', 'echo vitest', 'npm install vitest', 'grep jest x', 'git commit -m pytest']) expect(runsTests(c)).toBe(false)
-  expect([writesState('cat /r/.git/slice/state.json 2>&1', '/r/.git/slice'), writesState('cp /r/.git/slice/state.json /tmp/x', '/r/.git/slice'), writesState('cp x /r/.git/slice/state.json', '/r/.git/slice')]).toEqual([false, false, true])
+  expect([writesState('cat /r/.git/slice/state.json 2>&1', '/r/.git/slice'), writesState('cp /r/.git/slice/state.json /tmp/x', '/r/.git/slice'), writesState('cp x /r/.git/slice/state.json', '/r/.git/slice'), writesState('echo {} >> /r/.git/slice/log.jsonl', '/r/.git/slice')]).toEqual([false, false, true, true])
   expect([isSliceState('/x/.git/slice/notes.md', '/r/.git/slice'), isFrozen('/r/t/p.ts', ['./t/p.ts'], '/r'), isFrozen('/o/t/p.ts', ['t/p.ts'], '/r'), isFrozen('/r/p.ts', ['p.ts'], '/r'), isFrozen('/r/x/p.ts', ['p.ts'], '/r')]).toEqual([true, true, false, true, false])
 })
 test('without the marker nothing is checked', async ($, on) => {
