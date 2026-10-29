@@ -9,7 +9,7 @@ export type Mode = 'interactive' | 'run' | 'subagent'
 export const MIN_VERSION = '2.1.311'
 
 // Session facts shared by the mod files; `active` stays false without the marker
-export const S = { active: false, interactive: false, isRun: false, marker: {} as Marker, dir: '', halt: '' }
+export const S = { active: false, interactive: false, isRun: false, marker: {} as Marker, dir: '', root: '', halt: '' }
 
 export const modeOf = (agentId: string | undefined, isRun: boolean, interactive: boolean): Mode =>
   agentId ? 'subagent' : isRun || !interactive ? 'run' : 'interactive'

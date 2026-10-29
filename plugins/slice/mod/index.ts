@@ -1,7 +1,7 @@
 import type { Register } from 'claude-code'
 
+import { register as guard, resetDenials } from './guard'
 import { MIN_VERSION, S, loadState, logEvent, modeOf, openRepo, parseMarker, saveState, tailLog, versionAtLeast } from './state'
-
 export { lockArgv } from './lock'
 export { S, loadState, logEvent, modeOf, saveState } from './state'
 export type { Marker, Mode, State } from './state'
@@ -12,12 +12,14 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     S.active = false
     S.halt = ''
+    resetDenials()
     S.interactive = e.isInteractive
     S.isRun = (await $.env.get('SLICE_RUN')) === '1'
     const repo = await openRepo($, e.cwd)
     const markerPath = repo && `${repo.root}/.claude/slice.json`
     if (!repo || !markerPath || !(await $.fs.exists(markerPath))) return next(e)
     S.dir = repo.dir
+    S.root = repo.root
     S.active = true
     await $.command.register({ name: 'slice-status', description: 'Show slice state, mode and recent log' })
     await $.command.register({ name: 'slice-miss', description: 'Note something the harness missed', argumentHint: '"<line>"' })
@@ -41,6 +43,8 @@ export const register: Register = on => {
 
   // No .catch: a mod error must block the call
   on('tool.check', async (_$, e, next) => (S.active && S.halt ? { decision: 'deny', reason: S.halt } : next(e)))
+
+  guard(on)
 
   on('command.run', { command: 'slice-status' }, async $ => {
     if (!S.active) return { text: OFF }
