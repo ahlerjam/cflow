@@ -36,7 +36,7 @@ Other commands: `/slice-status` shows mode, version and the last log lines; `/sl
 
 ## What it protects against, and what it does not
 
-The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that edits files or changes git state. Edits to Makefiles, hooks, CI, dependencies, `.env` files and ADRs ask you first. In auto mode the auto-mode classifier answers that question instead of you, so there only your own request limits such edits. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (patterns such as `docker compose *` or `latexmk *`) run outside the sandbox.
+The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that edits files or changes git state. Edits to Makefiles, hooks, CI, dependencies, `.env` files and ADRs ask you first. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (patterns such as `docker compose *` or `latexmk *`) run outside the sandbox.
 
 `claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. The repo code that `/slice:setup` writes (make targets, hook, CI, the `verify` skill) keeps working if the mod is off.
 
