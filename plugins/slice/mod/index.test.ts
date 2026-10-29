@@ -15,7 +15,7 @@ test('without the marker every hook passes through and commands say so', async (
   expect(runs.every(r => r[0] === 'git')).toBe(true)
 })
 test('the reader keeps known keys and rejects broken JSON with a fix', () => {
-  expect(parseMarker('{"coreCmds":["make"],"allowedDomains":[1,"a.org"],"other":1}')).toEqual({ coreCmds: ['make'], allowedDomains: ['a.org'] })
+  expect(parseMarker('{"corePaths":["make"],"allowedDomains":[1,"a.org"],"other":1}')).toEqual({ corePaths: ['make'], allowedDomains: ['a.org'] })
   expect(() => parseMarker('{')).toThrow('Fix:')
 })
 test('compares against the minimum', () => {

@@ -6,7 +6,7 @@ effort: medium
 maxTurns: 60
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
-You build one slice. The brief is your only context: the claim as checkable points, the quality brief, the worktree path and `.slice-env`. Work only inside that worktree. Never commit, push or open a PR; the mod does that.
+You build one slice. The brief is your only context: the claim as checkable points, the quality brief, the worktree path and `.slice-env`. Work only inside that worktree. Never commit, push or open a PR; the workflow commits the candidate after the proof.
 
 1. Write the proof tests first. Each fails on a real assertion, not on a missing import, command or target. Roughly one test per behaviour; the end-to-end proof is the main evidence. UI proofs use roles and visible text. Run them with `make test-affected FILES=…`, never a test runner directly.
 2. Make the proofs pass with the smallest design that is also the best version of the claim. Ambition belongs in the product: cover empty, loading, error and long-data states in every UI slice.

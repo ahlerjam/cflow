@@ -15,6 +15,7 @@ const VERDICT = {
 
 if (!args?.claim || !args?.brief || !args?.id) throw new Error('feature needs args {id, claim, brief, proof?, risk?}. Fix: pass a short id, the claim as checkable points and the quality brief.')
 const { id, claim, brief, proof = 'make verify', risk = 'medium' } = args
+if (!/^[\w-]+$/.test(id)) throw new Error('feature id must be letters, digits, _ or -. Fix: pass a short id such as export-umlauts.')
 const { path, base } = await agent(
   `Run in the repo root and return the absolute worktree path and BASE: BASE=$(git rev-parse HEAD); P=$HOME/.cache/slice/$(git rev-parse --show-toplevel | cksum | cut -d' ' -f1)/wt/${id}; git worktree add -b slice-${id} "$P" HEAD; [ -f .slice-env ] && cp .slice-env "$P/"`,
   { label: 'worktree', phase: 'Build', schema: WORKTREE },
@@ -53,6 +54,6 @@ for (let round = 1; round <= 3; round++) {
   )
   const fence = await agent(`Run: git -C ${path} status --porcelain; git -C ${path} rev-parse HEAD. If the status is not empty or HEAD is not ${sha}, run git -C ${path} reset --hard ${sha} && git -C ${path} clean -fd. Return clean=true only if nothing had to be reset.`, { label: 'fence', phase: 'Verify', schema: { type: 'object', properties: { clean: { type: 'boolean' } }, required: ['clean'] } })
   if (v?.pass && v.quality === 'pass' && fence?.clean) return { status: 'verified', worktree: path, base, sha, proof: proved.text, verdict: v.raw }
-  findings = v?.findings ?? ['The verifier gave no answer.']
+  findings = v?.pass && v.quality === 'pass' ? ['The verifier changed the worktree, so its pass does not count; the fence reset it. Prove again unchanged.'] : v?.findings ?? ['The verifier gave no answer.']
 }
 return { status: 'stuck', worktree: path, findings, question: 'Three rounds failed. Options: change the approach, narrow the claim, or stop. Which?' }

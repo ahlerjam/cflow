@@ -43,7 +43,7 @@ export const register: Register = on => {
   })
 
   // A failed hook counts as absent, so the catch turns a mod error into a deny
-  on('tool.check', async (_$, e, next) => (S.active && S.halt ? { decision: 'deny', reason: S.halt } : next(e))).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
+  on('tool.check', async (_$, e, next) => (S.active && S.halt && !/^(Read|Grep|Glob)$/.test(e.tool) ? { decision: 'deny', reason: S.halt } : next(e))).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
 
   on('agent.spawn', async (_$, e, next) => { const r = await next(e); return (r.agentId && TYPES.set(r.agentId, e.subagentType), r) })
   guard(on)

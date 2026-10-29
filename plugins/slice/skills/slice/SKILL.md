@@ -7,23 +7,23 @@ Active only when `.claude/slice.json` exists in the repo. Otherwise ignore this 
 
 ## Say the size in one line first
 `<size> · <risk> · proof: <command>`, for example `ticket · low · proof: make verify-export FILE=fixtures/umlauts.tex`. The person overrides size or risk with one word.
-- throwaway: a prototype. Only the lock applies; skip everything below.
+- throwaway: a prototype. Skip the claim, proofs and `done`; the guard and the lock still apply.
 - ticket: small, clear, one place. Work in this session, no subagent, no file.
 - feature: several files, UI, data or core paths. Write the claim first, then use `/slice:feature` (args: id, claim, brief, proof, risk), also when the person types "ultracode" or asks for a workflow. UI work: also use the `taste` skill.
 
 ## Risk comes from the diff, not the path
 - low: text, styles, additive, under about 50 lines.
-- medium: logic in core paths (`coreCmds` in `.claude/slice.json`). `done` refuses until it gets `verdict: reviewed` (after the person ran `/code-review high`, if available) or `verdict: skip`; pass `skip` only after the person says skip.
-- high: data migration, auth, areas named in a recent `/slice-miss` note (`misses` in the slice state). Use `/slice:feature` with `risk: high` (Opus verifier) and add security points to the claim; `done` checks that the verifier recorded a pass on the current tree; your own `verdict` does not count.
+- medium: logic in core paths (`corePaths`, path prefixes in `.claude/slice.json`). `done` refuses until it gets `verdict: reviewed` (after the person ran `/code-review high`, if available) or `verdict: skip`; pass `skip` only after the person says skip.
+- high: data migration, auth, areas named in a recent `/slice-miss` note (`misses` in `.git/slice/state.json`). Use `/slice:feature` with `risk: high` (Opus verifier) and add security points to the claim; `done` checks that the verifier recorded a pass on the current tree; your own `verdict` does not count. `done` also refuses a level below what the diff touches: core paths need at least medium, paths from a miss need high.
 
 ## The claim
 Write results as checkable points, each with a command and what it proves. Numbers and references, not adjectives. A feature claim has two parts: proof points (binary: states empty, loading, error, long data; keyboard and a11y minimum; one real document or payload) and a quality brief with references, anti-patterns and the question "what would the impressive version look like". Ask only what the code, NORTHSTAR.md, DESIGN.md or ADRs do not already answer.
 
 ## The mod proves, you do not
 Never report a proof as passed from your own run. Call the slice tool:
-- `prove` (no `cmd` runs `make verify`) runs the allowed command under the machine lock and answers from cache on an unchanged tree. It rejects TODOs, stubs, placeholder text, tests without a value assertion and new Markdown files; fix the cause.
-- `note` with `cmd` (a make command) and `files` freezes a proof, which `prove` then accepts beyond check, verify, test-affected and verify-*; later edits to those files need the person. Without `cmd` it logs a decision.
-- `done` closes the slice: pass `level` (low, medium or high), `verdict` as above and `cmd` if the proof was not `make verify`. It refuses without a passed proof on the current tree.
+- `prove` (no `cmd` runs `make verify`) runs the allowed command under the machine lock and answers from cache on an unchanged tree. It rejects TODOs, stubs, placeholder text, tests without a value assertion and new Markdown files other than README, AGENTS, CLAUDE, DESIGN and NORTHSTAR; fix the cause. `BUSY` means another proof holds the lock: prove again later, it is not a failure.
+- `note` with `cmd` (a make command) and `files` freezes a proof, which `prove` then accepts beyond check, verify, test-affected and verify-*; later edits to those files need the person; `text` names the proof. With only `text` it logs a decision.
+- `done` closes the slice: pass `level` (low, medium or high), `verdict` as above, `cmd` for a `verify-*` target or a frozen proof (`make check` and `test-affected` are too narrow to close) and `cwd` for a worktree. It refuses without a passed proof on that tree.
 Run only the affected tests while editing: `make test-affected FILES=…`. If `/simplify` (if available) changes code, prove again.
 
 ## Scope contract
@@ -40,4 +40,4 @@ Do what was asked. Everything else becomes a suggestion in your report, not code
 Result first. Then: which proofs the mod ran, what you added beyond the claim and what you discarded (each with a reason), what could not run on real data, and one better idea if you have one.
 
 ## After a feature
-`/slice:feature` returns the worktree path and branch `slice-<id>`. Review the result with the person, merge or cherry-pick it, then `git worktree remove <path>` and delete the branch; a `stuck` result keeps the worktree for inspection.
+`/slice:feature` returns the worktree path and builds on branch `slice-<id>`. Call `done` with `cwd` set to the worktree before you merge: the proof and the verifier's verdict belong to that tree. Then review with the person, merge or cherry-pick, `git worktree remove <path>` and delete the branch. A `stuck` result keeps the worktree for inspection.

@@ -9,6 +9,7 @@ const arg = n => (process.argv.includes(`--${n}`) ? process.argv[process.argv.in
 const gitDir = () => { try { return execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() } catch { return '.git' } }
 const [url, states, designPath, out] = [arg('url'), arg('states'), arg('design') ?? 'DESIGN.md', arg('out') ?? `${gitDir()}/slice/shots`]
 if (!url || !states) fail(`missing arguments. ${USAGE}`)
+const list = (() => { try { return JSON.parse(states) } catch { fail(`--states is not valid JSON. ${USAGE}`) } })()
 
 function fail(msg) {
   console.error(`ui-check: ${msg}`)
@@ -32,13 +33,20 @@ try {
 mkdirSync(out, { recursive: true })
 const problems = []
 const browser = await chromium.launch()
-for (const state of JSON.parse(states)) {
+try {
+for (const state of list) {
   for (const width of widths) {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
     const errors = []
     page.on('pageerror', e => errors.push(String(e)))
     page.on('console', m => m.type() === 'error' && errors.push(m.text()))
-    await page.goto(new URL(state.path, url).href, { waitUntil: 'load' })
+    try {
+      await page.goto(new URL(state.path, url).href, { waitUntil: 'load' })
+    } catch (e) {
+      problems.push(`${state.name} @${width}px did not load: ${e.message.split('\n')[0]}. Fix: start the app and check --url.`)
+      await page.close()
+      continue
+    }
     await page.waitForTimeout(300)
     const overflow = await page.evaluate(allow => {
       const cut = el => allow.some(sel => { try { return el.closest(sel) } catch { return false } })
@@ -51,6 +59,8 @@ for (const state of JSON.parse(states)) {
     await page.close()
   }
 }
-await browser.close()
+} finally {
+  await browser.close()
+}
 if (problems.length) fail(`${problems.length} problem(s)\n${problems.join('\n')}`)
-console.log(`ui-check: ok, ${JSON.parse(states).length} states x ${widths.length} widths, screenshots in ${out}`)
+console.log(`ui-check: ok, ${list.length} states x ${widths.length} widths, screenshots in ${out}`)

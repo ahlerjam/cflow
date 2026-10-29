@@ -2,11 +2,11 @@ import type { EngineInterface } from 'claude-code'
 
 type Eng = EngineInterface
 
-export type Marker = { coreCmds?: string[]; germanUiPaths?: string[]; throwaway?: string[]; excludedCommands?: string[]; allowedDomains?: string[] }
+export type Marker = { corePaths?: string[]; germanUiPaths?: string[]; throwaway?: string[]; excludedCommands?: string[]; allowedDomains?: string[] }
 export type State = { startVersion: string; proofs: Record<string, { cmd: string; files: string[] }>; misses: string[] }
 export type Mode = 'interactive' | 'run' | 'subagent'
 
-export const MIN_VERSION = '2.1.311'
+export const MIN_VERSION = '2.1.312'
 
 // Session facts shared by the mod files; `active` stays false without the marker
 export const S = { active: false, interactive: false, isRun: false, marker: {} as Marker, dir: '', root: '', halt: '' }
@@ -29,7 +29,7 @@ const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filt
 
 export function parseMarker(text: string): Marker {
   const raw = (() => { try { return JSON.parse(text) } catch { throw new Error('slice: .claude/slice.json is not valid JSON. Fix: correct the file or delete it to switch slice off.') } })() as Record<string, unknown>
-  return Object.fromEntries((['coreCmds', 'germanUiPaths', 'throwaway', 'excludedCommands', 'allowedDomains'] as const).map(k => [k, strings(raw?.[k])]))
+  return Object.fromEntries((['corePaths', 'germanUiPaths', 'throwaway', 'excludedCommands', 'allowedDomains'] as const).map(k => [k, strings(raw?.[k])]))
 }
 
 export async function openRepo($: Eng, cwd: string): Promise<{ root: string; dir: string } | null> {

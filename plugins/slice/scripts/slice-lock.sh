@@ -1,11 +1,11 @@
 #!/bin/sh
-# Same lock and cache as the slice mod (mod/lock.ts), for make targets and the hook. Inactive in CI and without the marker.
+# Same lock as the slice mod (mod/lock.ts), for make targets and the hook. Its cache entries start with sh-, so the mod never takes them as proof. Inactive in CI and without the marker.
 top=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")
 [ $# -eq 0 ] && { echo "Usage: slice-lock.sh <command...>" >&2; exit 2; }
 { [ -n "$CI" ] || [ -n "$SLICE_LOCK_HELD" ] || [ ! -f "$top/.claude/slice.json" ]; } && exec "$@"
 dir=$(git rev-parse --path-format=absolute --git-common-dir)/slice; mkdir -p "$dir/cache"
 x=$dir/idx.$$; tree=$(GIT_INDEX_FILE=$x git add -A 2>/dev/null && GIT_INDEX_FILE=$x git write-tree); rm -f "$x"
-hit=$dir/cache/$tree-$(echo "$*" | sed 's/[^A-Za-z0-9_]\{1,\}/_/g')
+hit=$dir/cache/sh-$tree-$(echo "$*" | sed 's/[^A-Za-z0-9_]\{1,\}/_/g')
 [ -n "$tree" ] && [ -f "$hit" ] && { echo "slice-lock: cached pass for this tree, not running: $*"; exit 0; }
 d=/tmp/slice-lock-$(id -u).l; w=$d.want; n=${SLICE_LOCK_WAIT:-90}; own=0; st=0; start=$(date +%s)
 i=0; [ -z "$SLICE_RUN" ] && i=1

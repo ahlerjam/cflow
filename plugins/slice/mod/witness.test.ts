@@ -8,7 +8,7 @@ let [tree, diff, code, spawned] = ['t1', '', 0, 0]
 const setup = async ($: Engine, on: On) => {
   on('process.spawn', async function* () { spawned++; yield { stream: 'stdout' as const, text: code === 3 ? 'slice-lock: waited 90 s\n' : 'ran\n' }; return { value: { code, signal: null } } })
   const exec = (a: readonly string[]) => (a[3] === 'write-tree' ? { stdout: tree } : a[3] === 'diff' ? { stdout: diff } : a.length === 6 ? { stdout: a[2]?.startsWith('/o') ? '/o/.git' : '/r/.git' } : undefined)
-  return boot($, on, { marker: '{}', exec })
+  return boot($, on, { marker: '{"corePaths":["src/core/"]}', exec })
 }
 const slice = async ($: Engine, args: object) => ((await $.tool.call({ tool: 'mcp__slice__slice', ...args } as never)) as { result?: string }).result ?? ''
 test('scans reject placeholders, assertion-less tests and stray Markdown; the allowlist is closed', () => {
@@ -23,7 +23,7 @@ test('prove rejects a bad diff, a foreign command and a foreign cwd before runni
   diff = add('a.test.ts', "it('x', () => { run() })")
   expect(await slice($, { action: 'prove' })).toContain('a.test.ts: test without a value assertion')
   diff = ''
-  expect([await slice($, { action: 'prove', cmd: 'rm -rf x' }), await slice($, { action: 'prove', cmd: 'make verify SHELL=/x' })].join()).toContain('freeze it first')
+  expect([await slice($, { action: 'prove', cmd: 'rm -rf x' }), await slice($, { action: 'prove', cmd: 'make verify SHELL=/x' }), await slice($, { action: 'prove', cmd: 'make verify PYTHON=true' })].join()).toContain('freeze it first')
   expect(await slice($, { action: 'prove', cwd: '/o/wt' })).toContain('git worktree add')
   expect(spawned).toBe(0)
 })
@@ -44,14 +44,14 @@ test('done needs a pass on the current tree, the verdict of its level, and for h
   expect(await slice($, { action: 'done', level: 'low' })).toContain('run slice prove again, the tree changed')
   await slice($, { action: 'prove' })
   const d = (level: string, verdict?: string) => slice($, { action: 'done', level, verdict })
-  expect([await d('medium'), await d('high', 'pass'), await d('medium', 'skip'), await d('low')]).toEqual([expect.stringContaining("Medium: run /code-review high, or pass verdict 'skip'"), expect.stringContaining('High needs a pass the slice:verifier recorded'), ...Array(2).fill('[slice harness] done')])
+  expect([await d('medium', 'pass'), await d('high', 'pass'), await d('medium', 'skip'), await d('low')]).toEqual([expect.stringContaining("Medium: run /code-review high, or pass verdict 'skip'"), expect.stringContaining('High needs a pass the slice:verifier recorded'), ...Array(2).fill('[slice harness] done')])
   expect([await slice($, { action: 'verdict', verdict: 'pass', agentId: 'b1' }), await slice($, { action: 'prove', agentId: 'v1' }), (await $.agent.spawn({ prompt: 'p', subagentType: 'slice:verifier' }), await slice($, { action: 'verdict', verdict: 'pass', agentId: 'w1' }))]).toEqual([expect.stringContaining('only the slice:verifier'), expect.stringContaining('verifier only records a verdict'), '[slice harness] verdict pass recorded for t3'])
-  expect([await d('high'), (await slice($, { action: 'verdict', verdict: 'fail', agentId: 'v1' }), await d('high')), (tree = 't4', await d('low'))]).toEqual(['[slice harness] done', expect.stringContaining('High needs'), expect.stringContaining('tree changed')])
+  expect([await d('high'), (await slice($, { action: 'verdict', verdict: 'fail', agentId: 'v1' }), await d('high')), (diff = add('src/core/a.ts', 'x'), await d('low')), (tree = 't4', await d('medium', 'skip'))]).toEqual(['[slice harness] done', expect.stringContaining('High needs'), expect.stringContaining('level is at least medium'), expect.stringContaining('tree changed')])
 })
 test('note freezes a proof that prove then accepts', async ($, on) => {
-  const { files } = await setup($, on)
+  const { files } = (diff = '', await setup($, on))
   expect(await slice($, { action: 'note', cmd: 'npm test', files: ['a.ts'] })).toContain('needs a make command')
   await slice($, { action: 'note', cmd: 'make smoke', files: ['a.ts'], text: 'p' })
   expect(JSON.parse(files[`${DIR}/state.json`]!).proofs.p).toEqual({ cmd: 'make smoke', files: ['a.ts'] })
-  expect(await slice($, { action: 'prove', cmd: 'make smoke' })).toContain('PASS make smoke')
+  expect([await slice($, { action: 'prove', cmd: 'make smoke' }), await slice($, { action: 'prove', cmd: 'make check' }), await slice($, { action: 'done', level: 'low', cmd: 'make check' }), await slice($, { action: 'done', level: 'low', cmd: 'make smoke' }), await slice($, { action: 'note', cmd: 'make other', files: ['b.ts'], text: 'p' })]).toEqual([expect.stringContaining('PASS make smoke'), expect.stringContaining('PASS make check'), expect.stringContaining('too narrow'), '[slice harness] done', expect.stringContaining('p is frozen already')])
 })

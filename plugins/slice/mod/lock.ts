@@ -4,14 +4,7 @@ const SCRIPT = String.raw`d=/tmp/slice-lock-$(id -u).l; w=$d.want; i=$SLICE_I; n
 cleanup() { [ $own = 1 ] && rm -f "$d"; [ $st = 1 ] && rm -f "$d.steal"; rm -f "$w.$$"; }
 trap cleanup EXIT; trap 'exit 143' INT TERM HUP
 [ $i = 1 ] && : > "$w.$$"
-wanted() {
-  for f in "$w".*; do
-    [ -e "$f" ] || continue
-    if kill -0 "$(echo "$f" | sed 's/.*\.//')" 2>/dev/null; then return 0; fi
-    rm -f "$f"
-  done
-  return 1
-}
+wanted() { for f in "$w".*; do [ -e "$f" ] || continue; kill -0 "$(echo "$f" | sed 's/.*\.//')" 2>/dev/null && return 0; rm -f "$f"; done; return 1; }
 while :; do
   if [ $i = 1 ] || ! wanted; then
     if ln -sn $$ "$d" 2>/dev/null; then own=1; break; fi

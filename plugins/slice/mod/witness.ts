@@ -2,13 +2,14 @@ import type { EngineInterface as Eng, On, ToolSpec } from 'claude-code'
 import { lockArgv } from './lock'
 import { S, loadState, logEvent, modeOf, saveState, tailLog, typeOf } from './state'
 
-const MAKE = /^make (?:check|verify|test-affected|verify-[\w-]+)(?: (?!SHELL=|MAKE\w*=)\w+=[\w./,:@+-]*)*$/
+// Only FILE and FILES may be set: any other variable can override the recipe the proof stands for
+const MAKE = /^make (?:check|verify|test-affected|verify-[\w-]+)(?: FILES?=[\w./,:@+-]*)*$/
 const MD_OK = /^(?:(?:.*\/)?(?:README|AGENTS|CLAUDE|CLAUDE\.local|DESIGN|NORTHSTAR)\.md$)/
 const SCANS: [RegExp, string][] = [[/\b(TO|FIX)(DO|ME)\b/, 'TODO/FIXME left in'], [/not impl[e]mented|NotImpl[e]mented|unimpl[e]mented!|pass\s+# stub/, 'stub left in'], [/lorem ipsum|placeholder text|\bTB[D]\b/i, 'placeholder text']] // character classes keep the scans from flagging their own source
 const IS_TEST = /\.(test|spec)\.|(^|\/)test_|_test\.|(^|\/)(tests?|__tests__)\//
 const HAS_TEST = /\b(it|test)(\.\w+)*\s*\(|def test_|func Test/
 const HAS_VALUE = /\bexpect\s*\(|\bassert|\brequire\.|\bt\.(Error|Fatal)f?\(|\.should\b|pytest\.raises/
-const VERDICT = { low: /^/, medium: /^(reviewed|skip|pass)$/, high: /^/ }
+const VERDICT = { low: /^/, medium: /^(reviewed|skip)$/, high: /^/ }
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 export const allowed = (cmd: string, proofs: Record<string, { cmd: string }>): boolean => MAKE.test(cmd) || Object.values(proofs).some(p => p.cmd === cmd)
 export const cacheKey = (tree: string, cmd: string): string => `${tree}-${cmd.replace(/\W+/g, '_')}`
@@ -50,10 +51,14 @@ async function prove($: Eng, a: Record<string, unknown>, cwd: string, agentId?: 
   return `PASS ${cmd} on ${short} (${Math.round((t1 - t0) / 1000)}s)`
 }
 async function done($: Eng, a: Record<string, unknown>, cwd: string): Promise<string> {
-  const [level, verdict] = [str(a.level) as keyof typeof VERDICT, str(a.verdict)]
+  const [level, verdict, cmd] = [str(a.level) as keyof typeof VERDICT, str(a.verdict), str(a.cmd) || 'make verify']
   if (!VERDICT[level]) return 'Rejected: level is required. Fix: pass level low, medium or high.'
-  const { tree } = await snapshot($, cwd)
-  if ((str(a.cmd) || 'make verify') !== 'make verify' && !Object.values((await loadState($))?.proofs ?? {}).some(p => p.cmd === str(a.cmd)) || !(await hit($, tree, str(a.cmd) || 'make verify'))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
+  const [{ tree, diff }, st] = [await snapshot($, cwd), await loadState($)]
+  const touched = [...diff.matchAll(/^\+\+\+ b\/(.*)$/gm)].map(m => m[1]!)
+  const floor = touched.some(f => st?.misses.some(m => m.includes(f))) ? 'high' : touched.some(f => (S.marker.corePaths ?? []).some(p => f.startsWith(p))) ? 'medium' : 'low'
+  if (Object.keys(VERDICT).indexOf(level) < Object.keys(VERDICT).indexOf(floor)) return `Refused: the diff touches ${floor === 'high' ? 'a path from a /slice-miss note' : 'core paths'}, so the level is at least ${floor}. Fix: close with level ${floor}.`
+  if (!/^make verify(?:-[\w-]+)?(?: |$)/.test(cmd) && !Object.values(st?.proofs ?? {}).some(p => p.cmd === cmd)) return `Refused: ${cmd} is too narrow to close a slice. Fix: prove make verify, a verify-* target or a frozen proof.`
+  if (!(await hit($, tree, cmd))) return 'Refused: no passed proof for the current tree. Fix: run slice prove again, the tree changed.'
   if (!VERDICT[level].test(verdict)) return "Refused. Medium: run /code-review high, or pass verdict 'skip'."
   if (level === 'high' && (await tailLog($, 5000)).flatMap(l => { try { return [JSON.parse(l)] } catch { return [] } }).filter(x => x.event === 'verdict' && x.tree === tree).at(-1)?.verdict !== 'pass') return 'Refused. High needs a pass the slice:verifier recorded on this tree. Fix: run /slice:feature with risk high.'
   return (await logEvent($, 'done', { level, verdict, tree }), 'done')
@@ -66,7 +71,8 @@ async function verdict($: Eng, a: Record<string, unknown>, cwd: string, type?: s
 async function note($: Eng, a: Record<string, unknown>): Promise<string> {
   const [cmd, text, state, files] = [str(a.cmd), str(a.text), await loadState($), (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string')]
   if (!cmd) return text ? (await logEvent($, 'note', { text }), 'noted') : 'Rejected: nothing to note. Fix: pass text, or cmd and files to freeze a proof.'
-  if (!state || !files.length || !/^make [\w][\w.-]*(?: (?!SHELL=|MAKE\w*=)\w+=[\w./,:@+-]*)*$/.test(cmd)) return 'Rejected: freezing needs a make command and the files it proves. Fix: pass both, or restart the session.'
+  if (!state || !files.length || !/^make [\w][\w.-]*(?: FILES?=[\w./,:@+-]*)*$/.test(cmd)) return 'Rejected: freezing needs a make command and the files it proves. Fix: pass both, or restart the session.'
+  if (state.proofs[text || cmd]) return `Rejected: ${text || cmd} is frozen already. Fix: ask the person to change it, or freeze a new proof under another text.`
   await saveState($, { ...state, proofs: { ...state.proofs, [text || cmd]: { cmd, files } } })
   return (await logEvent($, 'freeze', { cmd, files }), `frozen ${cmd}`)
 }
