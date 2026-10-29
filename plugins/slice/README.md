@@ -1,8 +1,8 @@
 # slice
 
-Work in Claude Code ends when a program says so, not when the agent does. slice puts a small mod in the middle of your session: it runs the proof itself, a fresh verifier checks the claim, and you accept the result.
+slice adds a small mod to your Claude Code session. The mod runs the proof itself, a fresh verifier checks the claim, and you accept the result, so the agent's own report of success is never the end of a job.
 
-This is v1.0a: tickets and supervised features. The unattended multi-slice run, the acceptance page and the cloud lane are not part of it yet.
+This first release covers tickets and supervised features. The unattended multi-slice run, the acceptance page and the cloud lane are not part of it yet.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ Other commands: `/slice-status` shows mode, version and the last log lines; `/sl
 
 ## What it protects against, and what it does not
 
-The guard is a safety net, not a permission system. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that changes anything. It does not read Bash commands for file writes. The real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (docker, latexmk and similar) run outside the sandbox.
+The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that changes anything. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (docker, latexmk and similar) run outside the sandbox.
 
 `claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. The repo code that `/slice:setup` writes (make targets, hook, CI, the `verify` skill) keeps working if the mod is off.
 
