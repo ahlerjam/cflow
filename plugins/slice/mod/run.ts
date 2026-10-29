@@ -280,7 +280,7 @@ export async function runAction($: Eng, a: Record<string, unknown>, agentId?: st
 export async function onStart($: Eng): Promise<void> {
   S.slice = (await $.env.get('SLICE_SLICE')) ?? ''
   if (S.isRun && S.slice) {
-    await logEvent($, 'start', { slice: S.slice })
+    await logEvent($, 'start', { slice: S.slice, watchdog: await $.env.get('CLAUDE_CODE_RETRY_WATCHDOG'), noUpdate: await $.env.get('DISABLE_AUTOUPDATER') })
     $.clock.every(6e4, () => void $.clock.now().then(t => $.fs.write(`${S.dir}/beat`, String(t))).catch(() => undefined))
   }
   if (!S.interactive || S.isRun) return
