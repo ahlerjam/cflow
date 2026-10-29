@@ -4,7 +4,7 @@ import type { On } from 'claude-code'
 const OK = { exitCode: 0, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
 export const ROOT = '/r'
 export const DIR = '/r/.git/slice'
-export type Opts = { marker?: string; version?: string; state?: string; run?: boolean; interactive?: boolean; env?: Record<string, string>; mvFails?: boolean }
+export type Opts = { marker?: string; version?: string; state?: string; run?: boolean; interactive?: boolean; env?: Record<string, string>; mvFails?: boolean; exec?: (argv: readonly string[]) => { stdout: string } | undefined }
 export async function boot($: Engine, on: On, opts: Opts = {}) {
   const files: Record<string, string> = {}
   if (opts.marker) files[`${ROOT}/.claude/slice.json`] = opts.marker
@@ -18,6 +18,8 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   on('process.run', async (_, e) => {
     runs.push([...e.argv])
     const [cmd, from, to] = e.argv
+    const x = opts.exec?.(e.argv)
+    if (x) return { value: { ...OK, ...x } }
     if (cmd === 'git') return { value: { ...OK, stdout: `${ROOT}\n${ROOT}/.git\n` } }
     if (e.argv[2]?.includes('rev-parse')) return { value: { ...OK, stdout: e.argv[4]?.startsWith('/wt') ? `/wt\n${ROOT}/.git\n` : e.argv[4]?.startsWith('/other') ? '/other\n/other/.git\n' : `${ROOT}\n${ROOT}/.git\n` } }
     if (cmd === 'mv' && opts.mvFails) return { value: { ...OK, exitCode: 1, stdout: '' } }
@@ -30,6 +32,7 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   on('session.version', async () => ({ value: { version: opts.version ?? '2.1.312' } }))
   on('command.register', async (_, e) => (registered.push(e.name), { value: { command: e.name } }))
   on('agent.list', async () => ({ value: [{ id: 'b1', type: 'slice:builder' }, { id: 'v1', type: 'slice:verifier' }] as never }))
+  on('tool.register', async (_, e) => ({ value: { tool: `mcp__slice__${e.name}` } }))
   on('session.start', async (_, e) => e)
   on('tool.call', async () => ({ result: 'ok' }) as never)
   on('tool.check', async () => ({ decision: 'allow' }))

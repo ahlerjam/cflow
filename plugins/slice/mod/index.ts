@@ -1,6 +1,7 @@
 import type { Register } from 'claude-code'
 
 import { register as guard, resetDenials } from './guard'
+import { TOOL, register as witness } from './witness'
 import { MIN_VERSION, S, loadState, logEvent, modeOf, openRepo, parseMarker, saveState, tailLog, versionAtLeast } from './state'
 export { lockArgv } from './lock'
 export { S, loadState, logEvent, modeOf, saveState } from './state'
@@ -23,6 +24,7 @@ export const register: Register = on => {
     S.active = true
     await $.command.register({ name: 'slice-status', description: 'Show slice state, mode and recent log' })
     await $.command.register({ name: 'slice-miss', description: 'Note something the harness missed', argumentHint: '"<line>"' })
+    await $.tool.register(TOOL)
     try {
       S.marker = parseMarker(await $.fs.read(markerPath))
       const { version } = await $.session.version()
@@ -45,6 +47,7 @@ export const register: Register = on => {
   on('tool.check', async (_$, e, next) => (S.active && S.halt ? { decision: 'deny', reason: S.halt } : next(e)))
 
   guard(on)
+  witness(on)
 
   on('command.run', { command: 'slice-status' }, async $ => {
     if (!S.active) return { text: OFF }
