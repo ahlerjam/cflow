@@ -34,6 +34,8 @@ For a feature, the agent runs `/slice:feature` with an id, the claim and a quali
 
 Other commands: `/slice-status` shows mode, version and the last log lines; `/slice-miss "<line>"` records something the harness missed. The mod commands use a dash because a mod cannot register a colon.
 
+With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builder` consult Opus at decision points; Anthropic reports higher scores at lower cost per task than Sonnet alone ([The advisor strategy](https://claude.com/blog/the-advisor-strategy)). The verifier stays a separate fresh context, because the advisor reads the same conversation.
+
 ## What it protects against, and what it does not
 
 The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that edits files or changes git state. Edits to Makefiles, hooks, CI, dependencies, `.env` files and ADRs ask you first. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (patterns such as `docker compose *` or `latexmk *`) run outside the sandbox.

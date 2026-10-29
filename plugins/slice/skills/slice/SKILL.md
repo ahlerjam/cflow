@@ -33,6 +33,8 @@ Do what was asked. Everything else becomes a suggestion in your report, not code
 - Tests: about one per behaviour. The end-to-end run with real data is the main evidence; green unit tests are a hint.
 - Comments only for a non-obvious why. No error handling without a reason, no abstraction for a single use.
 - Debugging: reproduce first, then find the cause, then fix. After two failed attempts rethink the approach.
+- Test first where it pays: for a bug, the proof is a test that fails before the fix; let `prove` show that FAIL once, then fix. For a feature, write the proof points as tests before the code. No test per function or per line.
+- Plan, TDD or subagent skills from other plugins do not override this skill here: the claim replaces any plan file, and the tests rule above replaces a strict red-green cycle per function.
 - Decisions the person owns: direction, tech stack, architecture, UX. Suggest, never decide them silently.
 - Text for German UI follows the project's language rules; no dashes as punctuation in German text.
 
