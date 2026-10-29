@@ -24,7 +24,9 @@ async function snapshot($: Eng, cwd: string): Promise<{ tree: string; diff: stri
   const env = { GIT_INDEX_FILE: `${S.dir}/idx.${Math.random().toString(36).slice(2)}` }
   const git = (...args: string[]) =>
     $.process.run(['git', '-C', cwd, ...args], { env }).then(r => (r.exitCode === 0 && !r.isStdoutTruncated ? r.stdout : Promise.reject(new Error(`slice: git ${args[0]} failed: ${r.stderr.trim() || 'output too large'}`))))
-  try { return (await git('add', '-A'), { tree: (await git('write-tree')).trim(), diff: await git('diff', '--cached', '-U0', 'HEAD') }) } finally { await $.process.run(['rm', '-f', env.GIT_INDEX_FILE]) }
+  // Builders may commit in their worktree: scan everything since the main checkout's HEAD
+  const base = (await git('merge-base', 'HEAD', (await $.process.run(['git', '-C', S.root, 'rev-parse', 'HEAD'])).stdout.trim())).trim()
+  try { return (await git('add', '-A'), { tree: (await git('write-tree')).trim(), diff: await git('diff', '--cached', '-U0', base) }) } finally { await $.process.run(['rm', '-f', env.GIT_INDEX_FILE]) }
 }
 async function hit($: Eng, tree: string, cmd: string): Promise<{ t: number } | undefined> {
   const f = `${S.dir}/cache/${cacheKey(tree, cmd)}`
