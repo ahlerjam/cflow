@@ -31,6 +31,7 @@ Each plugin is versioned on its own. A new version ships as a
 | [cockpit](plugins/cockpit) | 0.3.0 | Side pane next to the chat that switches every skill, plugin, MCP server and agent on, off or never, and shows GitHub Actions runs and issues of the current repo. |
 | [humanizer](https://github.com/blader/humanizer) | upstream | Third-party, by blader: rewrites AI-sounding English text so it reads like the writer. Listed here as a dependency of useful-tools. |
 | [humanizer-de](https://github.com/marmbiz/humanizer-de) | upstream | Third-party, by marmbiz: German style editor that finds and removes AI writing patterns. Listed here as a dependency of useful-tools. |
+| [slice](plugins/slice) | 0.1.0 | Verification-first work loop for Claude Code: a mod runs the proof, a fresh verifier checks the claim, you accept. |
 | [useful-tools](plugins/useful-tools) | 0.2.1 | Session tools: handover files for the next session, source-backed web research from quick answers to full dossiers, and editable draw.io diagrams without the desktop app. |
 <!-- plugins:end -->
 

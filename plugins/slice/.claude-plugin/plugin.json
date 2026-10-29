@@ -1,0 +1,10 @@
+{
+  "name": "slice",
+  "version": "0.1.0",
+  "description": "Verification-first work loop for Claude Code: a mod runs the proof, a fresh verifier checks the claim, you accept.",
+  "author": {
+    "name": "ahlerjam"
+  },
+  "repository": "https://github.com/ahlerjam/cflow",
+  "license": "MIT"
+}
