@@ -81,7 +81,7 @@ export const register = (on: On): void => {
     const v = out ? deny('Builders edit only in a worktree of this repo, not the main checkout or elsewhere. Fix: work in your worktree.') : judge(e.tool, input, { mode: modeOf(e.agentId, S.isRun, S.interactive), type, frozen, prior })
     if (!v) return counts.delete(who), next(e)
     if (v.decision === 'deny') await countDenial($, who, v.reason)
-    // Not in the shipped 2.1.300 types; 2.1.312 shows the person a dialog even under acceptEdits
+    // Undocumented value: on 2.1.312 it forces a dialog under acceptEdits, but auto mode still hands the ask to its classifier
     return v.decision === 'ask' ? { ...v, decider: 'person' as never } : v
   }).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
 }
