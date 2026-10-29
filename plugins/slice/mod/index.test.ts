@@ -69,7 +69,7 @@ test('a failed mv removes the temp file', async ($, on) => {
 test('/slice-miss appends to the state and the log', async ($, on) => {
   const { files, runs } = await boot($, on, { marker: '{}' })
   expect((await status($, 'slice-miss', 'forgot the lock')).text).toContain('noted')
-  expect(JSON.parse(files[`${DIR}/state.json`] ?? '').misses).toEqual(['forgot the lock'])
+  expect(JSON.parse(files[`${DIR}/state.json`] ?? '').misses).toEqual([{ t: 0, line: 'forgot the lock' }])
   const log = runs.find(r => r[0] === 'sh')
   expect(log?.[5]).toBe(`${DIR}/log.jsonl`)
   expect(log?.[4]).toContain('"event":"miss"')

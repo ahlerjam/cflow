@@ -75,12 +75,14 @@ export const register = (on: On): void => {
     if (stuck.has(who)) return deny(stuck.get(who)!)
     const [input, isFile] = [(e.input ?? {}) as Input, e.tool !== 'Bash']
     const [path, type] = [str(input.file_path), await typeOf($, e.agentId)]
-    const frozen = isFile ? Object.values((await loadState($))?.proofs ?? {}).flatMap(p => p.files) : []
+    const frozen = isFile ? Object.values((await loadState($))?.proofs ?? {}).filter(p => p.amend !== 'open').flatMap(p => p.files) : []
     const prior = e.tool === 'Write' && (await $.fs.exists(path)) ? (await $.fs.read(path)).split('\n') : []
     const out = isFile && type === 'slice:builder' && !(await inWorktree($, path))
     const v = out ? deny('Builders edit only in a worktree of this repo, not the main checkout or elsewhere. Fix: work in your worktree.') : judge(e.tool, input, { mode: modeOf(e.agentId, S.isRun, S.interactive), type, frozen, prior })
     if (!v) return counts.delete(who), next(e)
     if (v.decision === 'deny') await countDenial($, who, v.reason)
+    // Nobody can answer in a run: the ask is refused there, so the person hears of it
+    else if (S.isRun || !S.interactive) await logEvent($, 'asked', { slice: S.slice, path, reason: v.reason })
     // Undocumented value (the types name only 'host'); on 2.1.312 it shows the dialog under acceptEdits and in auto mode
     return v.decision === 'ask' ? { ...v, decider: 'person' as never } : v
   }).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))

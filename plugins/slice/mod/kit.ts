@@ -11,7 +11,7 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   mock.clock(on, { now: 0 })
   mock.env(on, opts.run ? { SLICE_RUN: '1' } : (opts.env ?? {}))
   on('fs.exists', async (_, e) => ({ value: e.path in files }))
-  on('fs.read', async (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.read', async (_, e) => ({ value: files[e.path] ?? (e.path.endsWith('profiles/run.json') ? '{"permissions":{"allow":[]},"sandbox":{"filesystem":{"allowWrite":[]},"network":{"allowedDomains":[]}}}' : '') }))
   on('fs.write', async (_, e) => ({ value: void (files[e.path] = e.text) }))
   on('process.run', async (_, e) => {
     runs.push([...e.argv])
@@ -36,6 +36,12 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   on('session.start', async (_, e) => e)
   on('tool.call', async () => ({ result: 'ok' }) as never)
   on('tool.check', async () => ({ decision: 'allow' }))
+  const store = new Map<string, unknown>()
+  on('store.get', async (_, e) => ({ value: store.get(e.key) }))
+  on('store.set', async (_, e) => ({ value: void store.set(e.key, e.value) }))
+  on('store.delete', async (_, e) => ({ value: void store.delete(e.key) }))
+  on('skill.prompt', async (_, e) => ({ text: e.text }) as never)
+  on('session.cwd', async () => ({ value: ROOT }))
   await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: !opts.run && (opts.interactive ?? true) } as never)
   return { files, runs, registered }
 }

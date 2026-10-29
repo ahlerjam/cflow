@@ -1,10 +1,36 @@
 {
   "name": "slice",
-  "version": "0.1.0",
-  "description": "Verification-first work loop for Claude Code: a mod runs the proof, a fresh verifier checks the claim, you accept.",
+  "version": "0.2.0",
+  "description": "Verification-first work loop for Claude Code, from a ticket to an unattended run: a mod runs the proof, a fresh verifier checks the claim, you accept.",
   "author": {
     "name": "ahlerjam"
   },
   "repository": "https://github.com/ahlerjam/cflow",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "runModel": {
+      "type": "string",
+      "title": "Run model",
+      "description": "Model for run sessions",
+      "default": "opus"
+    },
+    "runEffort": {
+      "type": "string",
+      "title": "Run effort",
+      "description": "Effort for run sessions",
+      "default": "high",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "fallbackModel": {
+      "type": "string",
+      "title": "Fallback model",
+      "description": "Model a run session falls back to when the run model is unavailable",
+      "default": "sonnet"
+    }
+  }
 }

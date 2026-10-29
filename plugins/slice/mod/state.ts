@@ -2,14 +2,18 @@ import type { EngineInterface } from 'claude-code'
 
 type Eng = EngineInterface
 
-export type Marker = { corePaths?: string[]; germanUiPaths?: string[]; throwaway?: string[]; excludedCommands?: string[]; allowedDomains?: string[] }
-export type State = { startVersion: string; proofs: Record<string, { cmd: string; files: string[] }>; misses: string[] }
+export type Marker = { corePaths?: string[]; germanUiPaths?: string[]; throwaway?: string[]; excludedCommands?: string[]; allowedDomains?: string[]; cloud?: boolean }
+export type Miss = string | { t: number; line: string }
+export type Kind = 'bug' | 'infra' | 'tracer' | 'feature' | 'polish' | 'consolidate'
+export type Slice = { id: string; kind: Kind; claim: string; brief: string; proof: string; risk: 'low' | 'medium' | 'high'; after?: string[]; cloud?: boolean; ui?: boolean; status: 'queued' | 'running' | 'cloud' | 'merged' | 'stuck' | 'waiting' | 'rejected'; t?: number; sha?: string; disk?: number; why?: string }
+export type Run = { stage: string; branch: string; wt: string; t0: number; maxHours: number; budget: number; use0: number; queue: Slice[]; added: number; paused?: boolean; stopped?: boolean; halt?: string; pilot: boolean; pages: number; online: boolean; hold?: number }
+export type State = { startVersion: string; proofs: Record<string, { cmd: string; files: string[]; amend?: 'open' | 'used' }>; misses: Miss[]; run?: Run; calibration?: string[] }
 export type Mode = 'interactive' | 'run' | 'subagent'
 
 export const MIN_VERSION = '2.1.312'
 
 // Session facts shared by the mod files; `active` stays false without the marker
-export const S = { active: false, interactive: false, isRun: false, marker: {} as Marker, dir: '', root: '', halt: '' }
+export const S = { active: false, interactive: false, isRun: false, marker: {} as Marker, dir: '', root: '', halt: '', slice: '' }
 
 // Workflow agents carry ids that $.agent.list() never names, so agent.spawn records each type
 export const TYPES = new Map<string, string>()
@@ -29,7 +33,7 @@ const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filt
 
 export function parseMarker(text: string): Marker {
   const raw = (() => { try { return JSON.parse(text) } catch { throw new Error('slice: .claude/slice.json is not valid JSON. Fix: correct the file or delete it to switch slice off.') } })() as Record<string, unknown>
-  return Object.fromEntries((['corePaths', 'germanUiPaths', 'throwaway', 'excludedCommands', 'allowedDomains'] as const).map(k => [k, strings(raw?.[k])]))
+  return { ...Object.fromEntries((['corePaths', 'germanUiPaths', 'throwaway', 'excludedCommands', 'allowedDomains'] as const).map(k => [k, strings(raw?.[k])])), ...(raw?.cloud === true ? { cloud: true } : {}) }
 }
 
 export async function openRepo($: Eng, cwd: string): Promise<{ root: string; dir: string } | null> {
@@ -61,4 +65,16 @@ export async function logEvent($: Eng, event: string, data: Record<string, unkno
 export async function tailLog($: Eng, n: number): Promise<string[]> {
   const path = `${S.dir}/log.jsonl`
   return (await $.fs.exists(path)) ? (await $.fs.read(path)).trim().split('\n').slice(-n) : []
+}
+
+export async function events($: Eng): Promise<Record<string, any>[]> {
+  return (await tailLog($, 20000)).flatMap(l => { try { return [JSON.parse(l)] } catch { return [] } })
+}
+export const missLine = (m: Miss): string => (typeof m === 'string' ? m : m.line)
+// Misses older than 30 days stop raising the floor; untimed ones from v1.0a still count
+export const recentMisses = (st: State | null, now: number): string[] => (st?.misses ?? []).filter(m => typeof m === 'string' || now - m.t < 30 * 864e5).map(missLine)
+export async function git($: Eng, cwd: string, ...args: string[]): Promise<string> {
+  const r = await $.process.run(['git', '-C', cwd, ...args])
+  if (r.exitCode !== 0) throw new Error(`slice: git ${args[0]} failed: ${r.stderr.trim()}`)
+  return r.stdout.trim()
 }

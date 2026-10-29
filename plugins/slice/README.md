@@ -2,7 +2,7 @@
 
 slice adds a small mod to your Claude Code session. The mod runs the proof itself, a fresh verifier checks the claim, and you accept the result, so the agent's own report of success is never the end of a job.
 
-This first release covers tickets and supervised features. The unattended multi-slice run, the acceptance page and the cloud lane are not part of it yet.
+It covers a small ticket, a supervised feature and an unattended run of a whole stage, on your Mac, in a Claude Code cloud session, or both.
 
 ## Requirements
 
@@ -12,7 +12,7 @@ This first release covers tickets and supervised features. The unattended multi-
 | git | state, worktrees, diffs and the proof cache | `git --version` |
 | make | every proof runs as a make target | `make --version` |
 
-Node.js and Playwright (`npm install -g playwright`) are only needed in repos with a UI, for `scripts/ui-check.mjs`. A claude.ai login is only needed once the acceptance page ships.
+Node.js and Playwright (`npm install -g playwright`) are only needed in repos with a UI, for `scripts/ui-check.mjs`. A claude.ai login is needed for the acceptance page as an Artifact, for push notifications and for cloud runs; without it the page is a local HTML file.
 
 ## Install
 
@@ -27,12 +27,31 @@ Run `/slice:setup` once per repo. It measures the test suite, writes the make ta
 After a restart, the `slice` skill sizes each job in one line (`ticket · low · proof: make verify-export`). The agent then works as usual and ends with the `slice` tool:
 
 - `prove` runs an allowed make target under a machine-wide lock. It first rejects TODOs, stubs, placeholder text, tests without an assertion and new Markdown files in the diff since the main checkout's `HEAD`. A pass is cached per file tree, so an unchanged tree is not proved again.
-- `done` closes the job. It refuses without a passed proof on the current tree, and below the level the diff calls for (core paths at least medium, paths from a `/slice-miss` note high). Medium risk needs a review verdict or a skip you said; high risk needs a pass that the verifier recorded on the same tree.
+- `red` runs the proof before the code exists. It must fail on an assertion, not on a missing file, and then freezes the test files. `amend` opens a frozen proof once, with a reason that shows on the acceptance page.
+- `done` closes the job. It refuses without a passed proof on the current tree, and below the level the diff calls for (core paths at least medium, paths from a `/slice-miss` note of the last 30 days high). A bug fix needs its proof to have failed first. Medium risk needs the bundled `/code-review` on that tree, which the agent runs itself and the mod records, or a skip you choose in the mod's dialog. High risk needs a pass that the verifier recorded on the same tree.
 - `note` logs a decision, or freezes a proof (`cmd` and `files`). Later edits to frozen files in the main checkout need your approval, and a frozen proof cannot be frozen again.
 
-For a feature, the agent runs `/slice:feature` with an id, the claim and a quality brief (or you type "ultracode"). The workflow creates a git worktree, lets `slice:builder` write the proof tests and the code, has the tool prove it, and hands the result to a fresh `slice:verifier`. Failures go back to the builder, three rounds at most.
+For a feature, the agent runs `/slice:feature` with an id, the claim and a quality brief (or you type "ultracode"). The mod creates a git worktree. `slice:builder` writes the proof tests, which must fail first, and then the code. The tool proves it, the mod commits the candidate, and a fresh `slice:verifier` checks it. Failures go back to the builder with its last report, three rounds at most.
 
-Other commands: `/slice-status` shows mode, version and the last log lines; `/slice-miss "<line>"` records something the harness missed. The mod commands use a dash because a mod cannot register a colon.
+### An unattended run
+
+1. `/slice:shape` turns an idea into a queue of 6 to 15 slices with you, in about 20 minutes. It asks at most 6 questions and brings a parity table against a real product, mockups for screens, a dependency allowlist and a budget. It ends when you approve the queue and its permission scope in the mod's own dialog.
+2. `/slice:run` asks whether your Mac stays online and starts the first slice as a background session (`claude --bg`). Each session works one slice through `/slice:feature`, then the mod merges it into the run branch `slice/<stage>`, runs `make check` and every proof, reverts a merge that turns an old proof red, and starts the next session. Run sessions get a fixed permission profile: they edit only their worktree, run only make targets, and cannot commit, push, open PRs or receive messages from other sessions.
+3. The run pauses above 90 % of the 5-hour limit and wakes itself after the reset. It halts at a spend or credit limit, at 70 % of the weekly limit, at three times the stage budget, under 20 GB free disk and after its wall-clock time. Each halt and the end send a push to your phone through Claude Code. After two slices a pilot page is written, and after every third slice a progress page.
+4. `/slice:accept` proves everything once more on the run branch and builds the acceptance page: waiting for you, changed, found. It shows one random low-risk slice for a full look. A reject queues a fix slice, a miss and a calibration example for the verifier. You merge the run branch yourself.
+
+`/slice-status` shows what is merged, running, in the cloud and waiting for you; the same summary appears as a status line when you open Claude Code. `/slice-pause`, `/slice-resume` and `/slice-stop` control the run. `/slice-miss "<line>"` records something the harness missed and offers one rule line for the verification section, which you confirm. The mod commands use a dash because a mod cannot register a colon.
+
+### Local, cloud, or both
+
+Plugins do not load in Claude Code cloud sessions, so setup can copy slice into the repo (`.slice/plugin`) and add a small `slice-cloud` skill. A cloud session then only dispatches, and the work runs in a nested `claude -p --plugin-dir .slice/plugin` with the mod active.
+- Local: everything on your Mac.
+- Cloud: start the approved stage from a cloud session, on your phone too; your Mac can be off. Progress comes back as a push and as `refs/slice/<stage>-status`, which `/slice-status` reads.
+- Mixed: a local run sends slices without UI or heavy local load to the cloud and verifies them locally when their branch comes back.
+
+Cloud sessions count against the same usage limits as local ones, so the cloud saves your Mac's CPU, memory and battery, not tokens. They need a GitHub remote with push access for cloud sessions.
+
+Models for run sessions are plugin options (`runModel`, `runEffort`, `fallbackModel`; set them with `/config`).
 
 With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builder` consult Opus at decision points; Anthropic reports higher scores at lower cost per task than Sonnet alone ([The advisor strategy](https://claude.com/blog/the-advisor-strategy)). The verifier stays a separate fresh context, because the advisor reads the same conversation.
 
@@ -40,8 +59,8 @@ With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builde
 
 The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that edits files or changes git state. Edits to Makefiles, hooks, CI, dependencies, `.env` files and ADRs ask you first. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (patterns such as `docker compose *` or `latexmk *`) run outside the sandbox.
 
-`claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. The repo code that `/slice:setup` writes (make targets, hook, CI) keeps working if the mod is off.
+`claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. Push notifications need a working session: a session that hangs sends none. The repo code that `/slice:setup` writes (make targets, hook, CI) keeps working if the mod is off.
 
 ## Setup
 
-State lives in `.git/slice/` (state, log, proof cache) and is never committed. The keys of `.claude/slice.json` are optional: `corePaths` (path prefixes of core logic), `germanUiPaths`, `throwaway`, `excludedCommands` and `allowedDomains`. The path of the lock is `/tmp/slice-lock-<uid>.l`; set `SLICE_LOCK_WAIT` (seconds, default 90) for `scripts/slice-lock.sh`. That script's own cache only spares the hook a rerun; the mod never takes it as proof.
+State lives in `.git/slice/` (state, log, proof cache, pages, run settings) and is never committed. Worktrees live under `~/.cache/slice/`. The keys of `.claude/slice.json` are optional: `corePaths` (path prefixes of core logic), `germanUiPaths`, `throwaway`, `excludedCommands`, `allowedDomains` and `cloud`. The path of the lock is `/tmp/slice-lock-<uid>.l`; set `SLICE_LOCK_WAIT` (seconds, default 90) for `scripts/slice-lock.sh`. That script's own cache only spares the hook a rerun; the mod never takes it as proof.

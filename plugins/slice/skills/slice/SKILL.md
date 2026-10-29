@@ -13,7 +13,7 @@ Active only when `.claude/slice.json` exists in the repo. Otherwise ignore this 
 
 ## Risk comes from the diff, not the path
 - low: text, styles, additive, under about 50 lines. If it touches UI, the proof includes the repo's ui-check target.
-- medium: logic in core paths (`corePaths`, path prefixes in `.claude/slice.json`). `done` refuses until it gets `verdict: reviewed` (after the person ran `/code-review high`, if available) or `verdict: skip`; pass `skip` only after the person says skip.
+- medium: logic in core paths (`corePaths`, path prefixes in `.claude/slice.json`). Run `/code-review high` yourself before `done`; the mod records that review for the tree, and a proof that passes after its fixes keeps it valid. Your own `verdict` does not count; a skip only comes from the person in the mod's dialog.
 - high: data migration, auth, areas named in a `/slice-miss` note (`misses` in `.git/slice/state.json`). Use `/slice:feature` with `risk: high` (Opus verifier) and add security points to the claim, written as invariants with a test each ("user A never reads user B's data"); `done` checks that the verifier recorded a pass on the current tree; your own `verdict` does not count. `done` also refuses a level below what the diff touches: core paths need at least medium, paths from a miss need high.
 
 ## The claim
@@ -23,8 +23,12 @@ Write results as checkable points, each with a command and what it proves. Numbe
 Never report a proof as passed from your own run. Call the slice tool:
 - `prove` (no `cmd` runs `make verify`) runs the allowed command under the machine lock and answers from cache on an unchanged tree. It rejects TODOs, stubs, placeholder text, tests without a value assertion and new Markdown files other than README, AGENTS, CLAUDE, DESIGN and NORTHSTAR; fix the cause. `BUSY` means another proof holds the lock: prove again later, it is not a failure.
 - `note` with `cmd` (a make command) and `files` freezes a proof, which `prove` then accepts beyond check, verify, test-affected and verify-*; later edits to those files need the person; `text` names the proof. With only `text` it logs a decision.
-- `done` closes the slice: pass `level` (low, medium or high), `verdict` as above, `cmd` for a `verify-*` target or a frozen proof (`make check` and `test-affected` are too narrow to close) and `cwd` for a worktree. It refuses without a passed proof on that tree.
+- `red` runs the proof before the code exists and must fail on an assertion; it then freezes the test files. `amend` opens a frozen proof once, with the reason.
+- `done` closes the slice: pass `level` (low, medium or high), `kind: bug` for a bug fix (it needs a FAIL of the same proof before the fix), `cmd` for a `verify-*` target or a frozen proof (`make check` and `test-affected` are too narrow to close) and `cwd` for a worktree. It refuses without a passed proof on that tree.
 Run only the affected tests while editing: `make test-affected FILES=…`. For a feature, suggest `/simplify` (if available) before the last proof; if it changes code, prove again. For a change to UI or runtime behaviour, suggest the person runs `/verify` (if available) on the running app.
+
+## In a run session
+The prompt starts with `slice run`: follow it, nothing else. Decide reversible questions yourself and log them with `note` (text, confidence 0 to 1); a new screen inside DESIGN.md's tokens and the chosen mockup is a "UX assumption" with a screenshot path in the note. Money, irreversible data operations, publishing, credentials, CI and framework changes stay with the person: note the question and carry on with what does not depend on it. `add` may add a slice inside the stage, with a reason, up to 30 % of the queue.
 
 ## Scope contract
 Do what was asked. Everything else becomes a suggestion in your report, not code: no extra tests, hooks, guards, ADRs, plan or notes files, no refactors of code you did not touch. Do not fix other agents' fixes. In repos with other committers follow their PR convention and leave slice vocabulary out.
