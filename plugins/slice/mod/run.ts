@@ -69,7 +69,11 @@ async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
   // In a cloud run one nested session works the queue itself: it gets the next slice as its instruction
   if (await $.env.get('SLICE_CLOUD')) return (Object.assign(x, { status: 'running', t: await $.clock.now() }), await saveState($, st), (S.slice = x.id), await logEvent($, 'start', { slice: x.id }), `next: ${slicePrompt(r, x)}`)
   const prompt = slicePrompt(r, x)
-  const argv = ['claude', '--bg', '--name', `slice-${r.stage}-${n}`, '--settings', `${S.dir}/run-settings.json`, '--permission-mode', 'dontAsk', '--model', OPTS.runModel, '--effort', OPTS.runEffort, '--fallback-model', OPTS.fallbackModel, prompt]
+  // A background session inherits neither the caller's env nor its --plugin-dir: both go in explicitly
+  if (!(await $.fs.exists(`${S.dir}/run-settings.json`))) await writeSettings($)
+  const base = JSON.parse(await $.fs.read(`${S.dir}/run-settings.json`))
+  await $.fs.write(`${S.dir}/run-${x.id}.json`, JSON.stringify({ ...base, env: { ...base.env, SLICE_RUN: '1', SLICE_SLICE: x.id } }))
+  const argv = ['claude', '--bg', '--name', `slice-${r.stage}-${n}`, '--plugin-dir', $.plugin.root, '--settings', `${S.dir}/run-${x.id}.json`, '--permission-mode', 'dontAsk', '--model', OPTS.runModel, '--effort', OPTS.runEffort, '--fallback-model', OPTS.fallbackModel, prompt]
   const p = await $.process.run(argv, { cwd: S.root, env: { SLICE_RUN: '1', SLICE_SLICE: x.id } })
   if (p.exitCode !== 0) return halt($, st, `could not start slice ${x.id}: ${p.stderr.trim().slice(0, 200)}`)
   x.status = x.cloud ? 'cloud' : 'running'

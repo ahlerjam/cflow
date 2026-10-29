@@ -56,7 +56,7 @@ test('exits: spend and the weekly reserve halt, the 5-hour window pauses, then t
   expect(await slice($, { action: 'start', text: 'online' })).toContain('halted: spend or credit limit reached')
   const at = async (l: typeof limits) => ((limits = l), (await cmd('slice-resume')).text)
   expect([await at([{ kind: 'seven_day', percentUsed: 71 }]), await at([{ kind: 'seven_day', percentUsed: 50 }]), await at([{ kind: 'five_hour', percentUsed: 91, resetsAt: 'T' }]), await at([])]).toEqual([expect.stringContaining('7-day reserve'), expect.stringContaining('three times the stage budget'), 'paused until T', expect.stringContaining('started slice a (1/1)')])
-  expect(runs.find(r => r[0] === 'claude')?.slice(0, 5)).toEqual(['claude', '--bg', '--name', 'slice-s-1', '--settings'])
+  expect(runs.find(r => r[0] === 'claude')?.slice(0, 5)).toEqual(['claude', '--bg', '--name', 'slice-s-1', '--plugin-dir'])
 })
 test('only an interactive session queues; a merge needs the verifier pass; a run adds at most 30 %', async ($, on) => {
   await setup($, on, { run: true, state: { startVersion: '2.1.312', proofs: {}, misses: [], run: RUN([S1('a'), S1('b'), S1('c')]) } })

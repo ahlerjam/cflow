@@ -49,7 +49,7 @@ Plugins do not load in Claude Code cloud sessions, so setup can copy slice into 
 - Cloud: start the approved stage from a cloud session, on your phone too; your Mac can be off. Progress comes back as a push and as `refs/slice/<stage>-status`, which `/slice-status` reads.
 - Mixed: a local run sends slices without UI or heavy local load to the cloud and verifies them locally when their branch comes back.
 
-Cloud sessions count against the same usage limits as local ones, so the cloud saves your Mac's CPU, memory and battery, not tokens. They need a GitHub remote with push access for cloud sessions.
+Cloud sessions count against the same usage limits as local ones: the cloud saves your Mac's CPU, memory and battery, but it uses the same tokens. They need a GitHub remote that cloud sessions can push to.
 
 Models for run sessions are plugin options (`runModel`, `runEffort`, `fallbackModel`; set them with `/config`).
 
