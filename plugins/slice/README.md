@@ -22,7 +22,7 @@ Node.js and Playwright (`npm install -g playwright`) are only needed in repos wi
 
 ## Use
 
-Run `/slice:setup` once per repo. It measures the test suite, writes the make targets (`check`, `verify`, `test-affected`), a pre-commit hook, the lock script, a short verification section in `AGENTS.md`, a project `verify` skill, and finally the marker `.claude/slice.json`. Without that marker the mod does nothing, in this repo too.
+Run `/slice:setup` once per repo. It measures the test suite, writes the make targets (`check`, `verify`, `test-affected`), a pre-commit hook, the lock script, a short verification section in `AGENTS.md`, and finally the marker `.claude/slice.json`. Without that marker the mod does nothing, in this repo too. Setup leaves the bundled `/verify` alone and suggests `/run-skill-generator` when the app needs more than a standard launch, so `/run` and `/verify` know how to start it.
 
 After a restart, the `slice` skill sizes each job in one line (`ticket · low · proof: make verify-export`). The agent then works as usual and ends with the `slice` tool:
 
@@ -38,7 +38,7 @@ Other commands: `/slice-status` shows mode, version and the last log lines; `/sl
 
 The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that edits files or changes git state. Edits to Makefiles, hooks, CI, dependencies, `.env` files and ADRs ask you first. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (patterns such as `docker compose *` or `latexmk *`) run outside the sandbox.
 
-`claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. The repo code that `/slice:setup` writes (make targets, hook, CI, the `verify` skill) keeps working if the mod is off.
+`claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. The repo code that `/slice:setup` writes (make targets, hook, CI) keeps working if the mod is off.
 
 ## Setup
 

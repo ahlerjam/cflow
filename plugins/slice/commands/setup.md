@@ -1,5 +1,5 @@
 ---
-description: "Opts a repo into slice: measures the test suite, writes make targets, the lock, a pre-commit hook, the verification section and the verify skill, then sets the marker."
+description: "Opts a repo into slice: measures the test suite, writes make targets, the lock, a pre-commit hook and the verification section, then sets the marker."
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 disable-model-invocation: true
 ---
@@ -13,9 +13,8 @@ Set up slice in the current repo. This runs in an interactive session because th
    - `scripts/slice-lock.sh` copied from `${CLAUDE_PLUGIN_ROOT}/scripts/slice-lock.sh`; the Makefile and the hook run their commands through it.
    - A pre-commit hook that runs `make check` through the lock.
    - In repos without other committers that have a GitHub remote: a CI job for `make check` and the proofs a hosted runner can run.
-   - `.claude/skills/verify/SKILL.md` from `${CLAUDE_PLUGIN_ROOT}/templates/verify-skill.md`; merge if the folder exists. Only if `.claude/` already exists in repos others read.
-   - In `AGENTS.md` (or `CLAUDE.local.md` with other committers) a verification section of at most 15 lines: the three make targets, the tiers, "ask the slice tool to prove; never trust your own run", and the scope contract. Without other committers: if `CLAUDE.md` is missing create it with one line `@AGENTS.md`; if it exists and lacks that line, add it.
-4. UI repos: suggest `/run-skill-generator` and make ports and paths in the recipe come from `.slice-env`. Suggest `excludedCommands` and `allowedDomains` for the stack. Entries use `Bash(...)` rule syntax, so add ` *` for arguments and keep them narrow (`docker compose *`, `latexmk *`); they run outside the sandbox, say so.
+   - In `AGENTS.md` (or `CLAUDE.local.md` with other committers) a verification section of at most 15 lines: the three make targets, the tiers, "before a commit ask the slice tool to prove; never trust your own run", and the scope contract. Without other committers: if `CLAUDE.md` is missing create it with one line `@AGENTS.md`; if it exists and lacks that line, add it.
+4. Repos with an app that needs more than a standard launch (database, env file, multi-step build), and all UI repos: suggest `/run-skill-generator` and make ports and paths in the recipe come from `.slice-env`. The bundled `/run` and `/verify` follow that recipe. Never write `.claude/skills/verify/`: the bundled `/verify` records its own recipe there, and a file at the repo root replaces it. Suggest `excludedCommands` and `allowedDomains` for the stack. Entries use `Bash(...)` rule syntax, so add ` *` for arguments and keep them narrow (`docker compose *`, `latexmk *`); they run outside the sandbox, say so.
 5. Worktree root: supervised features build their worktrees under `~/.cache/slice/`, which must be in `permissions.additionalDirectories` of the user settings. Check whether it is there; if not, confirm the root once with AskUserQuestion. Never edit the user settings yourself: print the exact line and let the person add it (or use the update-config skill on their request).
 6. Last, write `.claude/slice.json` (at most 15 lines: `corePaths` as path prefixes of core logic such as `src/billing/`, `germanUiPaths`, `throwaway`, `excludedCommands`, `allowedDomains`) and add it, `.slice-env` and `CLAUDE.local.md` (when you created it) to `.git/info/exclude`. Create `.slice-env` with the repo's port, database and temp values so worktrees can differ. The file is the opt-in marker; restart the session so the mod loads it.
 

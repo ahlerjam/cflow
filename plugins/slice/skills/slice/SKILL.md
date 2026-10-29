@@ -24,7 +24,7 @@ Never report a proof as passed from your own run. Call the slice tool:
 - `prove` (no `cmd` runs `make verify`) runs the allowed command under the machine lock and answers from cache on an unchanged tree. It rejects TODOs, stubs, placeholder text, tests without a value assertion and new Markdown files other than README, AGENTS, CLAUDE, DESIGN and NORTHSTAR; fix the cause. `BUSY` means another proof holds the lock: prove again later, it is not a failure.
 - `note` with `cmd` (a make command) and `files` freezes a proof, which `prove` then accepts beyond check, verify, test-affected and verify-*; later edits to those files need the person; `text` names the proof. With only `text` it logs a decision.
 - `done` closes the slice: pass `level` (low, medium or high), `verdict` as above, `cmd` for a `verify-*` target or a frozen proof (`make check` and `test-affected` are too narrow to close) and `cwd` for a worktree. It refuses without a passed proof on that tree.
-Run only the affected tests while editing: `make test-affected FILES=…`. For a feature, suggest `/simplify` (if available) before the last proof; if it changes code, prove again.
+Run only the affected tests while editing: `make test-affected FILES=…`. For a feature, suggest `/simplify` (if available) before the last proof; if it changes code, prove again. For a change to UI or runtime behaviour, suggest the person runs `/verify` (if available) on the running app.
 
 ## Scope contract
 Do what was asked. Everything else becomes a suggestion in your report, not code: no extra tests, hooks, guards, ADRs, plan or notes files, no refactors of code you did not touch. Do not fix other agents' fixes. In repos with other committers follow their PR convention and leave slice vocabulary out.
