@@ -140,7 +140,9 @@ async function writeSettings($: Eng): Promise<void> {
 async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   const st = await loadState($)
   if (!st?.run) return 'Rejected: no approved queue. Fix: run /slice:shape first.'
-  if ((await events($)).some(e => e.event === 'cloud-run' && e.stage === st.run!.stage)) return `stage ${st.run.stage} runs in the cloud; /slice-status shows it`
+  // A nested cloud session that restarts finds its own slice still running: nothing works on it any more
+  if (await $.env.get('SLICE_CLOUD')) st.run.queue.forEach(x => x.status === 'running' && Object.assign(x, { status: 'queued' }))
+  if (a.text !== 'offline' && (await events($)).some(e => e.event === 'cloud-run' && e.stage === st.run!.stage)) return `stage ${st.run.stage} runs in the cloud; /slice-status shows it`
   if (a.text === 'offline') {
     if (!S.marker.cloud) return 'Refused: sending a stage to the cloud needs the cloud opt-in. Fix: run /slice:setup, or answer that this Mac stays online.'
     const id = await sendRun($, st)
