@@ -11,6 +11,7 @@ export const OPTS = { runModel: 'opus', runEffort: 'high', fallbackModel: 'sonne
 const GB = 1024 * 1024
 // A prompt cannot be submitted from a tool hook: these wait for the end of the turn
 const LATER: string[] = []
+const WATCHED = new Set<string>()
 
 export const order = (q: Slice[]): Slice[] => [...q].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
 // After the pilot page UI slices wait up to 4 h for the person; infra and backend go on
@@ -66,7 +67,7 @@ export async function exits($: Eng, st: State): Promise<{ halt?: string; wait?: 
   return {}
 }
 
-export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Run the workflow /slice:feature with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch, built: !!x.why?.includes('built in the cloud') })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never commit, push or open a PR yourself.`
+export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Start the plugin workflow slice:feature (the Workflow tool, or the Skill tool with slice:feature) with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch, built: !!x.why?.includes('built in the cloud') })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never commit, push or open a PR yourself.`
 
 async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
   const r = st.run!
@@ -296,6 +297,13 @@ export async function onStart($: Eng): Promise<void> {
   if (line.includes('interrupted')) await $.ui.notify(line.split(' | ')[0]!, { title: 'slice' }).catch(() => undefined)
 }
 
+// A run session that never started its workflow would idle silently: after 10 min the slice counts as stuck
+async function started($: Eng): Promise<void> {
+  const ev = await events($)
+  const since = ev.filter(x => x.event === 'start' && x.slice === S.slice).at(-1)?.t ?? 0
+  const x = (await loadState($))?.run?.queue.find(y => y.id === S.slice)
+  if (x?.status === 'running' && !ev.some(y => y.event === 'worktree' && y.id === S.slice && y.t >= since)) await merge($, { id: S.slice, text: 'the feature workflow did not start within 10 minutes of the first turn' })
+}
 async function control($: Eng, name: string, fn: (r: Run) => Run): Promise<{ text: string }> {
   const st = await loadState($)
   if (!S.active || !st?.run) return { text: 'no run here' }
@@ -311,6 +319,7 @@ export const register = (on: On): void => {
   on('turn.complete', async ($, e, next) => {
     const out = await next(e)
     if (!e.agentId) while (LATER.length) await $.prompt.submit({ text: LATER.shift()! }).catch(err => logEvent($, 'submit-error', { error: String(err) }))
+    if (!e.agentId && S.isRun && S.slice && !WATCHED.has(S.slice)) WATCHED.add(S.slice), $.clock.after(10 * 6e4, () => void started($).catch(() => undefined))
     return out
   })
   on('command.run', { command: 'slice-pause' }, async $ => control($, 'slice-pause', r => ({ ...r, paused: true })))
