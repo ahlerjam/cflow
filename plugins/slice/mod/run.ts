@@ -118,6 +118,8 @@ export async function next($: Eng): Promise<string> {
   const stuck = r.queue.filter(y => y.status !== 'merged').map(y => y.id)
   await logEvent($, 'run-end', { merged, stuck })
   await pushState($, st, 'status').catch(() => undefined)
+  // The person comes back to the work itself: a cloud run pushes its run branch, a local one never pushes
+  if (await $.env.get('SLICE_CLOUD')) await git($, r.wt, 'push', '-q', 'origin', `HEAD:${r.branch}`).catch(() => undefined)
   await $.store.delete('active').catch(() => undefined)
   // The next run waiting on this machine starts in its own repo with a one-call background session
   const [after, ...rest] = (((await $.store.get('waiting')) as string[] | undefined) ?? [])
@@ -282,6 +284,7 @@ export async function status($: Eng): Promise<string> {
   const st = await loadState($)
   const r = st?.run
   if (!r) return 'no run'
+  if ((await events($)).some(e => e.event === 'cloud-run' && e.stage === r.stage)) return `stage ${r.stage} sent to the cloud; its line below shows how far it is`
   const by = (s: string) => r.queue.filter(x => x.status === s).map(x => x.id)
   const beat = Number((await $.fs.exists(`${S.dir}/beat`)) ? await $.fs.read(`${S.dir}/beat`) : 0)
   const late = by('running').length && (await $.clock.now()) - beat > 10 * 6e4
