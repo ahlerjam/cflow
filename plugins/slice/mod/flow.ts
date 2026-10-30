@@ -5,6 +5,8 @@ import { prove, snapshot } from './witness'
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 // A red baseline must fail on an assertion: a missing module, command or target proves nothing
 const NOT_RED = /Cannot find module|command not found|No rule to make target|ModuleNotFoundError|ImportError|SyntaxError|ERR_MODULE_NOT_FOUND|is not defined/
+// Build files are shared by every slice and already ask the person; freezing them would block the next slice's target
+const SHARED = /(^|\/)(GNUmakefile|[Mm]akefile|[^/]+\.mk|package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock)$/
 const ASSERTED = /AssertionError|assert|expect|Expected|toBe|toEqual|FAIL\b|not ok/
 
 export async function wtRoot($: Eng): Promise<string> {
@@ -49,7 +51,7 @@ export async function fence($: Eng, cwd: string, sha: string): Promise<string> {
 
 // The baseline runs before the code exists; once it fails on an assertion the guard freezes the proof files
 export async function red($: Eng, a: Record<string, unknown>, cwd: string, agentId?: string): Promise<string> {
-  const [cmd, files] = [str(a.cmd) || 'make verify', (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string').map(f => (f.startsWith(`${cwd}/`) ? f.slice(cwd.length + 1) : f))]
+  const [cmd, files] = [str(a.cmd) || 'make verify', (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string').map(f => (f.startsWith(`${cwd}/`) ? f.slice(cwd.length + 1) : f)).filter(f => !SHARED.test(f))]
   if (!files.length) return 'Rejected: name the proof test files you wrote. Fix: pass files.'
   const out = await prove($, { cmd }, cwd, agentId)
   if (out.startsWith('PASS')) return `Not red: ${cmd} passes before the code exists, so it proves nothing. Fix: make the proof fail on the missing behaviour.`

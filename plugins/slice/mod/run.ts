@@ -16,7 +16,8 @@ export const order = (q: Slice[]): Slice[] => [...q].sort((a, b) => ORDER.indexO
 // After the pilot page UI slices wait up to 4 h for the person; infra and backend go on
 const STANDING: Kind[] = ['polish', 'consolidate']
 // Polish waits for every other slice, consolidate also for polish; a stuck slice no longer blocks them
-const settled = (r: Run, x: Slice) => r.queue.every(y => y === x || ORDER.indexOf(y.kind) >= ORDER.indexOf(x.kind) || ['merged', 'stuck', 'rejected'].includes(y.status))
+const blocked = (r: Run, y: Slice) => (y.after ?? []).some(d => ['stuck', 'rejected'].includes(r.queue.find(z => z.id === d)?.status ?? ''))
+const settled = (r: Run, x: Slice) => r.queue.every(y => y === x || ORDER.indexOf(y.kind) >= ORDER.indexOf(x.kind) || ['merged', 'stuck', 'rejected'].includes(y.status) || blocked(r, y))
 export const runnable = (r: Run, now = 0): Slice | undefined => r.queue.find(x => x.status === 'queued' && !(x.ui && (r.hold ?? 0) > now) && (!STANDING.includes(x.kind) || settled(r, x)) && (x.after ?? []).every(d => r.queue.find(y => y.id === d)?.status === 'merged'))
 const open = (r: Run): boolean => r.queue.some(x => x.status === 'running' || x.status === 'cloud' || runnable(r) === x)
 
