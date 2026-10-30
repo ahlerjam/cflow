@@ -296,10 +296,9 @@ export async function onStart($: Eng): Promise<void> {
 
 // A run session that never started its workflow would idle silently: after 10 min the slice counts as stuck
 async function started($: Eng): Promise<void> {
-  const ev = await events($)
-  const since = ev.filter(x => x.event === 'start' && x.slice === S.slice).at(-1)?.t ?? 0
+  // x.t is the spawn time; session.start fires again on every mod reload, so it is no anchor
   const x = (await loadState($))?.run?.queue.find(y => y.id === S.slice)
-  if (x?.status === 'running' && !ev.some(y => y.event === 'worktree' && y.id === S.slice && y.t >= since)) await merge($, { id: S.slice, text: 'the feature workflow did not start within 10 minutes of the first turn' })
+  if (x?.status === 'running' && !(await events($)).some(y => y.event === 'worktree' && y.id === S.slice && y.t >= (x.t ?? 0))) await merge($, { id: S.slice, text: 'the feature workflow did not start within 10 minutes of the first turn' })
 }
 async function control($: Eng, name: string, fn: (r: Run) => Run): Promise<{ text: string }> {
   const st = await loadState($)
