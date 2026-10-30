@@ -11,7 +11,7 @@ const { id, claim, brief, proof = 'make verify', risk = 'medium', kind = 'featur
 if (!/^[\w-]+$/.test(id)) throw new Error('feature id must be letters, digits, _ or -. Fix: pass a short id such as export-umlauts.')
 // One tool call, nothing else: the mod does the git work, the agent only carries the call
 const tool = (action, extra, label, phase) =>
-  agent(`Call the tool mcp__slice__slice exactly once with ${JSON.stringify({ action, ...extra })}. Load it with ToolSearch if needed. Do not run anything else. Put the tool's answer verbatim in text.`, { label, phase, schema: TEXT, model: 'haiku' }).then(r => r?.text ?? 'no answer')
+  agent(`Call the tool mcp__slice__slice exactly once with ${JSON.stringify({ action, ...extra })}. Do not run anything else. Put the tool's answer verbatim in text.`, { label, phase, schema: TEXT, agentType: 'slice:step' }).then(r => r?.text ?? 'no answer')
 const made = await tool('worktree', { id, ...(base ? { base } : {}) }, 'worktree', 'Build')
 const m = /worktree (\S+) base (\S+)/.exec(made)
 if (!m) return { status: 'stuck', findings: [made], question: 'The worktree could not be created. Fix the cause shown, then run the feature again.' }
