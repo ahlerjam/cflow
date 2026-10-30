@@ -1,5 +1,5 @@
 import type { EngineInterface as Eng } from 'claude-code'
-import { S, git, loadState, logEvent, patchSlice, type Slice, type State } from './state'
+import { S, git, type State } from './state'
 
 // Run state travels as branches slice-state/<stage>-<what> holding only state.json; cloud sessions push branches, not other refs
 async function hasOrigin($: Eng) { return (await $.process.run(['git', '-C', S.root, 'remote', 'get-url', 'origin'])).exitCode === 0 }
@@ -12,49 +12,26 @@ export async function pushState($: Eng, st: State, what: 'queue' | 'status'): Pr
   await git($, S.root, 'push', '-q', '-f', 'origin', `${commit}:refs/heads/slice-state/${st.run!.stage}-${what}`)
 }
 
-// Mixed mode: the cloud builds, proves with the nested mod and pushes slice-<id>; the local run verifies and merges
-export async function dispatch($: Eng, st: State, x: Slice): Promise<string> {
+// Hybrid: the local session hands the whole approved stage to one cloud session, which runs it with the slice-cloud skill
+export async function sendRun($: Eng, st: State): Promise<string> {
   const r = st.run!
   await git($, S.root, 'push', '-q', 'origin', `${r.branch}:${r.branch}`)
-  const nested = `SLICE_RUN=1 SLICE_SLICE=${x.id} claude -p --plugin-dir .slice/plugin --settings .slice/plugin/profiles/cloud.json --permission-mode dontAsk`
-  const brief = [
-    `Slice ${x.id} of slice run ${r.stage}, mixed mode. You only dispatch; do not edit code yourself.`,
-    `1. git fetch origin ${r.branch} && git checkout -B ${r.branch} origin/${r.branch}`,
-    `2. Run, with the prompt on stdin: ${nested}`,
-    `   Prompt: Run the workflow /slice:feature with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch })}. Print its result.`,
-    `3. If the result says verified: git push origin slice-${x.id}. Otherwise push nothing.`,
-    `4. Send one PushNotification: "slice ${r.stage}: ${x.id} built in the cloud" or "slice ${r.stage}: ${x.id} stuck in the cloud".`,
-  ].join('\n')
+  await pushState($, st, 'queue')
+  const brief = `Run the approved slice stage ${r.stage} with the project skill slice-cloud (.claude/skills/slice-cloud/SKILL.md): its queue is on the branch slice-state/${r.stage}-queue. Follow the skill to the end.`
   const p = await $.process.run(['script', '-q', '/dev/null', 'claude', '--cloud', brief], { cwd: S.root, timeoutMs: 180000 })
-  const id = /(session_\w+|cse_\w+)/.exec(p.stdout)?.[1]
-  if (!id) return `could not start the cloud session for ${x.id}: ${p.stdout.slice(-300)}`
-  Object.assign(x, { status: 'cloud', t: await $.clock.now(), why: `cloud ${id}` })
-  return (await patchSlice($, x), await logEvent($, 'cloud', { slice: x.id, session: id }), `sent ${x.id} to the cloud (${id})`)
-}
-
-// A pushed slice-<id> brings the slice back as queued: the local session proves it and runs the verifier on that tree
-export async function pickUp($: Eng, st: State): Promise<boolean> {
-  let moved = false
-  for (const x of st.run!.queue.filter(y => y.status === 'cloud')) {
-    if ((await $.process.run(['git', '-C', S.root, 'fetch', '-q', 'origin', `slice-${x.id}:slice-${x.id}`])).exitCode !== 0) continue
-    Object.assign(x, { status: 'queued', why: `${x.why ?? ''}; built in the cloud, verify locally` })
-    moved = true
-    await patchSlice($, x)
-    await logEvent($, 'cloud-back', { slice: x.id })
-  }
-  return moved
+  return /(session_\w+|cse_\w+)/.exec(p.stdout)?.[1] ?? ''
 }
 export async function cloudStatus($: Eng): Promise<string> {
   if (!S.marker.cloud || !(await hasOrigin($))) return ''
   const refs = (await $.process.run(['git', '-C', S.root, 'ls-remote', 'origin', 'refs/heads/slice-state/*-status'])).stdout.trim().split('\n').filter(Boolean)
-  const [out, local] = [[] as string[], (await loadState($))?.run?.stage]
-  for (const line of refs.filter(l => !l.endsWith(`/${local}-status`))) {
+  const out: string[] = []
+  for (const line of refs) {
     const [sha, ref] = line.split('\t')
     if ((await $.process.run(['git', '-C', S.root, 'fetch', '-q', 'origin', ref!])).exitCode !== 0) continue
     const st = await $.process.run(['git', '-C', S.root, 'show', `${sha}:state.json`]).then(r => JSON.parse(r.stdout || '{}') as State, () => ({}) as State)
     const q = st.run?.queue ?? []
     const by = (s: string) => q.filter(x => x.status === s).map(x => x.id).join(', ') || '-'
-    out.push(`cloud run ${st.run?.stage}: merged ${by('merged')} | waiting for you ${by('stuck')} | queued ${by('queued')}`)
+    out.push(`cloud run ${st.run?.stage}: merged ${by('merged')} | waiting for you ${by('stuck')} | queued ${by('queued')}; the work is on origin/slice/${st.run?.stage}`)
   }
   return out.join('\n')
 }

@@ -3,7 +3,7 @@ import { lockArgv } from './lock'
 import { S, events, git, loadState, logEvent, patchRun, patchSlice, saveState, type Kind, type Run, type Slice, type State } from './state'
 import { shareDeps, wtRoot } from './flow'
 import { proveAll } from './witness'
-import { dispatch, pickUp, pushState } from './cloud'
+import { pushState, sendRun } from './cloud'
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const ORDER: Kind[] = ['bug', 'infra', 'tracer', 'feature', 'polish', 'consolidate']
@@ -19,7 +19,7 @@ const STANDING: Kind[] = ['polish', 'consolidate']
 const blocked = (r: Run, y: Slice) => (y.after ?? []).some(d => ['stuck', 'rejected'].includes(r.queue.find(z => z.id === d)?.status ?? ''))
 const settled = (r: Run, x: Slice) => r.queue.every(y => y === x || ORDER.indexOf(y.kind) >= ORDER.indexOf(x.kind) || ['merged', 'stuck', 'rejected'].includes(y.status) || blocked(r, y))
 export const runnable = (r: Run, now = 0): Slice | undefined => r.queue.find(x => x.status === 'queued' && !(x.ui && (r.hold ?? 0) > now) && (!STANDING.includes(x.kind) || settled(r, x)) && (x.after ?? []).every(d => r.queue.find(y => y.id === d)?.status === 'merged'))
-const open = (r: Run): boolean => r.queue.some(x => x.status === 'running' || x.status === 'cloud' || runnable(r) === x)
+const open = (r: Run): boolean => r.queue.some(x => x.status === 'running' || runnable(r) === x)
 export function parseQueue(v: unknown): Run | string {
   const s = (v ?? {}) as Record<string, any>
   const slices = Array.isArray(s.slices) ? s.slices : []
@@ -31,7 +31,7 @@ export function parseQueue(v: unknown): Run | string {
     if (!ORDER.includes(x.kind) || !str(x.claim) || !str(x.brief)) return `slice ${x.id} needs kind (${ORDER.join(', ')}), claim and brief`
     ids.add(x.id)
   }
-  const q: Slice[] = slices.map((x: any) => ({ id: x.id, kind: x.kind, claim: x.claim, brief: x.brief, proof: str(x.proof) || 'make verify', risk: ['low', 'medium', 'high'].includes(x.risk) ? x.risk : 'medium', after: (x.after ?? []).filter((d: string) => ids.has(d)), cloud: !!x.cloud, ui: !!x.ui, status: 'queued' }))
+  const q: Slice[] = slices.map((x: any) => ({ id: x.id, kind: x.kind, claim: x.claim, brief: x.brief, proof: str(x.proof) || 'make verify', risk: ['low', 'medium', 'high'].includes(x.risk) ? x.risk : 'medium', after: (x.after ?? []).filter((d: string) => ids.has(d)), ui: !!x.ui, status: 'queued' }))
   return { stage: s.stage, branch: `slice/${s.stage}`, wt: '', t0: 0, maxHours: Number(s.maxHours) || 48, budget: Number(s.budget) || 30, use0: 0, queue: order(q), added: 0, pilot: true, pages: 0, online: s.online !== false }
 }
 async function limit($: Eng, kind: string) { return (await $.session.usage()).rateLimits.find(l => l.kind === kind) }
@@ -62,14 +62,10 @@ export async function exits($: Eng, st: State): Promise<{ halt?: string; wait?: 
   if (five && five.percentUsed >= 90) return { wait: five.resetsAt ?? '' }
   return {}
 }
-export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Start the plugin workflow slice:feature (the Workflow tool, or the Skill tool with slice:feature) with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch, built: !!x.why?.includes('built in the cloud') })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never run git commit, git push or gh pr yourself; the workflow's calls to the slice tool (worktree, red, prove, commit, fence) are part of this request and allowed.`
+export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Start the plugin workflow slice:feature (the Workflow tool, or the Skill tool with slice:feature) with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never run git commit, git push or gh pr yourself; the workflow's calls to the slice tool (worktree, red, prove, commit, fence) are part of this request and allowed.`
 async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
   const r = st.run!
   const n = r.queue.indexOf(x) + 1
-  if (x.cloud && S.marker.cloud && !x.why?.includes('built in the cloud') && !(await $.env.get('SLICE_CLOUD'))) {
-    const out = await dispatch($, st, x)
-    return x.status === 'cloud' ? `${out}\n${await next($)}` : out
-  }
   // In a cloud run one nested session works the queue itself: it gets the next slice as its instruction
   if (await $.env.get('SLICE_CLOUD')) return (Object.assign(x, { status: 'running', t: await $.clock.now(), use0: await week($) }), await patchSlice($, x), (S.slice = x.id), await logEvent($, 'start', { slice: x.id }), `next: ${slicePrompt(r, x)}`)
   const prompt = slicePrompt(r, x)
@@ -102,7 +98,6 @@ export async function next($: Eng): Promise<string> {
     if (r.stopped || r.halt) return r.halt ? `halted: ${r.halt}` : 'stopped'
   }
   if (r.paused) return (await notify($, `${r.stage}: paused, /slice-resume continues`), 'paused')
-  if (await pickUp($, st).catch(() => false)) return next($)
   const { halt: h, wait } = await exits($, st)
   if (h) return halt($, st, h)
   if (wait !== undefined) {
@@ -118,7 +113,6 @@ export async function next($: Eng): Promise<string> {
     return 'UI slices wait up to 4 h for the pilot page'
   }
   if (open(r)) {
-    if (S.isRun && r.queue.some(y => y.status === 'cloud')) LATER.push('Slices are building in the cloud. Call CronCreate once in 30 minutes with the prompt /slice-resume, then end your turn.')
     return 'waiting for running slices'
   }
   const stuck = r.queue.filter(y => y.status !== 'merged').map(y => y.id)
@@ -146,6 +140,14 @@ async function writeSettings($: Eng): Promise<void> {
 async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   const st = await loadState($)
   if (!st?.run) return 'Rejected: no approved queue. Fix: run /slice:shape first.'
+  if ((await events($)).some(e => e.event === 'cloud-run' && e.stage === st.run!.stage)) return `stage ${st.run.stage} runs in the cloud; /slice-status shows it`
+  if (a.text === 'offline') {
+    if (!S.marker.cloud) return 'Refused: sending a stage to the cloud needs the cloud opt-in. Fix: run /slice:setup, or answer that this Mac stays online.'
+    const id = await sendRun($, st)
+    if (!id) return 'could not start the cloud session; run the stage here or start it from a cloud session with the slice-cloud skill'
+    await logEvent($, 'cloud-run', { stage: st.run.stage, session: id })
+    return `sent stage ${st.run.stage} to the cloud (${id}); you can close this Mac. A push says when it ends, /slice-status shows it, the work lands on origin/${st.run.branch}`
+  }
   const active = (await $.store.get('active')) as { root: string; stage: string } | undefined
   if (active && active.root !== S.root) {
     const waiting = ((await $.store.get('waiting')) as string[] | undefined) ?? []
@@ -158,7 +160,6 @@ async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   if (!(await $.fs.exists(st.run.wt))) await git($, S.root, 'worktree', 'add', '-B', st.run.branch, st.run.wt, (await $.process.run(['git', '-C', S.root, 'rev-parse', '--verify', `origin/${st.run.branch}`])).exitCode === 0 ? `origin/${st.run.branch}` : 'HEAD')
   await shareDeps($, st.run.wt)
   st.run = { ...st.run, online: a.text !== 'offline', t0: st.run.t0 || (await $.clock.now()), use0: st.run.use0 || ((await limit($, 'seven_day'))?.percentUsed ?? 0) }
-  if (!st.run.online && S.marker.cloud) st.run.queue.forEach(x => !x.ui && x.kind !== 'consolidate' && (x.cloud = true))
   await saveState($, st), await writeSettings($), await logEvent($, 'run-start', { stage: st.run.stage })
   return next($)
 }
@@ -166,7 +167,7 @@ async function queue($: Eng, a: Record<string, unknown>): Promise<string> {
   if (!S.interactive || S.isRun) return 'Refused: the queue is approved by the person in an interactive session.'
   const r = parseQueue(a.stage)
   if (typeof r === 'string') return `Rejected: ${r}.`
-  const lines = r.queue.map((x, i) => `${i + 1}. ${x.kind} ${x.id} (${x.risk}${x.cloud ? ', cloud' : ''})`).join('\n')
+  const lines = r.queue.map((x, i) => `${i + 1}. ${x.kind} ${x.id} (${x.risk})`).join('\n')
   const scope = 'Run sessions may edit only their worktrees, run make check, verify, test-affected and verify-*, and use the slice tool; no commit, push or PR by Claude, no network beyond the allowlist.'
   if ((await $.ui.ask(`slice: approve stage ${r.stage}?\n${lines}\n${scope}`, ['Approve queue and scope', 'Cancel']).catch(() => '')) !== 'Approve queue and scope') return 'Not approved. Change the queue with the person, then queue again.'
   const wt = `${await wtRoot($)}/run/${r.stage}`
@@ -282,7 +283,7 @@ export async function status($: Eng): Promise<string> {
   const beat = Number((await $.fs.exists(`${S.dir}/beat`)) ? await $.fs.read(`${S.dir}/beat`) : 0)
   const late = by('running').length && (await $.clock.now()) - beat > 10 * 6e4
   const head = r.halt ? `halted: ${r.halt}` : r.stopped ? 'stopped' : r.paused ? 'paused' : late ? `interrupted: no heartbeat for 10 min; claude attach slice-${r.stage}-<n> and type anything, or /slice-resume` : 'running'
-  return [`stage ${r.stage} ${head}`, `merged ${by('merged').join(', ') || '-'}`, `running ${by('running').join(', ') || '-'}`, `in the cloud ${by('cloud').join(', ') || '-'}`, `waiting for you ${[...by('stuck'), ...by('waiting')].join(', ') || '-'}`, `queued ${by('queued').join(', ') || '-'}`].join(' | ')
+  return [`stage ${r.stage} ${head}`, `merged ${by('merged').join(', ') || '-'}`, `running ${by('running').join(', ') || '-'}`, `waiting for you ${[...by('stuck'), ...by('waiting')].join(', ') || '-'}`, `queued ${by('queued').join(', ') || '-'}`].join(' | ')
 }
 export async function runAction($: Eng, a: Record<string, unknown>, agentId?: string): Promise<string | undefined> {
   const act: Record<string, () => Promise<string>> = { queue: () => queue($, a), start: () => start($, a), merge: () => merge($, a, agentId), add: () => add($, a), accept: () => accept($, a), report: async () => JSON.stringify(await report($)) }

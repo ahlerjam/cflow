@@ -19,7 +19,7 @@ At most 6 questions, one per AskUserQuestion, each with your recommended answer 
 
 ## The queue
 6 to 15 slices. Order: bug, infra, tracer, feature, then the two standing slices polish and consolidate. The tracer slice makes the stage scenario run end to end from slice 1, thinly.
-Each slice: `id`, `kind`, `claim` as checkable points (proof points plus the quality brief's references and anti-patterns), `brief`, `proof` (a make target, default `make verify`; a `verify-*` per scenario is better), `risk`, `after` (ids it needs), `ui` for screens, `cloud` for slices without heavy local load when the repo opted into the cloud.
+Each slice: `id`, `kind`, `claim` as checkable points (proof points plus the quality brief's references and anti-patterns), `brief`, `proof` (a make target, default `make verify`; a `verify-*` per scenario is better), `risk`, `after` (ids it needs), `ui` for screens.
 - polish: at most 3 rounds of fixes found on screens and texts.
 - consolidate: rebuild the weakest fix with what the stage taught; it suggests `/simplify` and, with high slices and an origin, `/security-review` to the person.
 Stage budget: percent of the weekly limit the stage may use (default 30); `maxHours` wall clock (default 48).

@@ -2,7 +2,7 @@
 
 slice adds a small mod to your Claude Code session. The mod runs the proof itself, a fresh verifier checks the claim, and you accept the result, so the agent's own report of success is never the end of a job.
 
-It covers a small ticket, a supervised feature and an unattended run of a whole stage, on your Mac, in a Claude Code cloud session, or both.
+It covers a small ticket, a supervised feature and an unattended run of a whole stage, on your Mac, in a Claude Code cloud session, or sent from your Mac to the cloud.
 
 ## Requirements
 
@@ -42,11 +42,11 @@ For a feature, the agent runs `/slice:feature` with an id, the claim and a quali
 
 `/slice-status` shows what is merged, running, in the cloud and waiting for you; the same summary appears as a status line when you open Claude Code. `/slice-pause`, `/slice-resume` and `/slice-stop` control the run. `/slice-miss "<line>"` records something the harness missed and offers one rule line for the verification section, which you confirm. The mod commands use a dash because a mod cannot register a colon.
 
-### Local, cloud, or both
+### Local, cloud, or hybrid
 
 Plugins do not load in Claude Code cloud sessions, so setup can copy slice into the repo (`.slice/plugin`) and add a small `slice-cloud` skill. A cloud session then only dispatches, and the work runs in a nested `claude -p --plugin-dir .slice/plugin` with the mod active.
 
-Local runs everything on your Mac. Cloud starts the approved stage from a cloud session, from your phone too, and your Mac can be off; progress comes back as a push and on the branch `slice-state/<stage>-status`, which `/slice-status` reads. Mixed sends slices without UI or heavy local load from a local run to the cloud and verifies them locally when their branch comes back. Cloud sessions count against the same usage limits as local ones: the cloud saves your Mac's CPU, memory and battery, but it uses the same tokens. They need a GitHub remote that cloud sessions can push to.
+Local runs everything on your Mac. Cloud starts the approved stage from a cloud session, from your phone too, and your Mac can be off; progress comes back as a push and on the branch `slice-state/<stage>-status`, which `/slice-status` reads. Hybrid starts from your local Claude Code: `/slice:run` sends the whole approved stage to one cloud session, you close the Mac, and when you come back `/slice-status` shows what the cloud finished, with the work on `origin/slice/<stage>`. In cloud and hybrid runs the verifier runs in the cloud too. Cloud sessions count against the same usage limits as local ones: the cloud saves your Mac's CPU, memory and battery, but it uses the same tokens. They need a GitHub remote that cloud sessions can push to.
 
 Models for run sessions are plugin options (`runModel`, `runEffort`, `fallbackModel`; set them with `/config`). With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builder` consult Opus at decision points; Anthropic reports higher scores at lower cost per task than Sonnet alone ([The advisor strategy](https://claude.com/blog/the-advisor-strategy)). The verifier stays a separate fresh context, because the advisor reads the same conversation.
 
