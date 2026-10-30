@@ -23,6 +23,8 @@ export async function worktree($: Eng, a: Record<string, unknown>): Promise<stri
   if (!/^[\w-]+$/.test(id)) return 'Rejected: id must be letters, digits, _ or -.'
   const path = `${await wtRoot($)}/wt/${id}`
   const base = str(a.base) || (await loadState($))?.run?.branch || 'HEAD'
+  // A run always builds on the current run branch: a worktree left from an earlier attempt has a stale base or finished code
+  if (S.isRun) await $.process.run(['sh', '-c', 'git -C "$1" worktree remove --force "$2" 2>/dev/null; git -C "$1" branch -D "$3" 2>/dev/null; true', 'sh', S.root, path, `slice-${id}`], { timeoutMs: 6e5 })
   if (!(await $.fs.exists(path))) {
     const exists = (await $.process.run(['git', '-C', S.root, 'rev-parse', '--verify', '-q', `slice-${id}`])).exitCode === 0
     if (exists) await git($, S.root, 'worktree', 'add', path, `slice-${id}`)
