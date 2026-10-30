@@ -255,7 +255,6 @@ export async function report($: Eng): Promise<Record<string, unknown>> {
     sample: st?.run?.queue.filter(x => x.status === 'merged' && x.risk === 'low').map(x => x.id).sort(() => Math.random() - 0.5)[0] ?? null,
   }
 }
-
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`)
 export async function writePage($: Eng, st: State, kind: string): Promise<string> {
   const r = st.run!
@@ -276,7 +275,6 @@ export async function status($: Eng): Promise<string> {
   const head = r.halt ? `halted: ${r.halt}` : r.stopped ? 'stopped' : r.paused ? 'paused' : late ? `interrupted: no heartbeat for 10 min; claude attach slice-${r.stage}-<n> and type anything, or /slice-resume` : 'running'
   return [`stage ${r.stage} ${head}`, `merged ${by('merged').join(', ') || '-'}`, `running ${by('running').join(', ') || '-'}`, `in the cloud ${by('cloud').join(', ') || '-'}`, `waiting for you ${[...by('stuck'), ...by('waiting')].join(', ') || '-'}`, `queued ${by('queued').join(', ') || '-'}`].join(' | ')
 }
-
 export async function runAction($: Eng, a: Record<string, unknown>, agentId?: string): Promise<string | undefined> {
   const act: Record<string, () => Promise<string>> = { queue: () => queue($, a), start: () => start($, a), merge: () => merge($, a, agentId), add: () => add($, a), accept: () => accept($, a), report: async () => JSON.stringify(await report($)) }
   return act[str(a.action)]?.()
