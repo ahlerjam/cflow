@@ -214,7 +214,11 @@ async function merge($: Eng, a: Record<string, unknown>, agentId?: string): Prom
     const tries = ev.filter(e => e.event === 'merge-red' && e.slice === x.id && e.t >= since).length + 1
     await logEvent($, 'merge-red', { slice: x.id, tries, why: all.slice(0, 300) })
     Object.assign(x, tries < 2 ? { status: 'queued', why: `merge turned a proof red; rebuild on ${st.run.branch}` } : { status: 'stuck', why: all.slice(0, 300) })
-    return (await patchSlice($, x), `reverted: the merge turned a proof red\n${all.slice(0, 600)}\n${await next($)}`)
+    await patchSlice($, x)
+    // The rebuild writes its proof tests anew in a fresh worktree, so the old freeze goes
+    const cur = (await loadState($))!
+    await saveState($, { ...cur, proofs: Object.fromEntries(Object.entries(cur.proofs).filter(([k]) => !k.startsWith(`${x.id}:`))) })
+    return (`reverted: the merge turned a proof red\n${all.slice(0, 600)}\n${await next($)}`)
   }
   const kb = await duKb($, wt)
   await $.process.run(['git', '-C', S.root, 'worktree', 'remove', '--force', wt], { timeoutMs: 6e5 })
