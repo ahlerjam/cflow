@@ -45,13 +45,10 @@ For a feature, the agent runs `/slice:feature` with an id, the claim and a quali
 ### Local, cloud, or both
 
 Plugins do not load in Claude Code cloud sessions, so setup can copy slice into the repo (`.slice/plugin`) and add a small `slice-cloud` skill. A cloud session then only dispatches, and the work runs in a nested `claude -p --plugin-dir .slice/plugin` with the mod active.
-Local runs everything on your Mac. Cloud starts the approved stage from a cloud session, from your phone too, and your Mac can be off; progress comes back as a push and as `refs/slice/<stage>-status`, which `/slice-status` reads. Mixed sends slices without UI or heavy local load from a local run to the cloud and verifies them locally when their branch comes back.
 
-Cloud sessions count against the same usage limits as local ones: the cloud saves your Mac's CPU, memory and battery, but it uses the same tokens. They need a GitHub remote that cloud sessions can push to.
+Local runs everything on your Mac. Cloud starts the approved stage from a cloud session, from your phone too, and your Mac can be off; progress comes back as a push and as `refs/slice/<stage>-status`, which `/slice-status` reads. Mixed sends slices without UI or heavy local load from a local run to the cloud and verifies them locally when their branch comes back. Cloud sessions count against the same usage limits as local ones: the cloud saves your Mac's CPU, memory and battery, but it uses the same tokens. They need a GitHub remote that cloud sessions can push to.
 
-Models for run sessions are plugin options (`runModel`, `runEffort`, `fallbackModel`; set them with `/config`).
-
-With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builder` consult Opus at decision points; Anthropic reports higher scores at lower cost per task than Sonnet alone ([The advisor strategy](https://claude.com/blog/the-advisor-strategy)). The verifier stays a separate fresh context, because the advisor reads the same conversation.
+Models for run sessions are plugin options (`runModel`, `runEffort`, `fallbackModel`; set them with `/config`). With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builder` consult Opus at decision points; Anthropic reports higher scores at lower cost per task than Sonnet alone ([The advisor strategy](https://claude.com/blog/the-advisor-strategy)). The verifier stays a separate fresh context, because the advisor reads the same conversation.
 
 ## What it protects against, and what it does not
 

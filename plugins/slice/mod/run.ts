@@ -131,7 +131,6 @@ export async function next($: Eng): Promise<string> {
   await notify($, `${r.stage}: run finished, ${merged} merged${stuck.length ? `, not merged: ${stuck.join(', ')}` : ''}; /slice:accept`)
   return 'run finished'
 }
-
 async function writeSettings($: Eng): Promise<void> {
   const profile = JSON.parse(await $.fs.read(`${$.plugin.root}/profiles/run.json`))
   const root = await wtRoot($)
@@ -143,7 +142,6 @@ async function writeSettings($: Eng): Promise<void> {
   profile.permissions.allow = [...profile.permissions.allow, `Edit(/${root}/**)`, `Write(/${root}/**)`]
   await $.fs.write(`${S.dir}/run-settings.json`, JSON.stringify(profile, null, 2) + '\n')
 }
-
 async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   const st = await loadState($)
   if (!st?.run) return 'Rejected: no approved queue. Fix: run /slice:shape first.'
@@ -163,7 +161,6 @@ async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   await saveState($, st), await writeSettings($), await logEvent($, 'run-start', { stage: st.run.stage })
   return next($)
 }
-
 async function queue($: Eng, a: Record<string, unknown>): Promise<string> {
   if (!S.interactive || S.isRun) return 'Refused: the queue is approved by the person in an interactive session.'
   const r = parseQueue(a.stage)
@@ -179,7 +176,6 @@ async function queue($: Eng, a: Record<string, unknown>): Promise<string> {
   if (S.marker.cloud) await git($, S.root, 'push', '-q', 'origin', `${r.branch}:${r.branch}`).then(() => pushState($, { ...st, run: { ...r, wt } }, 'queue')).catch(() => undefined)
   return (await logEvent($, 'queue', { stage: r.stage, n: r.queue.length }), `approved ${r.queue.length} slices on ${r.branch}; start with /slice:run`)
 }
-
 async function merge($: Eng, a: Record<string, unknown>, agentId?: string): Promise<string> {
   if (agentId) return 'Refused: only the run session merges.'
   const st = await loadState($)
@@ -227,7 +223,6 @@ async function add($: Eng, a: Record<string, unknown>): Promise<string> {
   st.run = { ...st.run, queue: order([...st.run.queue, { ...r.queue[0]!, why: str(a.text) }]), added: st.run.added + 1 }
   return (await saveState($, st), await logEvent($, 'add', { slice: r.queue[0]!.id, why: a.text }), `added ${r.queue[0]!.id}`)
 }
-
 async function accept($: Eng, a: Record<string, unknown>): Promise<string> {
   if (!S.interactive || S.isRun) return 'Refused: acceptance happens in the person\'s interactive session.'
   const st = await loadState($)
@@ -245,7 +240,6 @@ async function accept($: Eng, a: Record<string, unknown>): Promise<string> {
   if (!st.run.queue.some(y => y.status === 'queued' && y.id !== id)) st.run.halt = undefined
   return (await saveState($, st), await logEvent($, 'rejected', { slice: x.id, why, fix: id }), `rejected ${x.id}; queued ${id}, noted a miss and a calibration example. /slice:run continues the run.`)
 }
-
 export async function report($: Eng): Promise<Record<string, unknown>> {
   const st = await loadState($)
   const ev = await events($)
