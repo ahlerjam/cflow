@@ -1,7 +1,7 @@
 import type { EngineInterface as Eng } from 'claude-code'
-import { S, git, logEvent, saveState, type Slice, type State } from './state'
+import { S, git, loadState, logEvent, saveState, type Slice, type State } from './state'
 
-// Run state travels as refs/slice/<stage>-<what>: a commit holding state.json, so no product branch carries it
+// Run state travels as branches slice-state/<stage>-<what> holding only state.json; cloud sessions push branches, not other refs
 async function hasOrigin($: Eng) { return (await $.process.run(['git', '-C', S.root, 'remote', 'get-url', 'origin'])).exitCode === 0 }
 
 export async function pushState($: Eng, st: State, what: 'queue' | 'status'): Promise<void> {
@@ -10,7 +10,7 @@ export async function pushState($: Eng, st: State, what: 'queue' | 'status'): Pr
   const blob = await pipe(JSON.stringify(st, null, 2), 'hash-object', '-w', '--stdin')
   const tree = await pipe(`100644 blob ${blob}\tstate.json\n`, 'mktree')
   const commit = await git($, S.root, 'commit-tree', tree, '-m', `slice ${st.run!.stage} ${what}`)
-  await git($, S.root, 'push', '-q', '-f', 'origin', `${commit}:refs/slice/${st.run!.stage}-${what}`)
+  await git($, S.root, 'push', '-q', '-f', 'origin', `${commit}:refs/heads/slice-state/${st.run!.stage}-${what}`)
 }
 
 // Mixed mode: the cloud builds, proves with the nested mod and pushes slice-<id>; the local run verifies and merges
@@ -48,9 +48,9 @@ export async function pickUp($: Eng, st: State): Promise<boolean> {
 
 export async function cloudStatus($: Eng): Promise<string> {
   if (!S.marker.cloud || !(await hasOrigin($))) return ''
-  const refs = (await $.process.run(['git', '-C', S.root, 'ls-remote', 'origin', 'refs/slice/*-status'])).stdout.trim().split('\n').filter(Boolean)
-  const out: string[] = []
-  for (const line of refs) {
+  const refs = (await $.process.run(['git', '-C', S.root, 'ls-remote', 'origin', 'refs/heads/slice-state/*-status'])).stdout.trim().split('\n').filter(Boolean)
+  const [out, local] = [[] as string[], (await loadState($))?.run?.stage]
+  for (const line of refs.filter(l => !l.endsWith(`/${local}-status`))) {
     const [sha, ref] = line.split('\t')
     if ((await $.process.run(['git', '-C', S.root, 'fetch', '-q', 'origin', ref!])).exitCode !== 0) continue
     const st = JSON.parse((await $.process.run(['git', '-C', S.root, 'show', `${sha}:state.json`])).stdout || '{}') as State
