@@ -55,10 +55,10 @@ export async function prove($: Eng, a: Record<string, unknown>, cwd: string, age
   if (st && open.length) await saveState($, { ...st, proofs: { ...st.proofs, ...Object.fromEntries(open.map(([k, p]) => [k, { ...p, amend: 'used' as const }])) } })
   return `PASS ${cmd} on ${short} (${Math.round((t1 - t0) / 1000)}s)`
 }
-// Every allowed proof once: make verify plus each frozen proof, each from cache where the tree is unchanged
+// Every allowed proof once: make verify plus each frozen proof whose slice merged, each from cache where the tree is unchanged
 export async function proveAll($: Eng, cwd: string, agentId?: string): Promise<string> {
   const st = await loadState($)
-  const cmds = [...new Set(['make verify', ...Object.values(st?.proofs ?? {}).map(p => p.cmd), ...(st?.run?.queue ?? []).filter(x => x.status === 'merged').map(x => x.proof)])]
+  const cmds = [...new Set(['make verify', ...Object.entries(st?.proofs ?? {}).filter(([k]) => !st?.run?.queue.some(x => k.startsWith(`${x.id}:`) && x.status !== 'merged')).map(([, p]) => p.cmd), ...(st?.run?.queue ?? []).filter(x => x.status === 'merged').map(x => x.proof)])]
   const outs: string[] = []
   for (const cmd of cmds) outs.push(await prove($, { cmd }, cwd, agentId))
   const bad = outs.filter(o => !o.startsWith('PASS'))
