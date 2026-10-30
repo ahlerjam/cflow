@@ -47,8 +47,9 @@ export async function prove($: Eng, a: Record<string, unknown>, cwd: string, age
   let [out, r] = ['', await g.next()]
   while (!r.done) [out, r] = [(out + r.value.text).slice(-8000), await g.next()]
   const [t1, pass] = [await $.clock.now(), r.value.code === 0]
-  await logEvent($, 'prove', { cmd, tree, pass, slice: S.slice })
-  if (!pass) return r.value.code === 3 && out.includes('slice-lock: waited') ? `BUSY ${cmd}: another slice proof holds the machine lock. Fix: call prove again in a minute; this is not a failure of the code.` : `FAIL ${cmd} (exit ${r.value.code ?? r.value.signal})\n${out.trim().split('\n').slice(-40).join('\n')}`
+  const busy = r.value.code === 3 && out.includes('slice-lock: waited')
+  if (!busy) await logEvent($, 'prove', { cmd, tree, pass, slice: S.slice })
+  if (!pass) return busy ? `BUSY ${cmd}: another slice proof holds the machine lock. Fix: call prove again in a minute; this is not a failure of the code.` : `FAIL ${cmd} (exit ${r.value.code ?? r.value.signal})\n${out.trim().split('\n').slice(-40).join('\n')}`
   await $.fs.write(`${S.dir}/cache/${cacheKey(tree, cmd)}`, JSON.stringify({ t: t1, cmd }))
   const st = await loadState($)
   const open = Object.entries(st?.proofs ?? {}).filter(([, p]) => p.cmd === cmd && p.amend === 'open')
@@ -94,7 +95,7 @@ async function verdict($: Eng, a: Record<string, unknown>, cwd: string, type?: s
 }
 async function note($: Eng, a: Record<string, unknown>): Promise<string> {
   const [cmd, text, state, files] = [str(a.cmd), str(a.text), await loadState($), (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string')]
-  if (!cmd) return text ? (await logEvent($, 'note', { text }), 'noted') : 'Rejected: nothing to note. Fix: pass text, or cmd and files to freeze a proof.'
+  if (!cmd) return text ? (await logEvent($, 'note', { text, confidence: a.confidence, slice: S.slice }), 'noted') : 'Rejected: nothing to note. Fix: pass text, or cmd and files to freeze a proof.'
   if (!state || !files.length || !/^make [\w][\w.-]*(?: FILES?=[\w./,:@+-]*)*$/.test(cmd)) return 'Rejected: freezing needs a make command and the files it proves. Fix: pass both, or restart the session.'
   if (state.proofs[text || cmd]) return `Rejected: ${text || cmd} is frozen already. Fix: ask the person to change it, or freeze a new proof under another text.`
   await saveState($, { ...state, proofs: { ...state.proofs, [text || cmd]: { cmd, files } } })

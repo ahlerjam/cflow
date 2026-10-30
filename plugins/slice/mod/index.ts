@@ -5,13 +5,12 @@ import { TOOL, register as witness } from './witness'
 import { register as flow } from './flow'
 import { cloudStatus } from './cloud'
 import { OPTS, onStart, register as run, status as runStatus } from './run'
-import { MIN_VERSION, S, TYPES, loadState, logEvent, modeOf, openRepo, parseMarker, saveState, tailLog, versionAtLeast } from './state'
+import { MIN_VERSION, S, TYPES, loadState, remember, logEvent, modeOf, openRepo, parseMarker, saveState, tailLog, versionAtLeast } from './state'
 export { lockArgv } from './lock'
 export { S, loadState, logEvent, modeOf, saveState } from './state'
 export type { Marker, Mode, State } from './state'
 
 const OFF = 'slice is not set up here (run /slice:setup)'
-
 export const register: Register = (on, options) => {
   Object.assign(OPTS, Object.fromEntries(Object.entries(options ?? {}).filter(([, v]) => typeof v === 'string' && v)))
   on('session.start', async ($, e, next) => {
@@ -47,23 +46,19 @@ export const register: Register = (on, options) => {
     else await onStart($).catch(err => logEvent($, 'start-error', { error: String(err) }))
     return next(e)
   })
-
   // A failed hook counts as absent, so the catch turns a mod error into a deny
-  on('tool.check', async (_$, e, next) => (S.active && S.halt && !/^(Read|Grep|Glob)$/.test(e.tool) ? { decision: 'deny', reason: S.halt } : next(e))).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
-
-  on('agent.spawn', async (_$, e, next) => { const r = await next(e); return (r.agentId && TYPES.set(r.agentId, e.subagentType), r) })
+  on('tool.check', async (_$, e, next) => (S.active && S.halt && !/^(Read|Grep|Glob|mcp__slice__slice)$/.test(e.tool) ? { decision: 'deny', reason: S.halt } : next(e))).catch(($, e, next) => ({ decision: 'deny', reason: `slice guard failed: ${next.error}. Fix: restart the session.` }))
+  on('agent.spawn', async ($, e, next) => { const r = await next(e); if (r.agentId) await remember($, r.agentId, e.subagentType); return r }).catch(($, e, next) => ({ deny: `slice could not record the agent type: ${next.error}` }))
   guard(on)
   witness(on)
   flow(on)
   run(on)
-
   on('command.run', { command: 'slice-status' }, async $ => {
     if (!S.active) return { text: OFF }
     const { version } = await $.session.version()
     const lines = await tailLog($, 5)
-    return { text: [`active, mode ${modeOf(undefined, S.isRun, S.interactive)}, Claude Code ${version}`, S.halt && `halted: ${S.halt}`, await runStatus($), await cloudStatus($), ...lines].filter(Boolean).join('\n') }
+    return { text: [`active, mode ${modeOf(undefined, S.isRun, S.interactive)}, Claude Code ${version}`, S.halt && `halted: ${S.halt}`, await runStatus($), await cloudStatus($).catch(() => ''), ...lines].filter(Boolean).join('\n') }
   })
-
   on('command.run', { command: 'slice-miss' }, async ($, e) => {
     if (!S.active) return { text: OFF }
     const line = e.args.trim()
@@ -75,13 +70,12 @@ export const register: Register = (on, options) => {
     return { text: `noted (${state.misses.length + 1} misses). ${await proposeRule($, line)}` }
   })
 }
-
 // The rule goes in only with the person's yes; a full section drops the line the person picks
 async function proposeRule($: Engine, miss: string): Promise<string> {
   const file = ['CLAUDE.local.md', 'AGENTS.md'].map(f => `${S.root}/${f}`)
   const path = (await Promise.all(file.map(async f => ((await $.fs.exists(f)) && /^## Verification/m.test(await $.fs.read(f)) ? f : '')))).find(Boolean)
   if (!path || !S.interactive) return 'No rule proposed (no verification section or no person to ask).'
-  const rule = (await $.model.complete({ model: 'haiku', prompt: `One imperative rule, at most 110 characters, for a repo's verification section, that would have prevented this miss: ${miss}\nAnswer with the rule only.` }).catch(() => ({ text: '' }))).text.trim().replace(/^[-*]\s*/, '')
+  const rule = (await $.model.complete({ model: 'haiku', prompt: `One imperative rule, at most 110 characters, for a repo's verification section, that would have prevented this miss: ${miss}\nAnswer with the rule only.` }).then(r => (r.isAnswered ? r.text : ''), () => '')).trim().replace(/^[-*]\s*/, '')
   if (!rule) return 'No rule proposed.'
   const text = await $.fs.read(path)
   const [head, body = ''] = text.split(/^(?=## Verification)/m).length > 1 ? [text.slice(0, text.search(/^## Verification/m)), text.slice(text.search(/^## Verification/m))] : [text, '']

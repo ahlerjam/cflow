@@ -1,6 +1,6 @@
 import type { EngineInterface as Eng, On } from 'claude-code'
 import { lockArgv } from './lock'
-import { S, events, git, loadState, logEvent, saveState, type Kind, type Run, type Slice, type State } from './state'
+import { S, events, git, loadState, logEvent, patchRun, patchSlice, saveState, type Kind, type Run, type Slice, type State } from './state'
 import { shareDeps, wtRoot } from './flow'
 import { proveAll } from './witness'
 import { dispatch, pickUp, pushState } from './cloud'
@@ -12,7 +12,6 @@ const GB = 1024 * 1024
 // A prompt cannot be submitted from a tool hook: these wait for the end of the turn
 const LATER: string[] = []
 const WATCHED = new Set<string>()
-
 export const order = (q: Slice[]): Slice[] => [...q].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
 // After the pilot page UI slices wait up to 4 h for the person; infra and backend go on
 const STANDING: Kind[] = ['polish', 'consolidate']
@@ -21,7 +20,6 @@ const blocked = (r: Run, y: Slice) => (y.after ?? []).some(d => ['stuck', 'rejec
 const settled = (r: Run, x: Slice) => r.queue.every(y => y === x || ORDER.indexOf(y.kind) >= ORDER.indexOf(x.kind) || ['merged', 'stuck', 'rejected'].includes(y.status) || blocked(r, y))
 export const runnable = (r: Run, now = 0): Slice | undefined => r.queue.find(x => x.status === 'queued' && !(x.ui && (r.hold ?? 0) > now) && (!STANDING.includes(x.kind) || settled(r, x)) && (x.after ?? []).every(d => r.queue.find(y => y.id === d)?.status === 'merged'))
 const open = (r: Run): boolean => r.queue.some(x => x.status === 'running' || x.status === 'cloud' || runnable(r) === x)
-
 export function parseQueue(v: unknown): Run | string {
   const s = (v ?? {}) as Record<string, any>
   const slices = Array.isArray(s.slices) ? s.slices : []
@@ -36,24 +34,22 @@ export function parseQueue(v: unknown): Run | string {
   const q: Slice[] = slices.map((x: any) => ({ id: x.id, kind: x.kind, claim: x.claim, brief: x.brief, proof: str(x.proof) || 'make verify', risk: ['low', 'medium', 'high'].includes(x.risk) ? x.risk : 'medium', after: (x.after ?? []).filter((d: string) => ids.has(d)), cloud: !!x.cloud, ui: !!x.ui, status: 'queued' }))
   return { stage: s.stage, branch: `slice/${s.stage}`, wt: '', t0: 0, maxHours: Number(s.maxHours) || 48, budget: Number(s.budget) || 30, use0: 0, queue: order(q), added: 0, pilot: true, pages: 0, online: s.online !== false }
 }
-
 async function limit($: Eng, kind: string) { return (await $.session.usage()).rateLimits.find(l => l.kind === kind) }
+async function week($: Eng): Promise<number> { return (await limit($, 'seven_day'))?.percentUsed ?? 0 }
 async function freeKb($: Eng, path: string) { return Number((await $.process.run(['sh', '-c', 'df -Pk "$1" | awk \'NR==2{print $4}\'', 'sh', path])).stdout.trim()) || Infinity }
-async function duKb($: Eng, path: string) { return Number((await $.process.run(['sh', '-c', 'du -sk "$1" 2>/dev/null | cut -f1', 'sh', path])).stdout.trim()) || 0 }
-
+// The shared dependency copies do not count against a slice
+async function duKb($: Eng, path: string) { return Number((await $.process.run(['sh', '-c', 't=$(du -sk "$1" 2>/dev/null | cut -f1); for d in node_modules .venv; do [ -d "$1/$d" ] && [ ! -L "$1/$d" ] && t=$((t - $(du -sk "$1/$d" | cut -f1))); done; echo $t', 'sh', path], { timeoutMs: 6e5 })).stdout.trim()) || 0 }
 // Claude-Push has no mod API: the session itself sends it, so a hung session sends nothing
 export async function notify($: Eng, text: string): Promise<void> {
   await logEvent($, 'notify', { text })
   try { await $.ui.notify(text, { title: 'slice' }) } catch {}
   if (S.isRun || !S.interactive) LATER.push(`Send one PushNotification with exactly this message and do nothing else: "slice ${text}"`)
 }
-
 export async function halt($: Eng, st: State, why: string): Promise<string> {
-  await saveState($, { ...st, run: { ...st.run!, halt: why } })
+  await patchRun($, r => void (r.halt = why))
   await notify($, `${st.run!.stage}: halt, ${why}`)
   return `halted: ${why}`
 }
-
 // The exits, checked at every slice boundary; a limit near its end is a pause, not a halt
 export async function exits($: Eng, st: State): Promise<{ halt?: string; wait?: string }> {
   const r = st.run!
@@ -66,15 +62,16 @@ export async function exits($: Eng, st: State): Promise<{ halt?: string; wait?: 
   if (five && five.percentUsed >= 90) return { wait: five.resetsAt ?? '' }
   return {}
 }
-
 export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Start the plugin workflow slice:feature (the Workflow tool, or the Skill tool with slice:feature) with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch, built: !!x.why?.includes('built in the cloud') })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never run git commit, git push or gh pr yourself; the workflow's calls to the slice tool (worktree, red, prove, commit, fence) are part of this request and allowed.`
-
 async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
   const r = st.run!
   const n = r.queue.indexOf(x) + 1
-  if (x.cloud && S.marker.cloud && !x.why?.includes('built in the cloud') && !(await $.env.get('SLICE_CLOUD'))) return dispatch($, st, x)
+  if (x.cloud && S.marker.cloud && !x.why?.includes('built in the cloud') && !(await $.env.get('SLICE_CLOUD'))) {
+    const out = await dispatch($, st, x)
+    return x.status === 'cloud' ? `${out}\n${await next($)}` : out
+  }
   // In a cloud run one nested session works the queue itself: it gets the next slice as its instruction
-  if (await $.env.get('SLICE_CLOUD')) return (Object.assign(x, { status: 'running', t: await $.clock.now() }), await saveState($, st), (S.slice = x.id), await logEvent($, 'start', { slice: x.id }), `next: ${slicePrompt(r, x)}`)
+  if (await $.env.get('SLICE_CLOUD')) return (Object.assign(x, { status: 'running', t: await $.clock.now(), use0: await week($) }), await patchSlice($, x), (S.slice = x.id), await logEvent($, 'start', { slice: x.id }), `next: ${slicePrompt(r, x)}`)
   const prompt = slicePrompt(r, x)
   // A background session inherits neither the caller's env nor its --plugin-dir: both go in explicitly
   if (!(await $.fs.exists(`${S.dir}/run-settings.json`))) await writeSettings($)
@@ -83,9 +80,8 @@ async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
   const argv = ['claude', '--bg', '--name', `slice-${r.stage}-${n}`, '--plugin-dir', $.plugin.root, '--settings', `${S.dir}/run-${x.id}.json`, '--permission-mode', 'dontAsk', '--model', OPTS.runModel, '--effort', OPTS.runEffort, '--fallback-model', OPTS.fallbackModel, prompt]
   const p = await $.process.run(argv, { cwd: S.root, env: { SLICE_RUN: '1', SLICE_SLICE: x.id } })
   if (p.exitCode !== 0) return halt($, st, `could not start slice ${x.id}: ${p.stderr.trim().slice(0, 200)}`)
-  x.status = x.cloud ? 'cloud' : 'running'
-  x.t = await $.clock.now()
-  await saveState($, st)
+  Object.assign(x, { status: 'running', t: await $.clock.now(), use0: await week($) })
+  await patchSlice($, x)
   return (await logEvent($, 'spawn', { slice: x.id, n }), `started slice ${x.id} (${n}/${r.queue.length})`)
 }
 
@@ -93,16 +89,17 @@ async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
 export async function next($: Eng): Promise<string> {
   const st = await loadState($)
   if (!st?.run) return 'no run'
-  const r = st.run
+  let r = st.run
   if (r.stopped || r.halt) return r.halt ? `halted: ${r.halt}` : 'stopped'
   const merged = r.queue.filter(x => x.status === 'merged').length
   if (merged && (r.pilot ? merged === 2 : merged % 3 === 0) && r.pages < merged) {
     const kind = r.pilot && merged === 2 ? 'pilot' : 'progress'
     await proveAll($, r.wt)
     const page = await writePage($, st, kind)
-    ;[r.pages, r.pilot] = [merged, false]
-    if (kind === 'pilot') r.hold = (await $.clock.now()) + 4 * 36e5
-    await saveState($, st), await notify($, `${r.stage}: ${merged}/${r.queue.length} merged, page ${page}`)
+    const hold = kind === 'pilot' ? (await $.clock.now()) + 4 * 36e5 : undefined
+    st.run = r = (await patchRun($, f => void Object.assign(f, { pages: merged, pilot: false }, hold && { hold }))).run!
+    await notify($, `${r.stage}: ${merged}/${r.queue.length} merged, page ${page}`)
+    if (r.stopped || r.halt) return r.halt ? `halted: ${r.halt}` : 'stopped'
   }
   if (r.paused) return (await notify($, `${r.stage}: paused, /slice-resume continues`), 'paused')
   if (await pickUp($, st).catch(() => false)) return next($)
@@ -114,7 +111,7 @@ export async function next($: Eng): Promise<string> {
     return (await notify($, `${r.stage}: paused at the 5-hour limit until ${wait || 'its reset'}; /slice-resume if it does not continue`), `paused until ${wait}`)
   }
   const now = await $.clock.now()
-  const x = runnable(r, now)
+  const x = r.queue.some(y => y.status === 'running') ? undefined : runnable(r, now)
   if (x) return spawnSlice($, st, x)
   if (runnable(r, Infinity) && (r.hold ?? 0) > now) {
     if (S.isRun) LATER.push(`UI slices wait for the person's look at the pilot page. Call CronCreate once at ${new Date(r.hold!).toISOString()} with the prompt /slice-resume, then end your turn.`)
@@ -138,11 +135,12 @@ async function writeSettings($: Eng): Promise<void> {
   const profile = JSON.parse(await $.fs.read(`${$.plugin.root}/profiles/run.json`))
   const root = await wtRoot($)
   const sb = profile.sandbox
-  sb.filesystem.allowWrite = [...sb.filesystem.allowWrite, root]
+  // The verifier's scratch folder and the lock files in /tmp (see scripts/slice-lock.sh)
+  sb.filesystem.allowWrite = [...sb.filesystem.allowWrite, root, `${S.dir}/verify`, '/tmp/slice-lock-*']
   sb.network.allowedDomains = [...sb.network.allowedDomains, ...(S.marker.allowedDomains ?? [])]
   sb.excludedCommands = [...(sb.excludedCommands ?? []), ...(S.marker.excludedCommands ?? [])]
   profile.permissions.additionalDirectories = [root]
-  profile.permissions.allow = [...profile.permissions.allow, `Edit(/${root}/**)`, `Write(/${root}/**)`]
+  profile.permissions.allow = [...profile.permissions.allow, `Edit(/${root}/**)`, `Write(/${root}/**)`, `Edit(/${S.dir}/verify/**)`, `Write(/${S.dir}/verify/**)`]
   await $.fs.write(`${S.dir}/run-settings.json`, JSON.stringify(profile, null, 2) + '\n')
 }
 async function start($: Eng, a: Record<string, unknown>): Promise<string> {
@@ -160,7 +158,7 @@ async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   if (!(await $.fs.exists(st.run.wt))) await git($, S.root, 'worktree', 'add', '-B', st.run.branch, st.run.wt, (await $.process.run(['git', '-C', S.root, 'rev-parse', '--verify', `origin/${st.run.branch}`])).exitCode === 0 ? `origin/${st.run.branch}` : 'HEAD')
   await shareDeps($, st.run.wt)
   st.run = { ...st.run, online: a.text !== 'offline', t0: st.run.t0 || (await $.clock.now()), use0: st.run.use0 || ((await limit($, 'seven_day'))?.percentUsed ?? 0) }
-  if (!st.run.online) st.run.queue.forEach(x => !x.ui && x.kind !== 'consolidate' && (x.cloud = true))
+  if (!st.run.online && S.marker.cloud) st.run.queue.forEach(x => !x.ui && x.kind !== 'consolidate' && (x.cloud = true))
   await saveState($, st), await writeSettings($), await logEvent($, 'run-start', { stage: st.run.stage })
   return next($)
 }
@@ -179,6 +177,10 @@ async function queue($: Eng, a: Record<string, unknown>): Promise<string> {
   if (S.marker.cloud) await git($, S.root, 'push', '-q', 'origin', `${r.branch}:${r.branch}`).then(() => pushState($, { ...st, run: { ...r, wt } }, 'queue')).catch(() => undefined)
   return (await logEvent($, 'queue', { stage: r.stage, n: r.queue.length }), `approved ${r.queue.length} slices on ${r.branch}; start with /slice:run`)
 }
+async function stuck($: Eng, st: State, x: Slice, why: string): Promise<string> {
+  Object.assign(x, { status: 'stuck', why })
+  return (await patchSlice($, x), await notify($, `${st.run!.stage}: slice ${x.id} stuck`), `stuck ${x.id}: ${why}\n${await next($)}`)
+}
 async function merge($: Eng, a: Record<string, unknown>, agentId?: string): Promise<string> {
   if (agentId) return 'Refused: only the run session merges.'
   const st = await loadState($)
@@ -186,33 +188,39 @@ async function merge($: Eng, a: Record<string, unknown>, agentId?: string): Prom
   if (!st?.run || !x) return 'Rejected: no such slice in the run.'
   const ev = await events($)
   const wt = ev.filter(e => e.event === 'worktree' && e.id === x.id).at(-1)?.path as string | undefined
-  if (str(a.text) || !wt) {
-    Object.assign(x, { status: 'stuck', why: str(a.text) || 'no worktree' })
-    return (await saveState($, st), await notify($, `${st.run.stage}: slice ${x.id} stuck`), `stuck ${x.id}: ${x.why}\n${await next($)}`)
-  }
+  if (str(a.text) || !wt) return stuck($, st, x, str(a.text) || 'no worktree')
   const tree = await git($, wt, 'rev-parse', 'HEAD^{tree}')
   if (ev.filter(e => e.event === 'verdict' && e.tree === tree).at(-1)?.verdict !== 'pass') return `Refused: no verifier pass recorded on ${tree.slice(0, 10)}. Fix: finish /slice:feature first.`
   const run = st.run.wt
-  await git($, run, 'merge', '--no-ff', '-q', `slice-${x.id}`, '-m', `slice: merge ${x.id}`)
-  const check = await $.process.run(lockArgv(['make', 'check'], { interactive: false }), { cwd: run })
-  const all = check.exitCode === 0 ? await proveAll($, run) : `FAIL make check\n${check.stderr.slice(-2000)}`
+  const pre = await git($, run, 'rev-parse', 'HEAD')
+  let all: string
+  try {
+    await git($, run, 'merge', '--no-ff', '-q', `slice-${x.id}`, '-m', `slice: merge ${x.id}`)
+    const check = await $.process.run(lockArgv(['make', 'check'], { interactive: false }), { cwd: run, timeoutMs: 6e5 })
+    all = check.exitCode === 0 ? await proveAll($, run) : `FAIL make check\n${check.stderr.slice(-2000)}`
+  } catch (err) {
+    // A conflict or timeout must not leave the run worktree mid-merge
+    await $.process.run(['git', '-C', run, 'reset', '--hard', pre])
+    return stuck($, st, x, `merge failed: ${String(err).slice(0, 300)}`)
+  }
   if (!all.startsWith('all ')) {
-    await git($, run, 'reset', '--hard', 'HEAD~1')
+    await git($, run, 'reset', '--hard', pre)
     const since = ev.filter(e => e.event === 'run-start').at(-1)?.t ?? 0
     const tries = ev.filter(e => e.event === 'merge-red' && e.slice === x.id && e.t >= since).length + 1
     await logEvent($, 'merge-red', { slice: x.id, tries, why: all.slice(0, 300) })
     Object.assign(x, tries < 2 ? { status: 'queued', why: `merge turned a proof red; rebuild on ${st.run.branch}` } : { status: 'stuck', why: all.slice(0, 300) })
-    return (await saveState($, st), `reverted: the merge turned a proof red\n${all.slice(0, 600)}`)
+    return (await patchSlice($, x), `reverted: the merge turned a proof red\n${all.slice(0, 600)}\n${await next($)}`)
   }
   const kb = await duKb($, wt)
-  await $.process.run(['git', '-C', S.root, 'worktree', 'remove', '--force', wt])
-  Object.assign(x, { status: 'merged', sha: await git($, run, 'rev-parse', 'HEAD'), disk: Math.round(kb / 1024) })
-  await saveState($, st), await logEvent($, 'merged', { slice: x.id, sha: x.sha, mb: x.disk, result: all })
-  await pushState($, st, 'status').catch(() => undefined)
-  if (kb > 5 * GB) return halt($, st, `slice ${x.id} grew by more than 5 GB`)
+  await $.process.run(['git', '-C', S.root, 'worktree', 'remove', '--force', wt], { timeoutMs: 6e5 })
+  const w = await week($)
+  Object.assign(x, { status: 'merged', sha: await git($, run, 'rev-parse', 'HEAD'), disk: Math.round(kb / 1024), used: x.use0 === undefined ? undefined : Math.round((w - x.use0) * 10) / 10 })
+  const fresh = await patchSlice($, x)
+  await logEvent($, 'merged', { slice: x.id, sha: x.sha, mb: x.disk, result: all })
+  await pushState($, fresh, 'status').catch(() => undefined)
+  if (kb > 5 * GB) return halt($, fresh, `slice ${x.id} grew by more than 5 GB`)
   return `merged ${x.id}: ${all}\n${await next($)}`
 }
-
 // A run may add at most 30 % of its approved queue, each with a reason in the log
 async function add($: Eng, a: Record<string, unknown>): Promise<string> {
   const st = await loadState($)
@@ -280,7 +288,6 @@ export async function runAction($: Eng, a: Record<string, unknown>, agentId?: st
   const act: Record<string, () => Promise<string>> = { queue: () => queue($, a), start: () => start($, a), merge: () => merge($, a, agentId), add: () => add($, a), accept: () => accept($, a), report: async () => JSON.stringify(await report($)) }
   return act[str(a.action)]?.()
 }
-
 export async function onStart($: Eng): Promise<void> {
   S.slice = (await $.env.get('SLICE_SLICE')) ?? ''
   if (S.isRun && S.slice) {
@@ -293,29 +300,40 @@ export async function onStart($: Eng): Promise<void> {
   $.ui.status(`slice: ${line.split(' | ').slice(0, 2).join(' · ')}`)
   if (line.includes('interrupted')) await $.ui.notify(line.split(' | ')[0]!, { title: 'slice' }).catch(() => undefined)
 }
-
 // A run session that never started its workflow would idle silently: after 10 min the slice counts as stuck
 async function started($: Eng): Promise<void> {
   // x.t is the spawn time; session.start fires again on every mod reload, so it is no anchor
   const x = (await loadState($))?.run?.queue.find(y => y.id === S.slice)
   if (x?.status === 'running' && !(await events($)).some(y => y.event === 'worktree' && y.id === S.slice && y.t >= (x.t ?? 0))) await merge($, { id: S.slice, text: 'the feature workflow did not start within 10 minutes of the first turn' })
 }
+// A running slice whose background session has ended without a merge would block the run for good (one local slice at a time)
+async function reap($: Eng, r: Run): Promise<void> {
+  const out = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 }).catch(() => undefined)
+  let live: { name?: string; state?: string }[] | undefined
+  try { live = out?.exitCode === 0 ? JSON.parse(out.stdout) : undefined } catch {}
+  if (live && !live.some(a => a.name?.startsWith(`slice-${r.stage}-`) && a.state === 'working')) r.queue.forEach(x => x.status === 'running' && Object.assign(x, { status: 'stuck', why: 'session ended without merge' }))
+}
 async function control($: Eng, name: string, fn: (r: Run) => Run): Promise<{ text: string }> {
   const st = await loadState($)
   if (!S.active || !st?.run) return { text: 'no run here' }
+  if (name === 'slice-resume') await reap($, st.run)
   await saveState($, { ...st, run: fn(st.run) }), await logEvent($, name)
   if (name === 'slice-stop') {
     for (const [i, x] of st.run.queue.entries()) if (x.status === 'running') await $.process.run(['claude', 'stop', `slice-${st.run.stage}-${i + 1}`])
     await $.store.delete('active').catch(() => undefined)
   }
-  return { text: name === 'slice-resume' ? await next($) : `${name.slice(6)}d at the next slice boundary` }
+  return { text: name === 'slice-resume' ? await next($) : name === 'slice-pause' ? 'paused at the next slice boundary' : 'stopped' }
+}
+// The timer runs outside a turn, so what started() queued is submitted here
+async function flush($: Eng): Promise<void> {
+  while (LATER.length) await $.prompt.submit({ text: LATER.shift()! }).catch(err => logEvent($, 'submit-error', { error: String(err) }))
 }
 
 export const register = (on: On): void => {
   on('turn.complete', async ($, e, next) => {
     const out = await next(e)
-    if (!e.agentId) while (LATER.length) await $.prompt.submit({ text: LATER.shift()! }).catch(err => logEvent($, 'submit-error', { error: String(err) }))
-    if (!e.agentId && S.isRun && S.slice && !WATCHED.has(S.slice)) WATCHED.add(S.slice), $.clock.after(10 * 6e4, () => void started($).catch(() => undefined))
+    if (!e.agentId) await flush($)
+    if (!e.agentId && S.isRun && S.slice && !WATCHED.has(S.slice)) WATCHED.add(S.slice), $.clock.after(10 * 6e4, () => void started($).catch(() => undefined).then(() => flush($)))
     return out
   })
   on('command.run', { command: 'slice-pause' }, async $ => control($, 'slice-pause', r => ({ ...r, paused: true })))

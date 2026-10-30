@@ -3,24 +3,19 @@ export const meta = {
   description: 'Supervised feature: proof tests first and red, builder in a worktree, proof run by the slice tool, fresh verifier, back to the builder up to 3 rounds',
   phases: [{ title: 'Build' }, { title: 'Prove' }, { title: 'Verify' }],
 }
-
 const TEXT = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
 const VERDICT = { type: 'object', properties: { pass: { type: 'boolean' }, quality: { type: 'string', enum: ['pass', 'fail'] }, findings: { type: 'array', items: { type: 'string' } }, raw: { type: 'string' } }, required: ['pass', 'quality', 'findings', 'raw'] }
 const BUILT = { type: 'object', properties: { report: { type: 'string' }, files: { type: 'array', items: { type: 'string' } } }, required: ['report', 'files'] }
-
 if (!args?.claim || !args?.brief || !args?.id) throw new Error('feature needs args {id, claim, brief, proof?, risk?, kind?, base?}. Fix: pass a short id, the claim as checkable points and the quality brief.')
 const { id, claim, brief, proof = 'make verify', risk = 'medium', kind = 'feature', ui = false, base = '', built = false } = args
 if (!/^[\w-]+$/.test(id)) throw new Error('feature id must be letters, digits, _ or -. Fix: pass a short id such as export-umlauts.')
-
 // One tool call, nothing else: the mod does the git work, the agent only carries the call
 const tool = (action, extra, label, phase) =>
   agent(`Call the tool mcp__slice__slice exactly once with ${JSON.stringify({ action, ...extra })}. Load it with ToolSearch if needed. Do not run anything else. Put the tool's answer verbatim in text.`, { label, phase, schema: TEXT, model: 'haiku' }).then(r => r?.text ?? 'no answer')
-
 const made = await tool('worktree', { id, ...(base ? { base } : {}) }, 'worktree', 'Build')
 const m = /worktree (\S+) base (\S+)/.exec(made)
 if (!m) return { status: 'stuck', findings: [made], question: 'The worktree could not be created. Fix the cause shown, then run the feature again.' }
 const [, path, baseSha] = m
-
 const ctx = `Worktree: ${path}\nKind: ${kind}${ui ? ' (UI: load the taste skill, cover empty, loading, error and long-data states)' : ''}\nClaim:\n${claim}\nQuality brief:\n${brief}`
 let [findings, report] = [[], '']
 // The proof tests come first and must fail on an assertion; the mod then freezes them
@@ -34,7 +29,6 @@ if (!/red on an assertion/.test(red)) {
   red = await tool('red', { cmd: proof, files: again?.files ?? [], cwd: path }, 'red baseline again', 'Prove')
   if (!/red on an assertion/.test(red)) return { status: 'stuck', worktree: path, findings: [red], question: 'The proof never failed on an assertion before the code, so it proves nothing. Narrow the claim or name a proof that can fail.' }
 }
-
 for (let round = 1; round <= 3; round++) {
   const hint = round === 3 ? ' Rounds 1 and 2 failed: rethink the approach before you change code.' : ''
   const out = built && round === 1 ? { report } : await agent(
@@ -53,6 +47,7 @@ for (let round = 1; round <= 3; round++) {
   }
   const cand = await tool('commit', { id, cwd: path }, 'candidate', 'Verify')
   const sha = /candidate ([0-9a-f]{7,40})/.exec(cand)?.[1]
+  if (!sha && /frozen proof/.test(cand)) { findings = [cand]; continue }
   if (!sha) return { status: 'stuck', worktree: path, findings: [cand], question: 'The candidate could not be committed. Check the pre-commit hook output.' }
   const v = await agent(
     `Work in ${path}. Diff: git diff ${baseSha}..${sha}. Scratch folder (the only place you may write; pass it as --out to scripts/ui-check.mjs): $(git rev-parse --path-format=absolute --git-common-dir)/slice/verify. Read the verification section of AGENTS.md, any .claude/skills/run-* recipe there and .slice-env for ports and paths.\nClaim:\n${claim}\nQuality brief:\n${brief}\nProof output:\n${proved}\nRecord your verdict with mcp__slice__slice (action verdict, cwd ${path}), then end with the VERDICT line and copy it to raw.`,

@@ -1,9 +1,8 @@
 import type { EngineInterface as Eng } from 'claude-code'
-import { S, git, loadState, logEvent, saveState, type Slice, type State } from './state'
+import { S, git, loadState, logEvent, patchSlice, type Slice, type State } from './state'
 
 // Run state travels as branches slice-state/<stage>-<what> holding only state.json; cloud sessions push branches, not other refs
 async function hasOrigin($: Eng) { return (await $.process.run(['git', '-C', S.root, 'remote', 'get-url', 'origin'])).exitCode === 0 }
-
 export async function pushState($: Eng, st: State, what: 'queue' | 'status'): Promise<void> {
   if (!S.marker.cloud || !(await hasOrigin($))) return
   const pipe = (text: string, ...args: string[]) => $.process.run(['sh', '-c', 't=$1; r=$2; shift 2; printf "%s" "$t" | git -C "$r" "$@"', 'sh', text, S.root, ...args]).then(r => r.stdout.trim())
@@ -30,7 +29,7 @@ export async function dispatch($: Eng, st: State, x: Slice): Promise<string> {
   const id = /(session_\w+|cse_\w+)/.exec(p.stdout)?.[1]
   if (!id) return `could not start the cloud session for ${x.id}: ${p.stdout.slice(-300)}`
   Object.assign(x, { status: 'cloud', t: await $.clock.now(), why: `cloud ${id}` })
-  return (await saveState($, st), await logEvent($, 'cloud', { slice: x.id, session: id }), `sent ${x.id} to the cloud (${id})`)
+  return (await patchSlice($, x), await logEvent($, 'cloud', { slice: x.id, session: id }), `sent ${x.id} to the cloud (${id})`)
 }
 
 // A pushed slice-<id> brings the slice back as queued: the local session proves it and runs the verifier on that tree
@@ -40,12 +39,11 @@ export async function pickUp($: Eng, st: State): Promise<boolean> {
     if ((await $.process.run(['git', '-C', S.root, 'fetch', '-q', 'origin', `slice-${x.id}:slice-${x.id}`])).exitCode !== 0) continue
     Object.assign(x, { status: 'queued', why: `${x.why ?? ''}; built in the cloud, verify locally` })
     moved = true
+    await patchSlice($, x)
     await logEvent($, 'cloud-back', { slice: x.id })
   }
-  if (moved) await saveState($, st)
   return moved
 }
-
 export async function cloudStatus($: Eng): Promise<string> {
   if (!S.marker.cloud || !(await hasOrigin($))) return ''
   const refs = (await $.process.run(['git', '-C', S.root, 'ls-remote', 'origin', 'refs/heads/slice-state/*-status'])).stdout.trim().split('\n').filter(Boolean)
@@ -53,7 +51,7 @@ export async function cloudStatus($: Eng): Promise<string> {
   for (const line of refs.filter(l => !l.endsWith(`/${local}-status`))) {
     const [sha, ref] = line.split('\t')
     if ((await $.process.run(['git', '-C', S.root, 'fetch', '-q', 'origin', ref!])).exitCode !== 0) continue
-    const st = JSON.parse((await $.process.run(['git', '-C', S.root, 'show', `${sha}:state.json`])).stdout || '{}') as State
+    const st = await $.process.run(['git', '-C', S.root, 'show', `${sha}:state.json`]).then(r => JSON.parse(r.stdout || '{}') as State, () => ({}) as State)
     const q = st.run?.queue ?? []
     const by = (s: string) => q.filter(x => x.status === s).map(x => x.id).join(', ') || '-'
     out.push(`cloud run ${st.run?.stage}: merged ${by('merged')} | waiting for you ${by('stuck')} | queued ${by('queued')}`)

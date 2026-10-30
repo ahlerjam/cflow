@@ -20,7 +20,7 @@ test('red needs a failed assertion before the code exists, then freezes the proo
   const { files } = await setup($, on)
   const red = async (o: string, c: number) => (([out, code] = [o, c]), slice($, { action: 'red', files: ['t.test.ts'] }))
   expect([await red('Error: Cannot find module ./x', 1), await red('AssertionError: expected 3 to be 4', 1)]).toEqual([expect.stringContaining('not a failed assertion'), expect.stringContaining('frozen t.test.ts')])
-  expect(Object.values(JSON.parse(files[`${DIR}/state.json`]!).proofs)).toEqual([{ cmd: 'make verify', files: ['t.test.ts'] }])
+  expect(Object.values(JSON.parse(files[`${DIR}/state.json`]!).proofs)).toEqual([{ cmd: 'make verify', files: ['t.test.ts'], h: expect.any(String) }])
   expect(await red('ok', 0)).toContain('Not red: make verify passes before the code exists')
 })
 test('a bug closes only after its proof failed first; a project skill named code-review is no review', async ($, on) => {
@@ -52,7 +52,7 @@ test('exits: spend and the weekly reserve halt, the 5-hour window pauses, then t
   expect(await slice($, { action: 'start', text: 'online' })).toContain('halted: spend or credit limit reached')
   const at = async (l: typeof limits) => ((limits = l), (await cmd('slice-resume')).text)
   expect([await at([{ kind: 'seven_day', percentUsed: 71 }]), await at([{ kind: 'seven_day', percentUsed: 50 }]), await at([{ kind: 'five_hour', percentUsed: 91, resetsAt: 'T' }]), await at([])]).toEqual([expect.stringContaining('7-day reserve'), expect.stringContaining('three times the stage budget'), 'paused until T', expect.stringContaining('started slice a (1/1)')])
-  expect(runs.find(r => r[0] === 'claude')?.slice(0, 5)).toEqual(['claude', '--bg', '--name', 'slice-s-1', '--plugin-dir'])
+  expect(runs.find(r => r[1] === '--bg')?.slice(0, 5)).toEqual(['claude', '--bg', '--name', 'slice-s-1', '--plugin-dir'])
 })
 test('only an interactive session queues; a merge needs the verifier pass; a run adds at most 30 %', async ($, on) => {
   await setup($, on, { run: true, state: { startVersion: '2.1.312', proofs: {}, misses: [], run: RUN([S1('a'), S1('b'), S1('c')]) } })

@@ -5,7 +5,6 @@ import { S, loadState, logEvent, modeOf, typeOf, type Mode } from './state'
 type Input = Record<string, unknown>
 type Ctx = { mode: Mode; type?: string; frozen: string[]; prior: string[]; at?: string }
 type Verdict = { decision: 'deny' | 'ask'; reason: string }
-
 const W = String.raw`(?:(?:env|time|nohup|sudo|npx|uvx|npm\s+exec|pnpm|yarn|bunx?|exec|dlx|uv\s+run|timeout\s+\d+\S*|python3?\s+-m|(?:ba|z)?sh\s+-c|-\S+|\w+=(?:"[^"]*"|'[^']*'|\S*))\s+)*`
 const RUNNER = new RegExp(String.raw`^\s*${W}(?:\S*/)?(?:vitest|jest|pytest|playwright\s+test|cargo\s+test|go\s+test)\b`)
 const GIT = new RegExp(String.raw`^\s*${W}(?:\S*/)?git\b`)
@@ -17,7 +16,6 @@ const ASK_PATH = /(^|\/)(\.git\/hooks\/|\.husky\/|\.github\/workflows\/|\.claude
 const OWN_STATE = 'slice writes its own state and notes. Fix: use the slice tool (note, prove, done).'
 const deny = (reason: string): Verdict => ({ decision: 'deny', reason })
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
-
 const segments = (cmd: string) => cmd.replace(/\b((?:ba|z)?sh\s+-c)\s+["']/g, '$1 ').split(/&&|\|\||[;|&\n()]/)
 const gitSeg = (cmd: string, re: RegExp) => segments(cmd).some(s => GIT.test(s) && re.test(s))
 export const runsTests = (cmd: string): boolean => segments(cmd).some(s => RUNNER.test(s) || /^\s*(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|t)\b|^\s*node\s+--test\b|^\s*mocha\b/.test(s))
@@ -28,7 +26,6 @@ export const addedLines = (i: Input, prior: string[] = []): string[] =>
   ((Array.isArray(i.edits) ? i.edits : [i]) as Input[]).flatMap(x => (str(x.new_string) + str(x.content)).split('\n').filter(l => !str(x.old_string).split('\n').includes(l) && !prior.includes(l)))
 export const isFrozen = (path: string, files: string[], root: string): boolean =>
   files.map(f => f.replace(/^\.\//, '')).some(f => path === f || path === `${root}/${f}` || (f.includes('/') && path.startsWith(`${root}/`) && path.endsWith(`/${f}`)))
-
 // A builder may add its own verify-* target to the Makefile in its worktree: new targets and recipes, longer .PHONY and verify: lines
 export function addsVerifyTarget(i: Input, prior: string[]): boolean {
   const edits = (Array.isArray(i.edits) ? i.edits : [i]) as Input[]
@@ -37,7 +34,9 @@ export function addsVerifyTarget(i: Input, prior: string[]): boolean {
   const [after, old] = [text.split('\n'), prior]
   const [head, added] = [(l: string) => /^(\.PHONY|verify):/.test(l) ? l.split(':')[0] : '', after.filter(l => !old.includes(l))]
   const grows = (l: string) => !!head(l) && added.some(a => head(a) === head(l) && l.split(/\s+/).every(t => a.split(/\s+/).includes(t)))
-  return old.filter(l => !after.includes(l)).every(grows) && added.every(l => /^(verify-[\w-]+:.*|\t.*|#.*|\s*)$/.test(l) || old.some(o => head(o) && head(o) === head(l)))
+  // A second recipe for a target overrides the first in GNU make: a verify-* name may appear once
+  const names = after.filter(l => /^verify-[\w-]+:/.test(l)).map(l => l.split(':')[0]!.trim())
+  return new Set(names).size === names.length && old.filter(l => !after.includes(l)).every(grows) && added.every(l => /^(verify-[\w-]+:.*|\t.*|#.*|\s*)$/.test(l) || old.some(o => head(o) && head(o) === head(l)))
 }
 
 export function judge(tool: string, i: Input, c: Ctx): Verdict | undefined {
@@ -61,7 +60,6 @@ export function judge(tool: string, i: Input, c: Ctx): Verdict | undefined {
 const counts = new Map<string, number>()
 const stuck = new Map<string, string>()
 export const resetDenials = (): void => (counts.clear(), stuck.clear())
-
 async function countDenial($: EngineInterface, who: string, reason: string): Promise<void> {
   counts.set(who, (counts.get(who) ?? 0) + 1)
   if (counts.get(who)! < 5) return
@@ -70,7 +68,6 @@ async function countDenial($: EngineInterface, who: string, reason: string): Pro
   else stuck.set(who, msg)
   await logEvent($, 'stuck', { who, reason })
 }
-
 // The worktree of this repo that holds path, or '' for the main checkout and anything else
 async function worktreeOf($: EngineInterface, path: string): Promise<string> {
   const script = 'd=$(dirname "$1"); while [ ! -d "$d" ]; do d=$(dirname "$d"); done; git -C "$d" rev-parse --path-format=absolute --show-toplevel --git-common-dir'
@@ -78,7 +75,6 @@ async function worktreeOf($: EngineInterface, path: string): Promise<string> {
   const [top, common] = r.stdout.trim().split('\n')
   return r.exitCode === 0 && top && top !== S.root && common === S.dir.replace(/\/slice$/, '') ? top : ''
 }
-
 export const register = (on: On): void => {
   // A failed hook counts as absent, so the catch turns a mod error into a deny
   on('tool.check', { tool: /^(Bash|Edit|Write|MultiEdit)$/ }, async ($, e, next) => {

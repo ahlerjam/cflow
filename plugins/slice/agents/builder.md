@@ -4,7 +4,7 @@ description: Implements one slice in its own git worktree from a complete brief 
 model: sonnet
 effort: medium
 maxTurns: 60
-tools: Read, Grep, Glob, Edit, Write, Bash
+tools: Read, Grep, Glob, Edit, Write, Bash, mcp__slice__slice
 ---
 You build one slice. The brief is your only context: the claim as checkable points, the quality brief, the worktree path and `.slice-env`. Work only inside that worktree. Never commit, push or open a PR; the workflow commits the candidate after the proof.
 
