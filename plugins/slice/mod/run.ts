@@ -115,7 +115,7 @@ export async function next($: Eng): Promise<string> {
   if (open(r)) {
     return 'waiting for running slices'
   }
-  const stuck = r.queue.filter(y => y.status !== 'merged').map(y => y.id)
+  const stuck = r.queue.filter(y => !['merged', 'rejected'].includes(y.status)).map(y => y.id)
   await logEvent($, 'run-end', { merged, stuck })
   await pushState($, st, 'status').catch(() => undefined)
   // The person comes back to the work itself: a cloud run pushes its run branch, a local one never pushes
