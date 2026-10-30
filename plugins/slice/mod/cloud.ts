@@ -26,7 +26,7 @@ export async function dispatch($: Eng, st: State, x: Slice): Promise<string> {
     `3. If the result says verified: git push origin slice-${x.id}. Otherwise push nothing.`,
     `4. Send one PushNotification: "slice ${r.stage}: ${x.id} built in the cloud" or "slice ${r.stage}: ${x.id} stuck in the cloud".`,
   ].join('\n')
-  const p = await $.process.run(['script', '-q', '/dev/null', 'claude', '--cloud', brief], { cwd: S.root })
+  const p = await $.process.run(['script', '-q', '/dev/null', 'claude', '--cloud', brief], { cwd: S.root, timeoutMs: 180000 })
   const id = /(session_\w+|cse_\w+)/.exec(p.stdout)?.[1]
   if (!id) return `could not start the cloud session for ${x.id}: ${p.stdout.slice(-300)}`
   Object.assign(x, { status: 'cloud', t: await $.clock.now(), why: `cloud ${id}` })
