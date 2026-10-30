@@ -18,13 +18,10 @@ const RUN = (q: object[]) => ({ ...(parseQueue({ stage: 's', budget: 10, slices:
 
 test('red needs a failed assertion before the code exists, then freezes the proof files', async ($, on) => {
   const { files } = await setup($, on)
-  ;[out, code] = ['Error: Cannot find module ./x', 1]
-  expect(await slice($, { action: 'red', files: ['t.test.ts'] })).toContain('not a failed assertion')
-  ;[out, code] = ['AssertionError: expected 3 to be 4', 1]
-  expect(await slice($, { action: 'red', files: ['t.test.ts'] })).toContain('frozen t.test.ts')
+  const red = async (o: string, c: number) => (([out, code] = [o, c]), slice($, { action: 'red', files: ['t.test.ts'] }))
+  expect([await red('Error: Cannot find module ./x', 1), await red('AssertionError: expected 3 to be 4', 1)]).toEqual([expect.stringContaining('not a failed assertion'), expect.stringContaining('frozen t.test.ts')])
   expect(Object.values(JSON.parse(files[`${DIR}/state.json`]!).proofs)).toEqual([{ cmd: 'make verify', files: ['t.test.ts'] }])
-  ;[out, code] = ['ok', 0]
-  expect(await slice($, { action: 'red', files: ['t.test.ts'] })).toContain('Not red: make verify passes before the code exists')
+  expect(await red('ok', 0)).toContain('Not red: make verify passes before the code exists')
 })
 test('a bug closes only after its proof failed first; a project skill named code-review is no review', async ($, on) => {
   await setup($, on)
@@ -39,15 +36,12 @@ test('amend opens a frozen proof exactly once and needs a reason', async ($, on)
   expect([await slice($, { action: 'amend', text: 'p' }), await slice($, { action: 'amend', text: 'p', verdict: 'wrong value' }), await slice($, { action: 'amend', text: 'p', verdict: 'again' })]).toEqual([expect.stringContaining('say why'), expect.stringContaining('open for one change'), expect.stringContaining('amended once already')])
 })
 test('the queue is ordered by kind, checked, and runs only what its dependencies allow', () => {
-  expect(parseQueue({ stage: 'bad id', slices: [] })).toContain('stage needs an id')
-  expect(parseQueue({ stage: 's', slices: [S1('a', 'nope')] })).toContain('needs kind')
+  expect([parseQueue({ stage: 'bad id', slices: [] }), parseQueue({ stage: 's', slices: [S1('a', 'nope')] })]).toEqual([expect.stringContaining('stage needs an id'), expect.stringContaining('needs kind')])
   const r = RUN([S1('p', 'polish'), S1('f', 'feature', { after: ['t'] }), S1('t', 'tracer'), S1('u', 'feature', { ui: true })])
   expect(r.queue.map(x => x.id)).toEqual(['t', 'f', 'u', 'p'])
   expect(runnable(r)?.id).toBe('t')
-  r.queue[0]!.status = 'running'
-  expect(runnable(r)?.id).toBe('u')
-  r.hold = 10
-  expect(runnable(r, 5)?.id).toBe(undefined)
+  ;[r.queue[0]!.status, r.hold] = ['running', 10]
+  expect([runnable(r, 20)?.id, runnable(r, 5)?.id]).toEqual(['u', undefined])
   ;[r.queue[0]!.status, r.queue[1]!.status, r.queue[2]!.status] = ['merged', 'stuck', 'merged']
   expect(runnable(r, 5)?.id).toBe('p')
 })
@@ -63,14 +57,11 @@ test('exits: spend and the weekly reserve halt, the 5-hour window pauses, then t
 test('only an interactive session queues; a merge needs the verifier pass; a run adds at most 30 %', async ($, on) => {
   await setup($, on, { run: true, state: { startVersion: '2.1.312', proofs: {}, misses: [], run: RUN([S1('a'), S1('b'), S1('c')]) } })
   expect(await slice($, { action: 'queue', stage: { stage: 's', slices: [S1('a')] } })).toContain('approved by the person')
-  expect(await slice($, { action: 'merge', id: 'a' })).toContain('stuck')
-  expect(await slice($, { action: 'merge', id: 'zz' })).toContain('no such slice')
-  expect(await slice($, { action: 'add', stage: S1('d'), text: 'needed' })).toContain('already added 30 %')
+  expect([await slice($, { action: 'merge', id: 'a' }), await slice($, { action: 'merge', id: 'zz' }), await slice($, { action: 'add', stage: S1('d'), text: 'needed' })]).toEqual([expect.stringContaining('stuck'), expect.stringContaining('no such slice'), expect.stringContaining('already added 30 %')])
 })
 test('a reject queues a fix slice, a miss and a calibration example', async ($, on) => {
   const { files } = await setup($, on, { state: { startVersion: '2.1.312', proofs: {}, misses: [], run: RUN([S1('a')]) } })
-  expect(await slice($, { action: 'accept', id: 'a', verdict: 'reject' })).toContain('reject with text')
-  expect(await slice($, { action: 'accept', id: 'a', verdict: 'reject', text: 'too slow' })).toContain('queued a-fix1')
+  expect([await slice($, { action: 'accept', id: 'a', verdict: 'reject' }), await slice($, { action: 'accept', id: 'a', verdict: 'reject', text: 'too slow' })]).toEqual([expect.stringContaining('reject with text'), expect.stringContaining('queued a-fix1')])
   const st = JSON.parse(files[`${DIR}/state.json`]!) as State
   expect([st.run!.queue.map(x => `${x.id}:${x.status}`), st.misses, st.calibration]).toEqual([['a:rejected', 'a-fix1:queued'], [{ t: 0, line: 'a: too slow' }], ['a: verifier passed, person rejected: too slow']])
 })
