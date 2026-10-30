@@ -57,7 +57,8 @@ export async function prove($: Eng, a: Record<string, unknown>, cwd: string, age
 }
 // Every allowed proof once: make verify plus each frozen proof, each from cache where the tree is unchanged
 export async function proveAll($: Eng, cwd: string, agentId?: string): Promise<string> {
-  const cmds = [...new Set(['make verify', ...Object.values((await loadState($))?.proofs ?? {}).map(p => p.cmd)])]
+  const st = await loadState($)
+  const cmds = [...new Set(['make verify', ...Object.values(st?.proofs ?? {}).map(p => p.cmd), ...(st?.run?.queue ?? []).filter(x => x.status === 'merged').map(x => x.proof)])]
   const outs: string[] = []
   for (const cmd of cmds) outs.push(await prove($, { cmd }, cwd, agentId))
   const bad = outs.filter(o => !o.startsWith('PASS'))

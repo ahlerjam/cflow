@@ -35,9 +35,9 @@ export function addsVerifyTarget(i: Input, prior: string[]): boolean {
   const edits = (Array.isArray(i.edits) ? i.edits : [i]) as Input[]
   const after = edits.map(x => str(x.new_string) || str(x.content)).join('\n').split('\n')
   const old = (str(i.content) ? prior : edits.map(x => str(x.old_string)).join('\n').split('\n')).filter(Boolean)
-  const [phony, added] = [(l: string) => l.startsWith('.PHONY:'), after.filter(l => !old.includes(l))]
-  const keepsPhony = (l: string) => phony(l) && added.some(a => phony(a) && l.split(/\s+/).every(t => a.split(/\s+/).includes(t)))
-  return old.filter(l => !after.includes(l)).every(keepsPhony) && added.every(l => /^(verify-[\w-]+:.*|\t.*|\.PHONY:.*|#.*|\s*)$/.test(l))
+  const [phony, added] = [(l: string) => /^(\.PHONY|verify):/.test(l), after.filter(l => !old.includes(l))]
+  const keepsPhony = (l: string) => phony(l) && added.some(a => a.split(':')[0] === l.split(':')[0] && l.split(/\s+/).every(t => a.split(/\s+/).includes(t)))
+  return old.filter(l => !after.includes(l)).every(keepsPhony) && added.every(l => /^(verify-[\w-]+:.*|\t.*|\.PHONY:.*|verify:.*|#.*|\s*)$/.test(l) && (!/^verify:/.test(l) || old.some(o => o.startsWith('verify:'))))
 }
 
 export function judge(tool: string, i: Input, c: Ctx): Verdict | undefined {

@@ -5,11 +5,7 @@ export const meta = {
 }
 
 const TEXT = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
-const VERDICT = {
-  type: 'object',
-  properties: { pass: { type: 'boolean' }, quality: { type: 'string', enum: ['pass', 'fail'] }, findings: { type: 'array', items: { type: 'string' } }, raw: { type: 'string' } },
-  required: ['pass', 'quality', 'findings', 'raw'],
-}
+const VERDICT = { type: 'object', properties: { pass: { type: 'boolean' }, quality: { type: 'string', enum: ['pass', 'fail'] }, findings: { type: 'array', items: { type: 'string' } }, raw: { type: 'string' } }, required: ['pass', 'quality', 'findings', 'raw'] }
 const BUILT = { type: 'object', properties: { report: { type: 'string' }, files: { type: 'array', items: { type: 'string' } } }, required: ['report', 'files'] }
 
 if (!args?.claim || !args?.brief || !args?.id) throw new Error('feature needs args {id, claim, brief, proof?, risk?, kind?, base?}. Fix: pass a short id, the claim as checkable points and the quality brief.')
@@ -26,14 +22,18 @@ if (!m) return { status: 'stuck', findings: [made], question: 'The worktree coul
 const [, path, baseSha] = m
 
 const ctx = `Worktree: ${path}\nKind: ${kind}${ui ? ' (UI: load the taste skill, cover empty, loading, error and long-data states)' : ''}\nClaim:\n${claim}\nQuality brief:\n${brief}`
-let findings = []
-let report = ''
+let [findings, report] = [[], '']
 // The proof tests come first and must fail on an assertion; the mod then freezes them
 // A slice built in the cloud arrives with its frozen proof already red-tested there: start at the proof
 const tests = built ? { files: [], report: 'Built in the cloud; verify and fix only.' } : await agent(`${ctx}\n\nStep 1 only: write the proof tests for the claim, no product code. ${kind === 'bug' ? 'The test reproduces the bug.' : ''} Return the test files you wrote and a short report.`, { agentType: 'slice:builder', label: 'proof tests', phase: 'Build', schema: BUILT })
-const red = built ? 'red on an assertion (in the cloud)' : await tool('red', { cmd: proof, files: tests?.files ?? [], cwd: path }, 'red baseline', 'Prove')
-if (!/red on an assertion/.test(red)) findings = [`The red baseline did not hold: ${red}`]
+let red = built ? 'red on an assertion (in the cloud)' : await tool('red', { cmd: proof, files: tests?.files ?? [], cwd: path }, 'red baseline', 'Prove')
 report = tests?.report ?? ''
+// Without a red baseline there is nothing to build against: one more try, then the slice is stuck
+if (!/red on an assertion/.test(red)) {
+  const again = await agent(`${ctx}\n\nThe red baseline did not hold:\n${red}\nFix only the proof tests and their make target so the proof runs and fails on the missing behaviour. Return the test files.`, { agentType: 'slice:builder', label: 'proof tests again', phase: 'Build', schema: BUILT })
+  red = await tool('red', { cmd: proof, files: again?.files ?? [], cwd: path }, 'red baseline again', 'Prove')
+  if (!/red on an assertion/.test(red)) return { status: 'stuck', worktree: path, findings: [red], question: 'The proof never failed on an assertion before the code, so it proves nothing. Narrow the claim or name a proof that can fail.' }
+}
 
 for (let round = 1; round <= 3; round++) {
   const hint = round === 3 ? ' Rounds 1 and 2 failed: rethink the approach before you change code.' : ''
