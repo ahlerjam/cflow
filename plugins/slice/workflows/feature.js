@@ -38,10 +38,10 @@ for (let round = 1; round <= 3; round++) {
   report = out?.report ?? report
   let proved = ''
   for (let t = 0; t < 3; t++) {
-    proved = await tool('prove', { cmd: proof, cwd: path }, `prove r${round}`, 'Prove')
-    if (!/\] BUSY /.test(proved)) break
+    proved = await tool('prove', { cmd: proof, all: true, cwd: path }, `prove r${round}`, 'Prove') // every merged proof too: a regression goes back to the builder now, not at the merge
+    if (!/BUSY /.test(proved)) break
   }
-  if (!/^\[slice harness\] PASS /.test(proved)) {
+  if (!/^\[slice harness\] (PASS |all \d+ proofs green)/.test(proved)) {
     findings = [`The harness proof failed:\n${proved}`]
     continue
   }

@@ -58,9 +58,9 @@ export async function prove($: Eng, a: Record<string, unknown>, cwd: string, age
   return `PASS ${cmd} on ${short} (${Math.round((t1 - t0) / 1000)}s)`
 }
 // Every allowed proof once: make verify plus each frozen proof whose slice merged, each from cache where the tree is unchanged
-export async function proveAll($: Eng, cwd: string, agentId?: string): Promise<string> {
+export async function proveAll($: Eng, cwd: string, agentId?: string, extra = ''): Promise<string> {
   const st = await loadState($)
-  const cmds = [...new Set(['make verify', ...Object.entries(st?.proofs ?? {}).filter(([k]) => !st?.run?.queue.some(x => k.startsWith(`${x.id}:`) && x.status !== 'merged')).map(([, p]) => p.cmd), ...(st?.run?.queue ?? []).filter(x => x.status === 'merged').map(x => x.proof)])]
+  const cmds = [...new Set([...(extra ? [extra] : []), 'make verify', ...Object.entries(st?.proofs ?? {}).filter(([k]) => !st?.run?.queue.some(x => k.startsWith(`${x.id}:`) && x.status !== 'merged')).map(([, p]) => p.cmd), ...(st?.run?.queue ?? []).filter(x => x.status === 'merged').map(x => x.proof)])]
   const outs: string[] = []
   for (const cmd of cmds) outs.push(await prove($, { cmd }, cwd, agentId))
   const bad = outs.filter(o => !o.startsWith('PASS'))
@@ -122,7 +122,7 @@ export const register = (on: On): void => {
     const common = cwd.startsWith('/') ? await $.process.run(['git', '-C', cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir']) : undefined
     if (common?.exitCode !== 0 || common.stdout.trim() !== S.dir.replace(/\/slice$/, '')) return say('cwd is not a worktree of this repo. Fix: pass a worktree created with git worktree add.')
     const act: Record<string, () => Promise<string>> = {
-      prove: () => (a.all ? proveAll($, cwd, e.agentId) : prove($, a, cwd, e.agentId)),
+      prove: () => (a.all ? proveAll($, cwd, e.agentId, str(a.cmd)) : prove($, a, cwd, e.agentId)),
       red: () => red($, a, cwd, e.agentId),
       done: () => done($, a, cwd),
       verdict: () => verdict($, a, cwd, type, e.agentId),
