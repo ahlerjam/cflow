@@ -33,7 +33,6 @@ export async function worktree($: Eng, a: Record<string, unknown>): Promise<stri
   const sha = await git($, path, 'merge-base', 'HEAD', base)
   return (await logEvent($, 'worktree', { id, path, base: sha }), `worktree ${path} base ${sha}`)
 }
-
 export async function commit($: Eng, cwd: string, id: string): Promise<string> {
   // .slice-env is excluded in the common git dir, so a plain add -A leaves it out
   await git($, cwd, 'add', '-A')
@@ -41,7 +40,6 @@ export async function commit($: Eng, cwd: string, id: string): Promise<string> {
   const sha = await git($, cwd, 'rev-parse', 'HEAD')
   return (await logEvent($, 'candidate', { id, sha }), `candidate ${sha}`)
 }
-
 export async function fence($: Eng, cwd: string, sha: string): Promise<string> {
   if (!/^[0-9a-f]{7,40}$/.test(sha)) return 'Rejected: pass the candidate sha.'
   const dirty = (await git($, cwd, 'status', '--porcelain')) !== '' || !(await git($, cwd, 'rev-parse', 'HEAD')).startsWith(sha)
@@ -61,7 +59,6 @@ export async function red($: Eng, a: Record<string, unknown>, cwd: string, agent
   if (st && !st.proofs[key]) await saveState($, { ...st, proofs: { ...st.proofs, [key]: { cmd, files } } })
   return (await logEvent($, 'red', { cmd, files, slice: S.slice }), `red on an assertion; frozen ${files.join(', ')} for ${cmd}`)
 }
-
 export async function amend($: Eng, a: Record<string, unknown>): Promise<string> {
   const [st, key, why] = [await loadState($), str(a.text), str(a.verdict)]
   const p = st?.proofs[key]

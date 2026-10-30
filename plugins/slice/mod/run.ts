@@ -128,6 +128,9 @@ export async function next($: Eng): Promise<string> {
   await logEvent($, 'run-end', { merged, stuck })
   await pushState($, st, 'status').catch(() => undefined)
   await $.store.delete('active').catch(() => undefined)
+  // The next run waiting on this machine starts in its own repo with a one-call background session
+  const [after, ...rest] = (((await $.store.get('waiting')) as string[] | undefined) ?? [])
+  if (after) await $.store.set('waiting', rest), await $.process.run(['claude', '--bg', '--name', 'slice-next', '--plugin-dir', $.plugin.root, '--permission-mode', 'dontAsk', '--allowedTools', 'mcp__slice__slice', 'Call the slice tool with action start and text online, then end.'], { cwd: after })
   await notify($, `${r.stage}: run finished, ${merged} merged${stuck.length ? `, not merged: ${stuck.join(', ')}` : ''}; /slice:accept`)
   return 'run finished'
 }
