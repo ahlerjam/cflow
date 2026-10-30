@@ -67,7 +67,7 @@ export async function exits($: Eng, st: State): Promise<{ halt?: string; wait?: 
   return {}
 }
 
-export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Start the plugin workflow slice:feature (the Workflow tool, or the Skill tool with slice:feature) with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch, built: !!x.why?.includes('built in the cloud') })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never commit, push or open a PR yourself.`
+export const slicePrompt = (r: Run, x: Slice): string => `slice run ${r.stage}, slice ${x.id}. Start the plugin workflow slice:feature (the Workflow tool, or the Skill tool with slice:feature) with args ${JSON.stringify({ id: x.id, claim: x.claim, brief: x.brief, proof: x.proof, risk: x.risk, kind: x.kind, ui: x.ui, base: r.branch, built: !!x.why?.includes('built in the cloud') })}. When it returns verified, call the slice tool with action merge and id ${x.id}; when it returns stuck, call merge with id ${x.id} and text set to its question. Never run git commit, git push or gh pr yourself; the workflow's calls to the slice tool (worktree, red, prove, commit, fence) are part of this request and allowed.`
 
 async function spawnSlice($: Eng, st: State, x: Slice): Promise<string> {
   const r = st.run!
