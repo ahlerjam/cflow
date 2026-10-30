@@ -153,10 +153,9 @@ async function start($: Eng, a: Record<string, unknown>): Promise<string> {
     return `queued: ${active.stage} in ${active.root} is running; this run starts when it ends`
   }
   await $.store.set('active', { root: S.root, stage: st.run.stage })
-  if (!(await $.fs.exists(st.run.wt))) {
-    st.run.wt = `${await wtRoot($)}/run/${st.run.stage}`
-    await git($, S.root, 'worktree', 'add', '-B', st.run.branch, st.run.wt, (await $.process.run(['git', '-C', S.root, 'rev-parse', '--verify', `origin/${st.run.branch}`])).exitCode === 0 ? `origin/${st.run.branch}` : 'HEAD')
-  }
+  // A cloud clone may already have the run branch checked out: then the main checkout is the run worktree
+  if (!(await $.fs.exists(st.run.wt))) st.run.wt = (await $.process.run(['git', '-C', S.root, 'symbolic-ref', '--short', 'HEAD'])).stdout.trim() === st.run.branch ? S.root : `${await wtRoot($)}/run/${st.run.stage}`
+  if (!(await $.fs.exists(st.run.wt))) await git($, S.root, 'worktree', 'add', '-B', st.run.branch, st.run.wt, (await $.process.run(['git', '-C', S.root, 'rev-parse', '--verify', `origin/${st.run.branch}`])).exitCode === 0 ? `origin/${st.run.branch}` : 'HEAD')
   await shareDeps($, st.run.wt)
   st.run = { ...st.run, online: a.text !== 'offline', t0: st.run.t0 || (await $.clock.now()), use0: st.run.use0 || ((await limit($, 'seven_day'))?.percentUsed ?? 0) }
   if (!st.run.online) st.run.queue.forEach(x => !x.ui && x.kind !== 'consolidate' && (x.cloud = true))
