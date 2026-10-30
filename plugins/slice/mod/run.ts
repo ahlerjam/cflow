@@ -147,8 +147,8 @@ async function start($: Eng, a: Record<string, unknown>): Promise<string> {
   if (a.text !== 'offline' && (await events($)).some(e => e.event === 'cloud-run' && e.stage === st.run!.stage)) return `stage ${st.run.stage} runs in the cloud; /slice-status shows it`
   if (a.text === 'offline') {
     if (!S.marker.cloud) return 'Refused: sending a stage to the cloud needs the cloud opt-in. Fix: run /slice:setup, or answer that this Mac stays online.'
-    const id = await sendRun($, st)
-    if (!id) return 'could not start the cloud session; run the stage here or start it from a cloud session with the slice-cloud skill'
+    const id = await sendRun($, st).catch(err => (logEvent($, 'cloud-error', { error: String(err).slice(0, 300) }), ''))
+    if (!id) return `could not start the cloud session; if origin/${st.run.branch} has newer work, git fetch it first; else run the stage here or start it from a cloud session with the slice-cloud skill`
     await logEvent($, 'cloud-run', { stage: st.run.stage, session: id })
     return `sent stage ${st.run.stage} to the cloud (${id}); you can close this Mac. A push says when it ends, /slice-status shows it, the work lands on origin/${st.run.branch}`
   }
