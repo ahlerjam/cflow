@@ -48,6 +48,8 @@ export async function saveState($: Eng, state: State): Promise<void> {
   if (moved.exitCode !== 0) throw (await $.process.run(['rm', '-f', tmp]), new Error(`slice: could not replace state.json: ${moved.stderr.trim()}`))
 }
 // merge and next hold a loaded state for minutes: write over a fresh read so the person's pause, stop, hold and queue changes survive
+// Proofs of rejected or stuck slices no longer bind anyone: their files may be written anew
+export const liveProofs = (st?: State): State['proofs'] => Object.fromEntries(Object.entries(st?.proofs ?? {}).filter(([k]) => !st?.run?.queue.some(x => k.startsWith(`${x.id}:`) && ['rejected', 'stuck'].includes(x.status))))
 export async function patchRun($: Eng, fn: (r: Run) => void): Promise<State> { const st = (await loadState($))!; return (fn(st.run!), await saveState($, st), st) }
 export function patchSlice($: Eng, x: Slice): Promise<State> { return patchRun($, r => void Object.assign(r.queue.find(y => y.id === x.id) ?? {}, x)) }
 export async function logEvent($: Eng, event: string, data: Record<string, unknown> = {}): Promise<void> {

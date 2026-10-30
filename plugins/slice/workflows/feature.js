@@ -19,8 +19,9 @@ const [, path, baseSha] = m
 const ctx = `Worktree: ${path}\nKind: ${kind}${ui ? ' (UI: load the taste skill, cover empty, loading, error and long-data states)' : ''}\nClaim:\n${claim}\nQuality brief:\n${brief}`
 let [findings, report] = [[], '']
 // The proof tests come first and must fail on an assertion; the mod then freezes them
-const tests = await agent(`${ctx}\n\nStep 1 only: write the proof tests for the claim, no product code. ${kind === 'bug' ? 'The test reproduces the bug.' : ''} Return the test files you wrote and a short report.`, { agentType: 'slice:builder', label: 'proof tests', phase: 'Build', schema: BUILT })
-let red = await tool('red', { cmd: proof, files: tests?.files ?? [], cwd: path }, 'red baseline', 'Prove')
+// Consolidate keeps behaviour, so nothing can be red first: the existing proofs stay its proof
+const tests = kind === 'consolidate' ? { files: [], report: '' } : await agent(`${ctx}\n\nStep 1 only: write the proof tests for the claim, no product code. ${kind === 'bug' ? 'The test reproduces the bug.' : ''} Return the test files you wrote and a short report.`, { agentType: 'slice:builder', label: 'proof tests', phase: 'Build', schema: BUILT })
+let red = kind === 'consolidate' ? 'red on an assertion: not needed' : await tool('red', { cmd: proof, files: tests?.files ?? [], cwd: path }, 'red baseline', 'Prove')
 report = tests?.report ?? ''
 // Without a red baseline there is nothing to build against: one more try, then the slice is stuck
 if (!/red on an assertion/.test(red)) {

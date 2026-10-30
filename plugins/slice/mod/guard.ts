@@ -1,6 +1,6 @@
 import type { EngineInterface, On } from 'claude-code'
 
-import { S, loadState, logEvent, modeOf, typeOf, type Mode } from './state'
+import { S, liveProofs, loadState, logEvent, modeOf, typeOf, type Mode } from './state'
 
 type Input = Record<string, unknown>
 type Ctx = { mode: Mode; type?: string; frozen: string[]; prior: string[]; at?: string }
@@ -83,7 +83,7 @@ export const register = (on: On): void => {
     if (stuck.has(who)) return deny(stuck.get(who)!)
     const [input, isFile] = [(e.input ?? {}) as Input, e.tool !== 'Bash']
     const [path, type] = [str(input.file_path), await typeOf($, e.agentId)]
-    const frozen = isFile ? Object.values((await loadState($))?.proofs ?? {}).filter(p => p.amend !== 'open').flatMap(p => p.files) : []
+    const frozen = isFile ? Object.values(liveProofs(await loadState($))).filter(p => p.amend !== 'open').flatMap(p => p.files) : []
     const prior = (e.tool === 'Write' || /(^|\/)[Mm]akefile$/.test(path)) && (await $.fs.exists(path)) ? (await $.fs.read(path)).split('\n') : []
     let wt = ''
     if (isFile && type === 'slice:builder') wt = await worktreeOf($, path)

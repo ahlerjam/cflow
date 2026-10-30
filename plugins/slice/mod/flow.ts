@@ -1,5 +1,5 @@
 import type { EngineInterface as Eng, On } from 'claude-code'
-import { S, events, git, loadState, logEvent, saveState } from './state'
+import { S, events, git, liveProofs, loadState, logEvent, saveState } from './state'
 import { prove, snapshot } from './witness'
 import { isFrozen } from './guard'
 
@@ -44,7 +44,7 @@ export async function commit($: Eng, cwd: string, id: string): Promise<string> {
   // Bash can edit what the Edit guard freezes: compare the proofs with the tree the candidate would commit
   const [st, base, own] = [await loadState($), (await events($)).filter(e => e.event === 'worktree' && e.id === id).at(-1)?.base, `${await sliceKey($, cwd)}:`]
   const touched = base ? (await git($, cwd, 'diff', '--cached', '--name-only', base)).split('\n') : []
-  for (const [k, p] of Object.entries(st?.proofs ?? {})) {
+  for (const [k, p] of Object.entries(liveProofs(st))) {
     const bad = k.startsWith(own) ? !p.amend && p.h && (await hashes($, cwd, p.files)) !== p.h : touched.some(f => isFrozen(`${cwd}/${f}`, p.files, cwd))
     if (bad && p.amend !== 'open') return `Refused: the frozen proof ${k} changed in this worktree. Fix: undo the edit to ${p.files.join(', ')}, or call amend once with the reason.`
   }
