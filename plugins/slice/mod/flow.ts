@@ -67,7 +67,8 @@ export async function red($: Eng, a: Record<string, unknown>, cwd: string, agent
   if (!out.startsWith('FAIL') || NOT_RED.test(out) || !ASSERTED.test(out)) return `Not red: the failure is not a failed assertion.\n${out}\nFix: let the test import and run, and fail on the expected value.`
   const st = await loadState($)
   const key = `${await sliceKey($, cwd)}:${cmd}`
-  if (st && !st.proofs[key]) await saveState($, { ...st, proofs: { ...st.proofs, [key]: { cmd, files, h: await hashes($, cwd, files) } } })
+  // A fresh attempt of the same slice writes new proof tests: red freezes them anew
+  if (st) await saveState($, { ...st, proofs: { ...st.proofs, [key]: { cmd, files, h: await hashes($, cwd, files) } } })
   return (await logEvent($, 'red', { cmd, files, slice: S.slice }), `red on an assertion; frozen ${files.join(', ')} for ${cmd}`)
 }
 export async function amend($: Eng, a: Record<string, unknown>): Promise<string> {
