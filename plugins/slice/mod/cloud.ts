@@ -1,5 +1,5 @@
 import type { EngineInterface as Eng } from 'claude-code'
-import { S, git, type State } from './state'
+import { S, events, git, loadState, type State } from './state'
 
 // Run state travels as branches slice-state/<stage>-<what> holding only state.json; cloud sessions push branches, not other refs
 async function hasOrigin($: Eng) { return (await $.process.run(['git', '-C', S.root, 'remote', 'get-url', 'origin'])).exitCode === 0 }
@@ -24,8 +24,10 @@ export async function sendRun($: Eng, st: State): Promise<string> {
 export async function cloudStatus($: Eng): Promise<string> {
   if (!S.marker.cloud || !(await hasOrigin($))) return ''
   const refs = (await $.process.run(['git', '-C', S.root, 'ls-remote', 'origin', 'refs/heads/slice-state/*-status'])).stdout.trim().split('\n').filter(Boolean)
-  const out: string[] = []
-  for (const line of refs) {
+  const [out, st, ev] = [[] as string[], await loadState($), await events($)]
+  // A local run pushes its status too: list it here only when it was sent to the cloud
+  const local = st?.run && !ev.some(e => e.event === 'cloud-run' && e.stage === st.run!.stage) ? `/${st.run.stage}-status` : '\0'
+  for (const line of refs.filter(l => !l.endsWith(local))) {
     const [sha, ref] = line.split('\t')
     if ((await $.process.run(['git', '-C', S.root, 'fetch', '-q', 'origin', ref!])).exitCode !== 0) continue
     const st = await $.process.run(['git', '-C', S.root, 'show', `${sha}:state.json`]).then(r => JSON.parse(r.stdout || '{}') as State, () => ({}) as State)

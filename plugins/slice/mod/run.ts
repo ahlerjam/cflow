@@ -43,7 +43,7 @@ async function duKb($: Eng, path: string) { return Number((await $.process.run([
 export async function notify($: Eng, text: string): Promise<void> {
   await logEvent($, 'notify', { text })
   try { await $.ui.notify(text, { title: 'slice' }) } catch {}
-  if (S.isRun || !S.interactive) LATER.push(`Send one PushNotification with exactly this message and do nothing else: "slice ${text}"`)
+  LATER.push(`Send one PushNotification with exactly this message and do nothing else: "slice ${text}"`)
 }
 export async function halt($: Eng, st: State, why: string): Promise<string> {
   await patchRun($, r => void (r.halt = why))
@@ -291,8 +291,9 @@ export async function status($: Eng): Promise<string> {
   if ((await events($)).some(e => e.event === 'cloud-run' && e.stage === r.stage)) return `stage ${r.stage} sent to the cloud; its line below shows how far it is`
   const by = (s: string) => r.queue.filter(x => x.status === s).map(x => x.id)
   const beat = Number((await $.fs.exists(`${S.dir}/beat`)) ? await $.fs.read(`${S.dir}/beat`) : 0)
+  const ev = (await events($)).filter(e => ['run-start', 'run-end'].includes(e.event)).at(-1)
   const late = by('running').length && (await $.clock.now()) - beat > 10 * 6e4
-  const head = r.halt ? `halted: ${r.halt}` : r.stopped ? 'stopped' : r.paused ? 'paused' : late ? `interrupted: no heartbeat for 10 min; claude attach slice-${r.stage}-<n> and type anything, or /slice-resume` : 'running'
+  const head = r.halt ? `halted: ${r.halt}` : r.stopped ? 'stopped' : r.paused ? 'paused' : ev?.event === 'run-end' ? 'finished; /slice:accept' : late ? `interrupted: no heartbeat for 10 min; claude attach slice-${r.stage}-<n> and type anything, or /slice-resume` : 'running'
   return [`stage ${r.stage} ${head}`, `merged ${by('merged').join(', ') || '-'}`, `running ${by('running').join(', ') || '-'}`, `waiting for you ${[...by('stuck'), ...by('waiting')].join(', ') || '-'}`, `queued ${by('queued').join(', ') || '-'}`].join(' | ')
 }
 export async function runAction($: Eng, a: Record<string, unknown>, agentId?: string): Promise<string | undefined> {

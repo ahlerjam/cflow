@@ -16,9 +16,7 @@ Node.js and Playwright (`npm install -g playwright`) are only needed in repos wi
 
 ## Install
 
-```
-/plugin install slice@cflow
-```
+In Claude Code: `/plugin install slice@cflow`.
 
 ## Use
 
