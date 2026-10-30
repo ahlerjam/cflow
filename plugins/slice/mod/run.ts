@@ -1,7 +1,7 @@
 import type { EngineInterface as Eng, On } from 'claude-code'
 import { lockArgv } from './lock'
 import { S, events, git, loadState, logEvent, saveState, type Kind, type Run, type Slice, type State } from './state'
-import { wtRoot } from './flow'
+import { shareDeps, wtRoot } from './flow'
 import { proveAll } from './witness'
 import { dispatch, pickUp, pushState } from './cloud'
 
@@ -156,6 +156,7 @@ async function start($: Eng, a: Record<string, unknown>): Promise<string> {
     st.run.wt = `${await wtRoot($)}/run/${st.run.stage}`
     await git($, S.root, 'worktree', 'add', '-B', st.run.branch, st.run.wt, (await $.process.run(['git', '-C', S.root, 'rev-parse', '--verify', `origin/${st.run.branch}`])).exitCode === 0 ? `origin/${st.run.branch}` : 'HEAD')
   }
+  await shareDeps($, st.run.wt)
   st.run = { ...st.run, online: a.text !== 'offline', t0: st.run.t0 || (await $.clock.now()), use0: st.run.use0 || ((await limit($, 'seven_day'))?.percentUsed ?? 0) }
   if (!st.run.online) st.run.queue.forEach(x => !x.ui && x.kind !== 'consolidate' && (x.cloud = true))
   await saveState($, st), await writeSettings($), await logEvent($, 'run-start', { stage: st.run.stage })
@@ -171,6 +172,7 @@ async function queue($: Eng, a: Record<string, unknown>): Promise<string> {
   if ((await $.ui.ask(`slice: approve stage ${r.stage}?\n${lines}\n${scope}`, ['Approve queue and scope', 'Cancel']).catch(() => '')) !== 'Approve queue and scope') return 'Not approved. Change the queue with the person, then queue again.'
   const wt = `${await wtRoot($)}/run/${r.stage}`
   if (!(await $.fs.exists(wt))) await git($, S.root, 'worktree', 'add', '-B', r.branch, wt, 'HEAD')
+  await shareDeps($, wt)
   const st = (await loadState($)) ?? { startVersion: '', proofs: {}, misses: [] }
   await saveState($, { ...st, run: { ...r, wt } })
   if (S.marker.cloud) await git($, S.root, 'push', '-q', 'origin', `${r.branch}:${r.branch}`).then(() => pushState($, { ...st, run: { ...r, wt } }, 'queue')).catch(() => undefined)
@@ -196,8 +198,9 @@ async function merge($: Eng, a: Record<string, unknown>, agentId?: string): Prom
   const all = check.exitCode === 0 ? await proveAll($, run) : `FAIL make check\n${check.stderr.slice(-2000)}`
   if (!all.startsWith('all ')) {
     await git($, run, 'reset', '--hard', 'HEAD~1')
-    const tries = ev.filter(e => e.event === 'merge-red' && e.slice === x.id).length + 1
-    await logEvent($, 'merge-red', { slice: x.id, tries })
+    const since = ev.filter(e => e.event === 'run-start').at(-1)?.t ?? 0
+    const tries = ev.filter(e => e.event === 'merge-red' && e.slice === x.id && e.t >= since).length + 1
+    await logEvent($, 'merge-red', { slice: x.id, tries, why: all.slice(0, 300) })
     Object.assign(x, tries < 2 ? { status: 'queued', why: `merge turned a proof red; rebuild on ${st.run.branch}` } : { status: 'stuck', why: all.slice(0, 300) })
     return (await saveState($, st), `reverted: the merge turned a proof red\n${all.slice(0, 600)}`)
   }

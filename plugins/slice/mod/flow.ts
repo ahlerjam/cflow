@@ -11,6 +11,11 @@ export async function wtRoot($: Eng): Promise<string> {
   return `${await $.env.get('HOME')}/.cache/slice/${(await $.process.run(['sh', '-c', 'printf %s "$1" | cksum | cut -d" " -f1', 'sh', S.root])).stdout.trim()}`
 }
 
+// A fresh worktree has no installed dependencies: clone them from the main checkout (APFS clone, else a link)
+export async function shareDeps($: Eng, wt: string): Promise<void> {
+  for (const d of ['node_modules', '.venv']) if ((await $.fs.exists(`${S.root}/${d}`)) && !(await $.fs.exists(`${wt}/${d}`))) await $.process.run(['sh', '-c', 'cp -cRp "$1" "$2" 2>/dev/null || ln -s "$1" "$2"', 'sh', `${S.root}/${d}`, `${wt}/${d}`])
+}
+
 export async function worktree($: Eng, a: Record<string, unknown>): Promise<string> {
   const id = str(a.id)
   if (!/^[\w-]+$/.test(id)) return 'Rejected: id must be letters, digits, _ or -.'
@@ -21,6 +26,7 @@ export async function worktree($: Eng, a: Record<string, unknown>): Promise<stri
     if (exists) await git($, S.root, 'worktree', 'add', path, `slice-${id}`)
     else await git($, S.root, 'worktree', 'add', '-b', `slice-${id}`, path, base)
     if (await $.fs.exists(`${S.root}/.slice-env`)) await $.process.run(['cp', `${S.root}/.slice-env`, `${path}/`])
+    await shareDeps($, path)
   }
   const sha = await git($, path, 'merge-base', 'HEAD', base)
   return (await logEvent($, 'worktree', { id, path, base: sha }), `worktree ${path} base ${sha}`)
