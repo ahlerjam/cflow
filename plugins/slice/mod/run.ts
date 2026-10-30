@@ -246,7 +246,8 @@ async function accept($: Eng, a: Record<string, unknown>): Promise<string> {
   if (str(a.verdict) === 'accept') return (await saveState($, st), await logEvent($, 'accepted', { slice: x.id }), `accepted ${x.id}`)
   const why = str(a.text)
   if (str(a.verdict) !== 'reject' || !why) return 'Rejected: pass verdict accept, or reject with text.'
-  const id = `${x.id}-fix${st.run.queue.filter(y => y.id.startsWith(`${x.id}-fix`)).length + 1}`
+  const root = x.id.replace(/-fix\d+$/, '')
+  const id = `${root}-fix${st.run.queue.filter(y => y.id.startsWith(`${root}-fix`)).length + 1}`
   st.run.queue.push({ ...x, id, status: 'queued', claim: `${x.claim}\nThe person rejected the first version: ${why}`, after: [], why })
   st.misses.push({ t: await $.clock.now(), line: `${x.id}: ${why}` })
   st.calibration = [...(st.calibration ?? []), `${x.id}: verifier passed, person rejected: ${why}`].slice(-8)
