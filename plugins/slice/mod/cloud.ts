@@ -4,7 +4,7 @@ import { S, events, git, loadState, type State } from './state'
 // Run state travels as branches slice-state/<stage>-<what> holding only state.json; cloud sessions push branches, not other refs
 async function hasOrigin($: Eng) { return (await $.process.run(['git', '-C', S.root, 'remote', 'get-url', 'origin'])).exitCode === 0 }
 export async function pushState($: Eng, st: State, what: 'queue' | 'status'): Promise<void> {
-  if (!S.marker.cloud || !(await hasOrigin($))) return
+  if (!S.marker.cloud || !(await hasOrigin($)) || (what === 'status' && !(await $.env.get('SLICE_CLOUD')))) return
   const pipe = (text: string, ...args: string[]) => $.process.run(['sh', '-c', 't=$1; r=$2; shift 2; printf "%s" "$t" | git -C "$r" "$@"', 'sh', text, S.root, ...args]).then(r => r.stdout.trim())
   const blob = await pipe(JSON.stringify(st, null, 2), 'hash-object', '-w', '--stdin')
   const tree = await pipe(`100644 blob ${blob}\tstate.json\n`, 'mktree')
