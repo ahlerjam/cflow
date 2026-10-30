@@ -37,11 +37,8 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   on('tool.call', async () => ({ result: 'ok' }) as never)
   on('tool.check', async () => ({ decision: 'allow' }))
   const store = new Map<string, unknown>()
-  on('store.get', async (_, e) => ({ value: store.get(e.key) }))
-  on('store.set', async (_, e) => ({ value: void store.set(e.key, e.value) }))
-  on('store.delete', async (_, e) => ({ value: void store.delete(e.key) }))
-  on('skill.prompt', async (_, e) => ({ text: e.text }) as never)
-  on('session.cwd', async () => ({ value: ROOT }))
+  on('store.get', async (_, e) => ({ value: store.get(e.key) })), on('store.set', async (_, e) => ({ value: void store.set(e.key, e.value) })), on('store.delete', async (_, e) => ({ value: void store.delete(e.key) }))
+  on('session.cwd', async () => ({ value: ROOT })), on('skill.prompt', async (_, e) => ({ text: e.text }) as never)
   await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: !opts.run && (opts.interactive ?? true) } as never)
   return { files, runs, registered }
 }
