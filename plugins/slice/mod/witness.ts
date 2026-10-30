@@ -91,7 +91,7 @@ async function done($: Eng, a: Record<string, unknown>, cwd: string): Promise<st
 async function verdict($: Eng, a: Record<string, unknown>, cwd: string, type?: string, agentId?: string): Promise<string> {
   if (type !== 'slice:verifier' || !/^(pass|fail)$/.test(str(a.verdict))) return 'Rejected: only the slice:verifier agent records a verdict, pass or fail.'
   const { tree } = await snapshot($, cwd)
-  return (await logEvent($, 'verdict', { tree, verdict: a.verdict, agentId }), `verdict ${a.verdict} recorded for ${tree.slice(0, 10)}`)
+  return (await logEvent($, 'verdict', { tree, verdict: a.verdict, agentId, slice: S.slice || cwd.split('/').pop(), findings: str(a.text) }), `verdict ${a.verdict} recorded for ${tree.slice(0, 10)}`)
 }
 async function note($: Eng, a: Record<string, unknown>): Promise<string> {
   const [cmd, text, state, files] = [str(a.cmd), str(a.text), await loadState($), (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string')]

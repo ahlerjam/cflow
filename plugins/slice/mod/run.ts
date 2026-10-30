@@ -257,7 +257,7 @@ export async function report($: Eng): Promise<Record<string, unknown>> {
   const ev = await events($)
   const per = (id: string, name: string) => ev.filter(e => e.slice === id && e.event === name)
   return {
-    run: st?.run && { ...st.run, queue: st.run.queue.map(x => ({ ...x, notes: per(x.id, 'note'), amends: ev.filter(e => e.event === 'amend' && String(e.key).startsWith(`${x.id}:`)), red: per(x.id, 'red').length > 0 })) },
+    run: st?.run && { ...st.run, queue: st.run.queue.map(x => ({ ...x, notes: per(x.id, 'note'), found: per(x.id, 'verdict').filter(v => v.verdict === 'fail').map(v => v.findings), diskMb: x.disk, amends: ev.filter(e => e.event === 'amend' && String(e.key).startsWith(`${x.id}:`)), red: per(x.id, 'red').length > 0 })) },
     last: ev.filter(e => ['prove-all', 'halt', 'pause', 'notify', 'run-end'].includes(e.event)).slice(-12),
     asked: ev.filter(e => e.event === 'asked'),
     pages: st?.run ? `${S.dir}/pages/` : null,
