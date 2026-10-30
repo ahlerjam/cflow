@@ -27,7 +27,8 @@ export async function worktree($: Eng, a: Record<string, unknown>): Promise<stri
 }
 
 export async function commit($: Eng, cwd: string, id: string): Promise<string> {
-  await git($, cwd, 'add', '-A', '--', '.', ':!.slice-env')
+  // .slice-env is excluded in the common git dir, so a plain add -A leaves it out
+  await git($, cwd, 'add', '-A')
   await git($, cwd, 'commit', '-q', '--allow-empty', '-m', `slice: candidate ${id || 'slice'}`)
   const sha = await git($, cwd, 'rev-parse', 'HEAD')
   return (await logEvent($, 'candidate', { id, sha }), `candidate ${sha}`)
@@ -42,7 +43,7 @@ export async function fence($: Eng, cwd: string, sha: string): Promise<string> {
 
 // The baseline runs before the code exists; once it fails on an assertion the guard freezes the proof files
 export async function red($: Eng, a: Record<string, unknown>, cwd: string, agentId?: string): Promise<string> {
-  const [cmd, files] = [str(a.cmd) || 'make verify', (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string')]
+  const [cmd, files] = [str(a.cmd) || 'make verify', (Array.isArray(a.files) ? a.files : []).filter((f): f is string => typeof f === 'string').map(f => (f.startsWith(`${cwd}/`) ? f.slice(cwd.length + 1) : f))]
   if (!files.length) return 'Rejected: name the proof test files you wrote. Fix: pass files.'
   const out = await prove($, { cmd }, cwd, agentId)
   if (out.startsWith('PASS')) return `Not red: ${cmd} passes before the code exists, so it proves nothing. Fix: make the proof fail on the missing behaviour.`

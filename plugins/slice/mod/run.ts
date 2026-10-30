@@ -9,10 +9,15 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const ORDER: Kind[] = ['bug', 'infra', 'tracer', 'feature', 'polish', 'consolidate']
 export const OPTS = { runModel: 'opus', runEffort: 'high', fallbackModel: 'sonnet' }
 const GB = 1024 * 1024
+// A prompt cannot be submitted from a tool hook: these wait for the end of the turn
+const LATER: string[] = []
 
 export const order = (q: Slice[]): Slice[] => [...q].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
 // After the pilot page UI slices wait up to 4 h for the person; infra and backend go on
-export const runnable = (r: Run, now = 0): Slice | undefined => r.queue.find(x => x.status === 'queued' && !(x.ui && (r.hold ?? 0) > now) && (x.after ?? []).every(d => r.queue.find(y => y.id === d)?.status === 'merged'))
+const STANDING: Kind[] = ['polish', 'consolidate']
+// Polish waits for every other slice, consolidate also for polish; a stuck slice no longer blocks them
+const settled = (r: Run, x: Slice) => r.queue.every(y => y === x || ORDER.indexOf(y.kind) >= ORDER.indexOf(x.kind) || ['merged', 'stuck', 'rejected'].includes(y.status))
+export const runnable = (r: Run, now = 0): Slice | undefined => r.queue.find(x => x.status === 'queued' && !(x.ui && (r.hold ?? 0) > now) && (!STANDING.includes(x.kind) || settled(r, x)) && (x.after ?? []).every(d => r.queue.find(y => y.id === d)?.status === 'merged'))
 const open = (r: Run): boolean => r.queue.some(x => x.status === 'running' || x.status === 'cloud' || runnable(r) === x)
 
 export function parseQueue(v: unknown): Run | string {
@@ -38,7 +43,7 @@ async function duKb($: Eng, path: string) { return Number((await $.process.run([
 export async function notify($: Eng, text: string): Promise<void> {
   await logEvent($, 'notify', { text })
   try { await $.ui.notify(text, { title: 'slice' }) } catch {}
-  if (S.isRun || !S.interactive) await $.prompt.submit({ text: `Send one PushNotification with exactly this message and do nothing else: "slice ${text}"` }).catch(() => undefined)
+  if (S.isRun || !S.interactive) LATER.push(`Send one PushNotification with exactly this message and do nothing else: "slice ${text}"`)
 }
 
 export async function halt($: Eng, st: State, why: string): Promise<string> {
@@ -103,18 +108,18 @@ export async function next($: Eng): Promise<string> {
   if (h) return halt($, st, h)
   if (wait !== undefined) {
     await logEvent($, 'pause', { until: wait })
-    if (S.isRun) await $.prompt.submit({ text: `The 5-hour limit is above 90 %. Call CronCreate once for ${wait || 'the reset time of the 5-hour limit'} plus 2 minutes with the prompt /slice-resume, then end your turn.` }).catch(() => undefined)
+    if (S.isRun) LATER.push(`The 5-hour limit is above 90 %. Call CronCreate once for ${wait || 'the reset time of the 5-hour limit'} plus 2 minutes with the prompt /slice-resume, then end your turn.`)
     return (await notify($, `${r.stage}: paused at the 5-hour limit until ${wait || 'its reset'}; /slice-resume if it does not continue`), `paused until ${wait}`)
   }
   const now = await $.clock.now()
   const x = runnable(r, now)
   if (x) return spawnSlice($, st, x)
   if (runnable(r, Infinity) && (r.hold ?? 0) > now) {
-    if (S.isRun) await $.prompt.submit({ text: `UI slices wait for the person's look at the pilot page. Call CronCreate once at ${new Date(r.hold!).toISOString()} with the prompt /slice-resume, then end your turn.` }).catch(() => undefined)
+    if (S.isRun) LATER.push(`UI slices wait for the person's look at the pilot page. Call CronCreate once at ${new Date(r.hold!).toISOString()} with the prompt /slice-resume, then end your turn.`)
     return 'UI slices wait up to 4 h for the pilot page'
   }
   if (open(r)) {
-    if (S.isRun && r.queue.some(y => y.status === 'cloud')) await $.prompt.submit({ text: 'Slices are building in the cloud. Call CronCreate once in 30 minutes with the prompt /slice-resume, then end your turn.' }).catch(() => undefined)
+    if (S.isRun && r.queue.some(y => y.status === 'cloud')) LATER.push('Slices are building in the cloud. Call CronCreate once in 30 minutes with the prompt /slice-resume, then end your turn.')
     return 'waiting for running slices'
   }
   const stuck = r.queue.filter(y => y.status !== 'merged').map(y => y.id)
@@ -302,6 +307,11 @@ async function control($: Eng, name: string, fn: (r: Run) => Run): Promise<{ tex
 }
 
 export const register = (on: On): void => {
+  on('turn.complete', async ($, e, next) => {
+    const out = await next(e)
+    if (!e.agentId) while (LATER.length) await $.prompt.submit({ text: LATER.shift()! }).catch(err => logEvent($, 'submit-error', { error: String(err) }))
+    return out
+  })
   on('command.run', { command: 'slice-pause' }, async $ => control($, 'slice-pause', r => ({ ...r, paused: true })))
   on('command.run', { command: 'slice-resume' }, async $ => control($, 'slice-resume', r => ({ ...r, paused: false, halt: undefined })))
   on('command.run', { command: 'slice-stop' }, async $ => control($, 'slice-stop', r => ({ ...r, stopped: true })))

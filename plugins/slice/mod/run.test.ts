@@ -47,6 +47,8 @@ test('the queue is ordered by kind, checked, and runs only what its dependencies
   r.queue[0]!.status = 'running'
   expect(runnable(r)?.id).toBe('u')
   r.hold = 10
+  expect(runnable(r, 5)?.id).toBe(undefined)
+  ;[r.queue[0]!.status, r.queue[1]!.status, r.queue[2]!.status] = ['merged', 'stuck', 'merged']
   expect(runnable(r, 5)?.id).toBe('p')
 })
 test('exits: spend and the weekly reserve halt, the 5-hour window pauses, then the next slice starts', async ($, on) => {

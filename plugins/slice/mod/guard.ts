@@ -4,7 +4,7 @@ import { S, loadState, logEvent, modeOf, typeOf } from './state'
 import type { Mode } from './state'
 
 type Input = Record<string, unknown>
-type Ctx = { mode: Mode; type?: string; frozen: string[]; prior: string[] }
+type Ctx = { mode: Mode; type?: string; frozen: string[]; prior: string[]; at?: string }
 type Verdict = { decision: 'deny' | 'ask'; reason: string }
 
 const W = String.raw`(?:(?:env|time|nohup|sudo|npx|uvx|npm\s+exec|pnpm|yarn|bunx?|exec|dlx|uv\s+run|timeout\s+\d+\S*|python3?\s+-m|(?:ba|z)?sh\s+-c|-\S+|\w+=(?:"[^"]*"|'[^']*'|\S*))\s+)*`
@@ -30,8 +30,18 @@ export const addedLines = (i: Input, prior: string[] = []): string[] =>
 export const isFrozen = (path: string, files: string[], root: string): boolean =>
   files.map(f => f.replace(/^\.\//, '')).some(f => path === f || path === `${root}/${f}` || (f.includes('/') && path.startsWith(`${root}/`) && path.endsWith(`/${f}`)))
 
+// A builder may add its own verify-* target to the Makefile in its worktree: only new targets, recipes and a longer .PHONY
+export function addsVerifyTarget(i: Input, prior: string[]): boolean {
+  const edits = (Array.isArray(i.edits) ? i.edits : [i]) as Input[]
+  const after = edits.map(x => str(x.new_string) || str(x.content)).join('\n').split('\n')
+  const old = (str(i.content) ? prior : edits.map(x => str(x.old_string)).join('\n').split('\n')).filter(Boolean)
+  const [phony, added] = [(l: string) => l.startsWith('.PHONY:'), after.filter(l => !old.includes(l))]
+  const keepsPhony = (l: string) => phony(l) && added.some(a => phony(a) && l.split(/\s+/).every(t => a.split(/\s+/).includes(t)))
+  return old.filter(l => !after.includes(l)).every(keepsPhony) && added.every(l => /^(verify-[\w-]+:.*|\t.*|\.PHONY:.*|#.*|\s*)$/.test(l))
+}
+
 export function judge(tool: string, i: Input, c: Ctx): Verdict | undefined {
-  const [run, cmd, path] = [c.mode !== 'interactive', str(i.command), str(i.file_path)]
+  const [run, cmd, path] = [c.mode !== 'interactive', str(i.command), c.at ?? str(i.file_path)]
   if (tool === 'Bash') {
     if (run && runsTests(cmd)) return deny('Direct test runners skip the lock and the cache. Fix: use `make test-affected FILES=…`.')
     if (run && gitSeg(cmd, GIT_RUN)) return deny('Hooks and force pushes are off limits in a run. Fix: drop --no-verify, --force and core.hooksPath and fix the cause.')
@@ -44,6 +54,7 @@ export function judge(tool: string, i: Input, c: Ctx): Verdict | undefined {
   if (isSliceState(path, S.dir)) return deny(OWN_STATE)
   if (run && path.includes('.claude/skills/verify/')) return deny('The verify skill is fixed during a run. Fix: leave it and report what is missing in your result.')
   if (c.type === 'slice:verifier' && (/(^|\/)\.\.(\/|$)/.test(path) || !path.startsWith(`${S.dir}/verify/`))) return deny(`The verifier writes only to ${S.dir}/verify/. Fix: put scratch files there.`)
+  if (c.type === 'slice:builder' && /(^|\/)[Mm]akefile$/.test(path) && !isFrozen(path, c.frozen, S.root) && addsVerifyTarget(i, c.prior)) return undefined
   if (ASK_PATH.test(path) || isFrozen(path, c.frozen, S.root)) return { decision: 'ask', reason: `${path} is a frozen proof, hook, CI, dependency, secret, ADR or owner path. Fix: ask the person to approve, or work on a copy.` }
 }
 
@@ -60,11 +71,12 @@ async function countDenial($: EngineInterface, who: string, reason: string): Pro
   await logEvent($, 'stuck', { who, reason })
 }
 
-async function inWorktree($: EngineInterface, path: string): Promise<boolean> {
+// The worktree of this repo that holds path, or '' for the main checkout and anything else
+async function worktreeOf($: EngineInterface, path: string): Promise<string> {
   const script = 'd=$(dirname "$1"); while [ ! -d "$d" ]; do d=$(dirname "$d"); done; git -C "$d" rev-parse --path-format=absolute --show-toplevel --git-common-dir'
   const r = await $.process.run(['sh', '-c', script, 'sh', path])
   const [top, common] = r.stdout.trim().split('\n')
-  return r.exitCode === 0 && top !== S.root && common === S.dir.replace(/\/slice$/, '')
+  return r.exitCode === 0 && top && top !== S.root && common === S.dir.replace(/\/slice$/, '') ? top : ''
 }
 
 export const register = (on: On): void => {
@@ -77,8 +89,11 @@ export const register = (on: On): void => {
     const [path, type] = [str(input.file_path), await typeOf($, e.agentId)]
     const frozen = isFile ? Object.values((await loadState($))?.proofs ?? {}).filter(p => p.amend !== 'open').flatMap(p => p.files) : []
     const prior = e.tool === 'Write' && (await $.fs.exists(path)) ? (await $.fs.read(path)).split('\n') : []
-    const out = isFile && type === 'slice:builder' && !(await inWorktree($, path))
-    const v = out ? deny('Builders edit only in a worktree of this repo, not the main checkout or elsewhere. Fix: work in your worktree.') : judge(e.tool, input, { mode: modeOf(e.agentId, S.isRun, S.interactive), type, frozen, prior })
+    let wt = ''
+    if (isFile && type === 'slice:builder') wt = await worktreeOf($, path)
+    const out = isFile && type === 'slice:builder' && !wt
+    // Frozen proofs are named relative to the repo, so in a worktree they are matched against its own root
+    const v = out ? deny('Builders edit only in a worktree of this repo, not the main checkout or elsewhere. Fix: work in your worktree.') : judge(e.tool, input, { mode: modeOf(e.agentId, S.isRun, S.interactive), type, frozen, prior, at: wt ? S.root + path.slice(wt.length) : path })
     if (!v) return counts.delete(who), next(e)
     if (v.decision === 'deny') await countDenial($, who, v.reason)
     // Nobody can answer in a run: the ask is refused there, so the person hears of it
