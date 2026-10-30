@@ -48,7 +48,7 @@ test('builders stay in a worktree of this repo, the verifier stays read-only', a
   expect(await v(write($, '/wt/b.ts', 'b1'), write($, '/other/a.ts', 'b1'), write($, '/r/.git/slice/verify/t', 'v1'), write($, '/r/.git/slice/verify/../state.json', 'v1'), bash($, 'git -C /x stash', 'v1'), bash($, 'git diff', 'v1'))).toEqual(['allow', 'deny', 'allow', 'deny', 'deny', 'allow'])
 })
 test('a frozen proof is frozen in every worktree; a builder may only add its own verify-* target to the Makefile', async ($, on) => {
-  await boot($, on, setup)
+  ;(await boot($, on, setup)).files['/wt/Makefile'] = '.PHONY: check\ncheck:\n\tnpx tsc'
   const edit = (old_string: string, new_string: string) => ask($, 'Edit', { file_path: '/wt/Makefile', old_string, new_string }, 'b1')
   expect(await v(write($, '/wt/a.ts', 'b1'), edit('.PHONY: check', '.PHONY: check verify-x\nverify-x:\n\tnode x.mjs'), edit('check:\n\tnpx tsc', 'check:\n\ttrue'))).toEqual(['deny', 'allow', 'deny'])
 })

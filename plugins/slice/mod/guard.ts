@@ -1,7 +1,6 @@
 import type { EngineInterface, On } from 'claude-code'
 
-import { S, loadState, logEvent, modeOf, typeOf } from './state'
-import type { Mode } from './state'
+import { S, loadState, logEvent, modeOf, typeOf, type Mode } from './state'
 
 type Input = Record<string, unknown>
 type Ctx = { mode: Mode; type?: string; frozen: string[]; prior: string[]; at?: string }
@@ -30,14 +29,15 @@ export const addedLines = (i: Input, prior: string[] = []): string[] =>
 export const isFrozen = (path: string, files: string[], root: string): boolean =>
   files.map(f => f.replace(/^\.\//, '')).some(f => path === f || path === `${root}/${f}` || (f.includes('/') && path.startsWith(`${root}/`) && path.endsWith(`/${f}`)))
 
-// A builder may add its own verify-* target to the Makefile in its worktree: only new targets, recipes and a longer .PHONY
+// A builder may add its own verify-* target to the Makefile in its worktree: new targets and recipes, longer .PHONY and verify: lines
 export function addsVerifyTarget(i: Input, prior: string[]): boolean {
   const edits = (Array.isArray(i.edits) ? i.edits : [i]) as Input[]
-  const after = edits.map(x => str(x.new_string) || str(x.content)).join('\n').split('\n')
-  const old = (str(i.content) ? prior : edits.map(x => str(x.old_string)).join('\n').split('\n')).filter(Boolean)
-  const [phony, added] = [(l: string) => /^(\.PHONY|verify):/.test(l), after.filter(l => !old.includes(l))]
-  const keepsPhony = (l: string) => phony(l) && added.some(a => a.split(':')[0] === l.split(':')[0] && l.split(/\s+/).every(t => a.split(/\s+/).includes(t)))
-  return old.filter(l => !after.includes(l)).every(keepsPhony) && added.every(l => /^(verify-[\w-]+:.*|\t.*|\.PHONY:.*|verify:.*|#.*|\s*)$/.test(l) && (!/^verify:/.test(l) || old.some(o => o.startsWith('verify:'))))
+  if (!str(i.content) && !edits.every(x => prior.join('\n').includes(str(x.old_string)))) return false
+  const text = str(i.content) || edits.reduce((t, x) => t.replace(str(x.old_string), str(x.new_string)), prior.join('\n'))
+  const [after, old] = [text.split('\n'), prior]
+  const [head, added] = [(l: string) => /^(\.PHONY|verify):/.test(l) ? l.split(':')[0] : '', after.filter(l => !old.includes(l))]
+  const grows = (l: string) => !!head(l) && added.some(a => head(a) === head(l) && l.split(/\s+/).every(t => a.split(/\s+/).includes(t)))
+  return old.filter(l => !after.includes(l)).every(grows) && added.every(l => /^(verify-[\w-]+:.*|\t.*|#.*|\s*)$/.test(l) || old.some(o => head(o) && head(o) === head(l)))
 }
 
 export function judge(tool: string, i: Input, c: Ctx): Verdict | undefined {
@@ -88,7 +88,7 @@ export const register = (on: On): void => {
     const [input, isFile] = [(e.input ?? {}) as Input, e.tool !== 'Bash']
     const [path, type] = [str(input.file_path), await typeOf($, e.agentId)]
     const frozen = isFile ? Object.values((await loadState($))?.proofs ?? {}).filter(p => p.amend !== 'open').flatMap(p => p.files) : []
-    const prior = e.tool === 'Write' && (await $.fs.exists(path)) ? (await $.fs.read(path)).split('\n') : []
+    const prior = (e.tool === 'Write' || /(^|\/)[Mm]akefile$/.test(path)) && (await $.fs.exists(path)) ? (await $.fs.read(path)).split('\n') : []
     let wt = ''
     if (isFile && type === 'slice:builder') wt = await worktreeOf($, path)
     const out = isFile && type === 'slice:builder' && !wt
