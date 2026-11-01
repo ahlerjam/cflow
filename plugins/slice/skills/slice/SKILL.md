@@ -22,9 +22,9 @@ Several files, screens, data or core paths, or the person says "ultracode": sugg
 ## In a run session (SLICE_RUN=1)
 You build every feature in `.slice/features.json` in one long session. Decide reversible questions yourself; never wait for the person.
 1. Read `.slice/progress.md`, `git log --oneline -20` and `.slice/features.json`.
-2. Start the app via the verify recipe and run a short E2E check that it still works. Fix a broken state first.
-3. Take the first feature with `passes` false and build it.
-4. Run its E2E steps with the verify skill and show evidence (commands and output, a screenshot for UI). Judge UI against the `taste` skill criteria. On failure fix and repeat.
+2. Before changing any code, start the app via the verify recipe and run the E2E steps on the code as it is. Show the output. If a feature's steps already fail on existing code, say so: that is the defect to fix, shown red first.
+3. Take the first feature with `passes` false and build only that one. Do not implement later features ahead, even small ones. One feature is one cycle: build, E2E steps, `passes`, commit, then the next.
+4. Run its E2E steps by invoking the `verify` skill, and show evidence (commands and output, a screenshot for UI). Judge UI against the `taste` skill criteria. On failure fix and repeat.
 5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
 6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style) and `/code-review` on the run diff, fix what holds, then run every feature's E2E steps once more with evidence.
 
