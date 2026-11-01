@@ -1,6 +1,7 @@
 import { mock, type Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 const OK = { exitCode: 0, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+const PROFILE = { sandbox: { excludedCommands: [], network: { allowedDomains: ['registry.test'] } } }
 export const ROOT = '/r'
 export const DIR = '/r/.git/slice'
 export type Reply = { exitCode?: number; stdout?: string; stderr?: string }
@@ -22,7 +23,10 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   mock.clock(on, { now: 0 })
   mock.env(on, opts.run ? { SLICE_RUN: '1' } : (opts.env ?? {}))
   on('fs.exists', async (_, e) => ({ value: e.path in files }))
-  on('fs.read', async (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.read', async (_, e) => {
+    const stub = e.path.endsWith('/profiles/run.json') ? JSON.stringify(PROFILE) : ''
+    return { value: files[e.path] ?? stub }
+  })
   on('fs.write', async (_, e) => ({ value: void (files[e.path] = e.text) }))
   on('process.run', async (_, e) => {
     runs.push([...e.argv])

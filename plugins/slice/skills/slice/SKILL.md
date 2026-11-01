@@ -1,6 +1,6 @@
 ---
 name: slice
-description: Sizes a piece of work and finishes it with proof from the running app. A small ticket is done in the current session, changed, checked with the project's verify recipe and committed only after the evidence is shown; bigger work goes through /slice:shape and /slice:run. Also holds the builder routine for unattended run sessions. Use when starting or finishing a change in a repo set up with slice (.claude/slice.json).
+description: Sizes a piece of work and finishes it with evidence from the running app. A small ticket is done in the current session, changed, checked with the project's verify recipe and committed only after the evidence is shown; bigger work goes through /slice:shape and /slice:run. Also holds the builder routine for unattended run sessions. Use when starting or finishing a change in a repo set up with slice (.claude/slice.json).
 when_to_use: Fix, implement, build a feature, "ultracode", before a commit or PR, "ist das fertig", "fertig melden", "Ticket", "Feature bauen", SLICE_RUN=1.
 ---
 Active only when `.claude/slice.json` exists in the repo. Otherwise ignore this skill.

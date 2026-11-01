@@ -93,6 +93,26 @@ function stamp(ms: number): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
 }
 
+type Json = Record<string, any>
+
+async function runSettings($: Engine, wt: string): Promise<string> {
+  const profile: Json = JSON.parse(await $.fs.read(`${$.plugin.root}/profiles/run.json`))
+  const sandbox: Json = profile.sandbox ?? {}
+  const union = (a: unknown, b: string[] | undefined) => [...new Set([...(Array.isArray(a) ? a : []), ...(b ?? [])])]
+  const merged: Json = {
+    ...profile,
+    sandbox: {
+      ...sandbox,
+      excludedCommands: union(sandbox.excludedCommands, S.marker.excludedCommands),
+      filesystem: { ...sandbox.filesystem, allowWrite: union(sandbox.filesystem?.allowWrite, [wt]) },
+      network: { ...sandbox.network, allowedDomains: union(sandbox.network?.allowedDomains, S.marker.allowedDomains) },
+    },
+  }
+  const path = `${S.dir}/run-settings.json`
+  await $.fs.write(path, JSON.stringify(merged, null, 2))
+  return path
+}
+
 async function workerCommand($: Engine, run: Run, resume?: string): Promise<string> {
   const [model, effort, fallback] = await Promise.all([
     option($, 'runModel', 'opus'), option($, 'runEffort', 'high'), option($, 'fallbackModel', 'sonnet'),
@@ -111,7 +131,7 @@ async function workerCommand($: Engine, run: Run, resume?: string): Promise<stri
     `--max-budget-usd ${S.marker.budgetUsd ?? DEFAULT_BUDGET_USD}`,
     `--max-turns ${maxTurns}`,
     '--permission-mode dontAsk',
-    `--settings ${quote(`${$.plugin.root}/profiles/run.json`)}`,
+    `--settings ${quote(await runSettings($, run.wt))}`,
     ...(pluginDir ? [`--plugin-dir ${quote(pluginDir)}`] : []),
     `> ${quote(`${S.dir}/worker.json`)} 2> ${quote(`${S.dir}/worker.err`)}`,
   ].join(' ')

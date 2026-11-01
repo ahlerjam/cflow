@@ -44,7 +44,15 @@ test('worker command carries goal, budget, turns and settings', async ($, on) =>
   expect(cwd).toBe(WT)
   expect(command).toContain('Done means: every feature in .slice/features.json')
   expect(command).toContain('--max-budget-usd 7 --max-turns 50')
-  expect(command).toContain('profiles/run.json')
+  expect(command).toContain(`--settings '${DIR}/run-settings.json'`)
+})
+test('worker writes the marker domains and excluded commands into the run settings', async ($, on) => {
+  const marker = '{"allowedDomains":["api.example.com"],"excludedCommands":["docker compose *"]}'
+  const { files } = await boot($, on, setup({ marker, files: base }))
+  await tool($, { action: 'worker' })
+  const sandbox = JSON.parse(files[`${DIR}/run-settings.json`] ?? '').sandbox
+  expect([sandbox.network.allowedDomains, sandbox.excludedCommands, sandbox.filesystem.allowWrite])
+    .toEqual([['registry.test', 'api.example.com'], ['docker compose *'], [WT]])
 })
 test('worker command has --plugin-dir only with SLICE_PLUGIN_DIR', async ($, on) => {
   await boot($, on, setup({ files: base }))
