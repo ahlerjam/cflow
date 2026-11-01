@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: quiet-lint
+description: Small ticket with a hidden runtime defect; scored on fix, commit and end-to-end evidence.
+runs: 5
+context:
+  scaffold_script: scaffold.sh
+execution:
+  model: sonnet
+  max_turns: 30
+  timeout_seconds: 400
+  allowed_tools: [Read, Glob, Grep, Skill]
