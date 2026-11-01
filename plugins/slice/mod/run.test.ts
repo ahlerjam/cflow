@@ -7,6 +7,7 @@ const CACHE = '/h/.cache/slice/r-' + (() => {
   return h.toString(16).padStart(8, '0')
 })()
 const WT = `${CACHE}/run`
+const SSH = ['git', 'github.com:own/repo.git'].join('@')
 const feat = (id: string, passes = false, title = `Title ${id}`) => ({ id, title, steps: ['open', 'see'], passes })
 const list = (...features: unknown[]) => JSON.stringify({ features })
 const RUN = {
@@ -24,6 +25,7 @@ const git = (over: Record<string, Reply> = {}) => (argv: readonly string[]): Rep
   const key = argv.slice(3).join(' ')
   const hit = Object.entries(over).find(([k]) => key.startsWith(k))
   if (hit) return hit[1]
+  if (key === 'remote get-url origin') return { stdout: SSH }
   if (key === 'rev-parse HEAD') return { stdout: 'abc' }
   if (key === 'rev-parse --abbrev-ref HEAD') return { stdout: 'main' }
   return { stdout: '' }
@@ -224,18 +226,19 @@ test('a wait does not count as a stall', async ($, on) => {
   const { files } = await boot($, on, opts)
   expect([(await check($)).action, stored(files).stalls]).toEqual(['wait', 2])
 })
+const field = (argv: string[], name: string) => argv.find(a => a.startsWith(`${name}=`))?.slice(name.length + 1)
 const COMMITS = { stdout: 'c1\tslice: f1 Title f1\nc2\tslice: f2 Title f2' }
 const DONE = { [`${WT}/.slice/features.json`]: list(feat('f1', true), feat('f2', true)) }
 test('feature-prs names the branches after the run', async ($, on) => {
   const { runs } = await boot($, on, setup({ state: state(), files: DONE, git: { log: COMMITS } }))
   await tool($, { action: 'finish', mode: 'feature-prs' })
-  const heads = runs.filter(r => r[0] === 'gh').map(r => r[r.indexOf('--head') + 1])
+  const heads = runs.filter(r => r[0] === 'gh').map(r => field(r, 'head'))
   expect(heads).toEqual([`${RUN.branch}-f1`, `${RUN.branch}-f2`])
 })
 test('feature-prs stacks each PR on the previous branch', async ($, on) => {
   const { runs } = await boot($, on, setup({ state: state(), files: DONE, git: { log: COMMITS } }))
   await tool($, { action: 'finish', mode: 'feature-prs' })
-  const bases = runs.filter(r => r[0] === 'gh').map(r => r[r.indexOf('--base') + 1])
+  const bases = runs.filter(r => r[0] === 'gh').map(r => field(r, 'base'))
   expect(bases).toEqual(['main', `${RUN.branch}-f1`])
 })
 test('feature-prs refuses a branch that already exists on origin and keeps the worktree', async ($, on) => {
@@ -250,5 +253,22 @@ test('the single PR title names the features', async ($, on) => {
   const { runs } = await boot($, on, setup({ state: state(), files: DONE }))
   await tool($, { action: 'finish', mode: 'pr' })
   const gh = runs.find(r => r[0] === 'gh') ?? []
-  expect(gh[gh.indexOf('--title') + 1]).toBe('slice: 2 features (Title f1 and 1 more)')
+  expect(field(gh, 'title')).toBe('slice: 2 features (Title f1 and 1 more)')
+})
+const prArgs = async ($: Engine, on: never, url: string) => {
+  const { runs } = await boot($, on, setup({
+    state: state(), files: DONE, git: { 'remote get-url': { stdout: url } },
+  }))
+  await tool($, { action: 'finish', mode: 'pr' })
+  return runs.find(r => r[0] === 'gh') ?? []
+}
+test('PRs are created through the REST endpoint as drafts, not with gh pr create', async ($, on) => {
+  const gh = await prArgs($, on, SSH)
+  expect([gh[1], gh[2], gh.includes('draft=true')]).toEqual(['api', 'repos/own/repo/pulls', true])
+})
+test('owner and repo are read from an https remote', async ($, on) => {
+  expect((await prArgs($, on, 'https://github.com/own/repo.git'))[2]).toBe('repos/own/repo/pulls')
+})
+test('owner and repo are read from the cloud proxy remote', async ($, on) => {
+  expect((await prArgs($, on, 'http://local_proxy@127.0.0.1:4100/git/own/repo'))[2]).toBe('repos/own/repo/pulls')
 })

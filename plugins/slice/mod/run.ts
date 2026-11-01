@@ -299,8 +299,16 @@ function prTitle(list: FeatureList): string {
 }
 
 async function publish($: Engine, run: Run, list: FeatureList, mode: EndMode): Promise<Cmd & { prs: string[] }> {
-  const pr = (base: string, head: string, title: string, bodyText: string) =>
-    cmd($, ['gh', 'pr', 'create', '--draft', '--base', base, '--head', head, '--title', title, '--body', bodyText])
+  const remote = await git($, ['remote', 'get-url', 'origin'])
+  const slug = /([^/:]+)\/([^/:]+?)(?:\.git)?\/?$/.exec(remote.out)
+  if (!remote.ok || !slug) {
+    return { ok: false, out: remote.ok ? `cannot read owner/repo from ${remote.out}` : remote.out, prs: [] }
+  }
+  // REST, not `gh pr create`: GraphQL answers 403 in Claude Code cloud sessions
+  const pr = (base: string, head: string, title: string, bodyText: string) => cmd($, [
+    'gh', 'api', `repos/${slug[1]}/${slug[2]}/pulls`, '-X', 'POST', '-f', `title=${title}`, '-f', `head=${head}`,
+    '-f', `base=${base}`, '-f', `body=${bodyText}`, '-F', 'draft=true', '--jq', '.html_url',
+  ])
   if (mode === 'pr') {
     const pushed = await git($, ['push', '-u', 'origin', run.branch])
     if (!pushed.ok) return { ...pushed, prs: [] }
