@@ -32,7 +32,7 @@
     {
       "name": "slice",
       "source": "./plugins/slice",
-      "description": "Verification-first work loop for Claude Code, from a ticket to an unattended run: a mod runs the proof, a fresh verifier checks the claim, you accept."
+      "description": "Plans a spec and an E2E feature list, then one long run session builds and proves each feature."
     },
     {
       "name": "useful-tools",

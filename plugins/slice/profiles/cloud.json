@@ -1,10 +1,43 @@
 {
   "permissions": {
-    "allow": ["Bash", "Edit", "Write", "mcp__slice__slice", "Workflow(slice:feature)", "Skill(slice:feature)", "Skill(slice:slice)", "Read", "Grep", "Glob", "ToolSearch", "Skill(slice:taste)", "PushNotification", "CronCreate", "Bash(make check)", "Bash(make verify)", "Bash(make test-affected *)", "Bash(make verify-*)"],
-    "deny": ["Bash(git push*)", "Bash(git commit*)", "Bash(gh pr *)", "Bash(git config core.hooksPath*)", "Bash(* --no-verify*)", "WebFetch", "WebSearch"],
+    "allow": [
+      "Bash",
+      "Edit",
+      "Write",
+      "mcp__slice__slice",
+      "Workflow(slice:feature)",
+      "Skill(slice:feature)",
+      "Skill(slice:slice)",
+      "Read",
+      "Grep",
+      "Glob",
+      "ToolSearch",
+      "Skill(slice:taste)",
+      "PushNotification",
+      "CronCreate",
+      "Bash(make check)",
+      "Bash(make verify)",
+      "Bash(make test-affected *)",
+      "Bash(make verify-*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(gh pr *)",
+      "Bash(git config core.hooksPath*)",
+      "Bash(* --no-verify*)",
+      "WebFetch",
+      "WebSearch"
+    ],
     "additionalDirectories": []
   },
-  "sandbox": { "enabled": false },
+  "sandbox": {
+    "enabled": false
+  },
   "crossSessionInbound": "refuse",
-  "env": {"CLAUDE_CODE_RETRY_WATCHDOG": "1", "CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS": "18000000", "DISABLE_AUTOUPDATER": "1", "SLICE_RUN": "1"}
+  "env": {
+    "CLAUDE_CODE_RETRY_WATCHDOG": "1",
+    "CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS": "18000000",
+    "DISABLE_AUTOUPDATER": "1",
+    "SLICE_RUN": "1"
+  }
 }

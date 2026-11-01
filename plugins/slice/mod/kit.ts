@@ -3,11 +3,22 @@ import type { On } from 'claude-code'
 const OK = { exitCode: 0, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
 export const ROOT = '/r'
 export const DIR = '/r/.git/slice'
-export type Opts = { marker?: string; version?: string; state?: string; run?: boolean; interactive?: boolean; env?: Record<string, string> }
+export type Reply = { exitCode?: number; stdout?: string; stderr?: string }
+export type Opts = {
+  marker?: string
+  version?: string
+  state?: string
+  run?: boolean
+  interactive?: boolean
+  env?: Record<string, string>
+  files?: Record<string, string>
+  proc?: (argv: readonly string[]) => Reply | undefined
+}
 export async function boot($: Engine, on: On, opts: Opts = {}) {
-  const files: Record<string, string> = {}
-  ;[[`${ROOT}/.claude/slice.json`, opts.marker], [`${DIR}/state.json`, opts.state]].forEach(([k, v]) => v && (files[k!] = v))
-  const [runs, registered]: [string[][], string[]] = [[], []]
+  const files: Record<string, string> = { ...opts.files }
+  const seed = [[`${ROOT}/.claude/slice.json`, opts.marker], [`${DIR}/state.json`, opts.state]]
+  seed.forEach(([k, v]) => v && (files[k!] = v))
+  const [runs, registered, tools]: [string[][], string[], string[]] = [[], [], []]
   mock.clock(on, { now: 0 })
   mock.env(on, opts.run ? { SLICE_RUN: '1' } : (opts.env ?? {}))
   on('fs.exists', async (_, e) => ({ value: e.path in files }))
@@ -16,7 +27,11 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   on('process.run', async (_, e) => {
     runs.push([...e.argv])
     const [cmd, from, to] = e.argv
-    if (cmd === 'sh' && from === '-c' && to?.startsWith('printf')) files[e.argv[5]!] = (files[e.argv[5]!] ?? '') + e.argv[4] + '\n'
+    const reply = opts.proc?.(e.argv)
+    if (reply) return { value: { ...OK, stdout: '', ...reply } }
+    if (cmd === 'sh' && from === '-c' && to?.startsWith('printf')) {
+      files[e.argv[5]!] = (files[e.argv[5]!] ?? '') + e.argv[4] + '\n'
+    }
     if (cmd === 'git') return { value: { ...OK, stdout: `${ROOT}\n${ROOT}/.git\n` } }
     if (cmd === 'mv' && from === '-f' && to) {
       files[e.argv[3] ?? ''] = files[to] ?? ''
@@ -26,7 +41,9 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   })
   on('session.version', async () => ({ value: { version: opts.version ?? '2.1.312' } }))
   on('command.register', async (_, e) => (registered.push(e.name), { value: { command: e.name } }))
+  on('tool.register', async (_, e) => (tools.push(e.name), { value: { tool: `mcp__slice__${e.name}` } }))
   on('session.start', async (_, e) => e)
-  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: !opts.run && (opts.interactive ?? true) } as never)
-  return { files, runs, registered }
+  const start = { cwd: ROOT, surface: 'terminal', isInteractive: !opts.run && (opts.interactive ?? true) }
+  await $.session.start(start as never)
+  return { files, runs, registered, tools }
 }

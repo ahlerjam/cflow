@@ -1,7 +1,9 @@
 import { expect, test, type Engine } from 'claude-code/testing'
 import { DIR, boot } from './kit'
 
-const run = ($: Engine, command = 'slice-status', args = '') => $.command.run({ origin: { kind: 'composer' }, command, args } as never) as Promise<{ text: string }>
+const run = ($: Engine, command = 'slice-status', args = '') => {
+  return $.command.run({ origin: { kind: 'composer' }, command, args } as never) as Promise<{ text: string }>
+}
 
 test('without the marker no command is registered', async ($, on) => {
   const { registered } = await boot($, on)
@@ -15,6 +17,14 @@ test('without the marker nothing is written', async ($, on) => {
 test('without the marker /slice-status points to setup', async ($, on) => {
   await boot($, on)
   expect((await run($)).text).toContain('run /slice:setup')
+})
+test('without the marker the slice tool is not registered', async ($, on) => {
+  const { tools } = await boot($, on)
+  expect(tools).toEqual([])
+})
+test('with the marker the slice tool is registered', async ($, on) => {
+  const { tools } = await boot($, on, { marker: '{}' })
+  expect(tools).toEqual(['slice'])
 })
 test('with the marker both commands are registered', async ($, on) => {
   const { registered } = await boot($, on, { marker: '{}' })
