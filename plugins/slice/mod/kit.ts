@@ -21,7 +21,7 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   seed.forEach(([k, v]) => v && (files[k!] = v))
   const [runs, registered, tools]: [string[][], string[], string[]] = [[], [], []]
   mock.clock(on, { now: 0 })
-  mock.env(on, opts.run ? { SLICE_RUN: '1' } : (opts.env ?? {}))
+  mock.env(on, { HOME: '/h', ...(opts.run ? { SLICE_RUN: '1' } : opts.env) })
   on('fs.exists', async (_, e) => ({ value: e.path in files }))
   on('fs.read', async (_, e) => {
     const stub = e.path.endsWith('/profiles/run.json') ? JSON.stringify(PROFILE) : ''

@@ -95,6 +95,18 @@ function stamp(ms: number): string {
 
 type Json = Record<string, any>
 
+// The sandbox protects .git from Bash writes, so everything the builder or its shell redirects touch lives outside it
+async function cacheDir($: Engine): Promise<string> {
+  const xdg = await $.env.get('XDG_CACHE_HOME')
+  const home = await $.env.get('HOME')
+  if (!xdg && !home) throw new Error('neither XDG_CACHE_HOME nor HOME is set')
+  let hash = 0x811c9dc5
+  for (const c of S.root) hash = Math.imul(hash ^ c.charCodeAt(0), 0x01000193) >>> 0
+  const name = `${S.root.split('/').filter(Boolean).pop() ?? 'repo'}-${hash.toString(16).padStart(8, '0')}`
+  return `${xdg || `${home}/.cache`}/slice/${name}`
+}
+const cacheOf = (run: Run) => run.wt.replace(/\/run$/, '')
+
 async function runSettings($: Engine, wt: string): Promise<string> {
   const profile: Json = JSON.parse(await $.fs.read(`${$.plugin.root}/profiles/run.json`))
   const sandbox: Json = profile.sandbox ?? {}
@@ -108,7 +120,7 @@ async function runSettings($: Engine, wt: string): Promise<string> {
       network: { ...sandbox.network, allowedDomains: union(sandbox.network?.allowedDomains, S.marker.allowedDomains) },
     },
   }
-  const path = `${S.dir}/run-settings.json`
+  const path = `${cacheOf({ wt } as Run)}/run-settings.json`
   await $.fs.write(path, JSON.stringify(merged, null, 2))
   return path
 }
@@ -133,7 +145,7 @@ async function workerCommand($: Engine, run: Run, resume?: string): Promise<stri
     '--permission-mode dontAsk',
     `--settings ${quote(await runSettings($, run.wt))}`,
     ...(pluginDir ? [`--plugin-dir ${quote(pluginDir)}`] : []),
-    `> ${quote(`${S.dir}/worker.json`)} 2> ${quote(`${S.dir}/worker.err`)}`,
+    `> ${quote(`${cacheOf(run)}/worker.json`)} 2> ${quote(`${cacheOf(run)}/worker.err`)}`,
   ].join(' ')
 }
 
@@ -152,7 +164,7 @@ async function worker($: Engine, resume?: string) {
     if (branch.out === 'HEAD') return fail('HEAD is detached; check out a branch first')
     const t0 = await $.clock.now()
     const name = `slice/run-${stamp(t0)}`
-    const wt = `${S.dir}/run`
+    const wt = `${await cacheDir($)}/run`
     const added = await git($, ['worktree', 'add', '-b', name, wt, 'HEAD'])
     if (!added.ok) return fail(added.out)
     const run: Run = {
@@ -197,7 +209,7 @@ async function check($: Engine) {
   const state = await loadState($)
   const run = state.run
   if (!run) return fail('no active run; call worker first')
-  const file = `${S.dir}/worker.json`
+  const file = `${cacheOf(run)}/worker.json`
   const out = parseOut((await $.fs.exists(file)) ? await $.fs.read(file) : '')
   const sessionId = out?.session_id ?? run.sessionId
   const sessionCosts = { ...run.sessionCosts }
@@ -289,7 +301,8 @@ async function finish($: Engine, mode: string) {
     if (!done.ok) return fail(`${done.out}${done.prs.length ? `\nopened so far: ${done.prs.join(' ')}` : ''}`)
     summary = `opened draft PRs: ${done.prs.join(' ')}`
   }
-  const removed = await git($, ['worktree', 'remove', '--force', run.wt])
+  let removed = await git($, ['worktree', 'remove', '--force', run.wt])
+  if (!removed.ok && !(await $.fs.exists(run.wt))) removed = await git($, ['worktree', 'prune'])
   if (!removed.ok) return fail(`${summary}, but the worktree stays: ${removed.out}`)
   await saveState($, { ...state, run: undefined })
   const passed = countPassed(list)

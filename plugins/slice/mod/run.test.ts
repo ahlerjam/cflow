@@ -1,7 +1,12 @@
 import { expect, test, type Engine } from 'claude-code/testing'
 import { DIR, ROOT, boot, type Opts, type Reply } from './kit'
 
-const WT = `${DIR}/run`
+const CACHE = '/h/.cache/slice/r-' + (() => {
+  let h = 0x811c9dc5
+  for (const c of ROOT) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0
+  return h.toString(16).padStart(8, '0')
+})()
+const WT = `${CACHE}/run`
 const feat = (id: string, passes = false, title = `Title ${id}`) => ({ id, title, steps: ['open', 'see'], passes })
 const list = (...features: unknown[]) => JSON.stringify({ features })
 const RUN = {
@@ -9,7 +14,7 @@ const RUN = {
   sessionCosts: { s0: 1.5 }, resumes: 0, stalls: 0, lastPassed: 0, sessionId: '', last: 'started',
 }
 const state = (over: object = {}) => JSON.stringify({ misses: [], run: { ...RUN, ...over } })
-const WORKER = `${DIR}/worker.json`
+const WORKER = `${CACHE}/worker.json`
 const result = (over: object = {}) => JSON.stringify({
   subtype: 'success', is_error: false, session_id: 's1', total_cost_usd: 2, num_turns: 9, ...over,
 })
@@ -44,13 +49,13 @@ test('worker command carries goal, budget, turns and settings', async ($, on) =>
   expect(cwd).toBe(WT)
   expect(command).toContain('Done means: every feature in .slice/features.json')
   expect(command).toContain('--max-budget-usd 7 --max-turns 50')
-  expect(command).toContain(`--settings '${DIR}/run-settings.json'`)
+  expect(command).toContain(`--settings '${CACHE}/run-settings.json'`)
 })
 test('worker writes the marker domains and excluded commands into the run settings', async ($, on) => {
   const marker = '{"allowedDomains":["api.example.com"],"excludedCommands":["docker compose *"]}'
   const { files } = await boot($, on, setup({ marker, files: base }))
   await tool($, { action: 'worker' })
-  const sandbox = JSON.parse(files[`${DIR}/run-settings.json`] ?? '').sandbox
+  const sandbox = JSON.parse(files[`${CACHE}/run-settings.json`] ?? '').sandbox
   expect([sandbox.network.allowedDomains, sandbox.excludedCommands, sandbox.filesystem.allowWrite])
     .toEqual([['registry.test', 'api.example.com'], ['docker compose *'], [WT]])
 })
@@ -141,4 +146,22 @@ test('finish branch removes the worktree and clears the run', async ($, on) => {
   await tool($, { action: 'finish', mode: 'branch' })
   expect(runs.some(r => r.join(' ').includes(`worktree remove --force ${WT}`))).toBe(true)
   expect(JSON.parse(files[`${DIR}/state.json`] ?? '').run).toBeUndefined()
+})
+test('worktree and output paths are outside the git dir', async ($, on) => {
+  await boot($, on, setup({ files: base }))
+  const { cwd, command } = await decision($, { action: 'worker' }) as { cwd: string; command: string }
+  expect(cwd).toBe(WT)
+  expect(`${cwd} ${command}`).not.toContain('/.git/')
+})
+test('the cache dir honors XDG_CACHE_HOME', async ($, on) => {
+  await boot($, on, setup({ files: base, env: { XDG_CACHE_HOME: '/x' } }))
+  expect((await decision($, { action: 'worker' })).cwd).toMatch(/^\/x\/slice\/r-[0-9a-f]{8}\/run$/)
+})
+test('finish prunes the worktree list when the directory is already gone', async ($, on) => {
+  const { runs } = await boot($, on, setup({
+    state: state(), files: { [`${WT}/.slice/features.json`]: list(feat('f1', true)) },
+    git: { 'worktree remove': { exitCode: 1, stderr: 'not a working tree' } },
+  }))
+  await tool($, { action: 'finish', mode: 'branch' })
+  expect(runs.some(r => r.includes('prune'))).toBe(true)
 })
