@@ -74,6 +74,12 @@ test('worker stores the run in state.json', async ($, on) => {
   const run = JSON.parse(files[`${DIR}/state.json`] ?? '').run
   expect([run.base, run.baseBranch, run.wt]).toEqual(['abc', 'main', WT])
 })
+test('the first worker command starts the session under the stored id', async ($, on) => {
+  const { files } = await boot($, on, setup({ files: base }))
+  const { command } = await decision($, { action: 'worker' }) as { command: string }
+  const id = JSON.parse(files[`${DIR}/state.json`] ?? '').run.sessionId
+  expect([id.length, command]).toEqual([36, expect.stringContaining(`--session-id '${id}'`)])
+})
 test('worker with resume builds a --resume command', async ($, on) => {
   await boot($, on, setup({ state: state(), files: base }))
   const { command } = await decision($, { action: 'worker', resume: 'sid-1' }) as { command: string }
@@ -181,4 +187,29 @@ test('check says plainly when every feature passes but the builder stopped on bu
   const out = result({ subtype: 'error_max_budget_usd', is_error: true })
   await boot($, on, checkOpts(list(feat('f1', true), feat('f2', true)), out))
   expect((await check($)).reason).toContain('the builder hit its budget; all features pass')
+})
+test('a crash on the first call resumes the stored session id', async ($, on) => {
+  const show = { stdout: base[`${ROOT}/.slice/features.json`] }
+  const { files } = await boot($, on, setup({ files: base, git: { show } }))
+  await tool($, { action: 'worker' })
+  files[`${WT}/.slice/features.json`] = list(feat('f1'), feat('f2'))
+  const id = JSON.parse(files[`${DIR}/state.json`] ?? '').run.sessionId
+  const r = await check($)
+  expect([r.action, r.session_id]).toEqual(['resume', id])
+})
+const LIMIT_OUT = result({ subtype: 'error_during_execution', is_error: true, result: 'Claude usage limit reached' })
+const RESET = { kind: 'five_hour', percentUsed: 100, resetsAt: new Date(600_000).toISOString() }
+test('check waits until the reset when the builder hit the usage limit', async ($, on) => {
+  await boot($, on, checkOpts(list(feat('f1'), feat('f2')), LIMIT_OUT, { limits: [RESET] }))
+  const r = await check($)
+  expect([r.action, r.seconds, r.session_id]).toEqual(['wait', 660, 's1'])
+})
+test('check waits 15 minutes when the reset time is unknown', async ($, on) => {
+  await boot($, on, checkOpts(list(feat('f1'), feat('f2')), LIMIT_OUT))
+  expect((await check($)).seconds).toBe(900)
+})
+test('a wait does not count as a stall', async ($, on) => {
+  const opts = checkOpts(list(feat('f1'), feat('f2')), LIMIT_OUT, { state: state({ stalls: 2 }) })
+  const { files } = await boot($, on, opts)
+  expect([(await check($)).action, stored(files).stalls]).toEqual(['wait', 2])
 })

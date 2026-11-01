@@ -19,6 +19,8 @@ process in a worktree. The tool `mcp__slice__slice` does the mechanics. If it is
 5. When the command exits, call the tool with `action: "check"`. It reads the builder's output file itself. Follow
    the returned `action`:
    - `resume`: call `action: "worker"` with `resume` set to the returned `session_id`, then go to step 4.
+   - `wait`: the builder hit the usage limit. Run `sleep <seconds>` with Bash, `run_in_background: true`, and wait for
+     it. Then call `action: "worker"` with `resume` set to the returned `session_id` and go to step 4.
    - `finish`: call `action: "finish"` with the end mode, then report its summary and stop.
    - `halt`: tell the person the `reason`, `passed` of `total` and `costUsd`, and stop. The worktree stays for
      inspection; the person decides what next.

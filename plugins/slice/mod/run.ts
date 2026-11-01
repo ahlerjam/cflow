@@ -31,7 +31,7 @@ type Out = {
   num_turns?: number
   terminal_reason?: string
 }
-type Step = { action: 'resume' | 'finish' | 'halt'; reason: string }
+type Step = { action: 'resume' | 'finish' | 'halt' | 'wait'; reason: string; seconds?: number }
 type Cmd = { ok: boolean; out: string }
 
 const DEFAULT_BUDGET_USD = 30
@@ -125,7 +125,7 @@ async function runSettings($: Engine, wt: string): Promise<string> {
   return path
 }
 
-async function workerCommand($: Engine, run: Run, resume?: string): Promise<string> {
+async function workerCommand($: Engine, run: Run, resume?: string, fresh?: string): Promise<string> {
   const [model, effort, fallback] = await Promise.all([
     option($, 'runModel', 'opus'), option($, 'runEffort', 'high'), option($, 'fallbackModel', 'sonnet'),
   ])
@@ -133,7 +133,7 @@ async function workerCommand($: Engine, run: Run, resume?: string): Promise<stri
   const maxTurns = S.marker.maxTurns ?? DEFAULT_MAX_TURNS
   const head = resume
     ? ['-p', '--resume', quote(resume), quote('Continue toward the goal.')]
-    : ['-p', quote(goalText({ maxTurns }))]
+    : ['-p', quote(goalText({ maxTurns })), `--session-id ${quote(fresh ?? '')}`]
   return [
     `cd ${quote(run.wt)} && SLICE_RUN=1 claude`, ...head,
     '--output-format json',
@@ -151,6 +151,7 @@ async function workerCommand($: Engine, run: Run, resume?: string): Promise<stri
 
 async function worker($: Engine, resume?: string) {
   let state = await loadState($)
+  let fresh: string | undefined
   if (!state.run) {
     const status = await git($, ['status', '--porcelain'])
     if (!status.ok) return fail(status.out)
@@ -169,15 +170,16 @@ async function worker($: Engine, resume?: string) {
     if (!added.ok) return fail(added.out)
     const run: Run = {
       branch: name, base: head.out, baseBranch: branch.out, wt, t0, costUsd: 0, sessionCosts: {}, resumes: 0, stalls: 0,
-      lastPassed: countPassed(list), sessionId: '', last: 'started',
+      lastPassed: countPassed(list), sessionId: crypto.randomUUID(), last: 'started',
     }
+    fresh = run.sessionId
     state = { ...state, run }
     await saveState($, state)
     await logEvent($, 'run-start', { branch: name, base: head.out, total: list.features.length })
   }
   const run = state.run!
-  const sessionId = resume ?? run.sessionId
-  return text({ cwd: run.wt, command: await workerCommand($, run, sessionId || undefined) })
+  const command = await workerCommand($, run, fresh ? undefined : (resume ?? run.sessionId), fresh)
+  return text({ cwd: run.wt, command })
 }
 
 function parseOut(raw: string): Out | null {
@@ -197,8 +199,30 @@ const STOPS: Record<string, string> = {
 }
 
 type Verdict = Step & { stalls: number }
+type Limits = { cap?: number; wait?: number }
 
-function decide(out: Out | null, passed: number, total: number, run: Run, cap?: number): Verdict {
+// Guessed signals: the headless JSON documents no limit field. Matches the result and error texts, terminal_reason
+// and the raw output, because a limit stop may carry the message in any of them.
+const LIMIT = /usage limit|rate limit|limit reached|limit will reset|too many requests/i
+function hitLimit(out: Out | null, raw: string): boolean {
+  if (!out || (out.subtype === 'success' && !out.is_error)) return false
+  return LIMIT.test(`${out.terminal_reason ?? ''} ${out.subtype ?? ''}`) || LIMIT.test(raw)
+}
+
+const LIMIT_FALLBACK_S = 15 * 60
+const LIMIT_MARGIN_S = 60
+// SessionRateLimit.resetsAt is typed; which window the worker hit is not known, so a full window wins, else five_hour
+async function secondsToReset($: Engine): Promise<number> {
+  const { rateLimits } = await $.session.usage().catch(() => ({ rateLimits: [] }))
+  const at = (l: { resetsAt?: string }) => (l.resetsAt ? Date.parse(l.resetsAt) : NaN)
+  const full = rateLimits.filter(l => l.percentUsed >= 99.5 && at(l) > 0)
+  const hit = full.sort((a, b) => at(b) - at(a))[0] ?? rateLimits.find(l => l.kind === 'five_hour')
+  const ms = hit ? at(hit) - (await $.clock.now()) : NaN
+  return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms / 1000) + LIMIT_MARGIN_S : LIMIT_FALLBACK_S
+}
+
+function decide(out: Out | null, passed: number, total: number, run: Run, limits: Limits): Verdict {
+  const { cap, wait } = limits
   const progress = passed > run.lastPassed
   const ok = out?.subtype === 'success' && !out.is_error
   if (ok && passed === total) return { action: 'finish', reason: 'all features pass', stalls: 0 }
@@ -208,6 +232,9 @@ function decide(out: Out | null, passed: number, total: number, run: Run, cap?: 
   const left = passed === total ? done : `${total - passed} of ${total} remain`
   if (cap) return { action: 'halt', reason: `run budget of $${cap} reached; ${why}; ${left}`, stalls: run.stalls }
   const stalls = progress ? 0 : run.stalls
+  if (wait !== undefined && (out?.session_id || run.sessionId)) {
+    return { action: 'wait', reason: `${why}; usage limit, waiting for the reset`, seconds: wait, stalls }
+  }
   const limit = ok ? 1 : MAX_STALLS
   if (stalls >= limit) {
     return { action: 'halt', reason: `${why}; ${stalls} resumes in a row brought no new passing feature`, stalls }
@@ -221,7 +248,8 @@ async function check($: Engine) {
   const run = state.run
   if (!run) return fail('no active run; call worker first')
   const file = `${cacheOf(run)}/worker.json`
-  const out = parseOut((await $.fs.exists(file)) ? await $.fs.read(file) : '')
+  const raw = (await $.fs.exists(file)) ? await $.fs.read(file) : ''
+  const out = parseOut(raw)
   const sessionId = out?.session_id ?? run.sessionId
   const sessionCosts = { ...run.sessionCosts }
   if (out?.session_id && typeof out.total_cost_usd === 'number') sessionCosts[out.session_id] = out.total_cost_usd
@@ -237,7 +265,10 @@ async function check($: Engine) {
     ;[passed, total] = [countPassed(now), now.features.length]
     const intact = base.ok && onlyPassesChanged(base.out, await $.fs.read(`${run.wt}/${FEATURES_PATH}`))
     step = intact
-      ? decide(out, passed, total, { ...run, sessionId }, costUsd >= runBudget ? runBudget : undefined)
+      ? decide(out, passed, total, { ...run, sessionId }, {
+        cap: costUsd >= runBudget ? runBudget : undefined,
+        wait: hitLimit(out, raw) ? await secondsToReset($) : undefined,
+      })
       : { action: 'halt', reason: 'feature list changed beyond passes', stalls: run.stalls }
   }
   const resumes = run.resumes + (step.action === 'resume' ? 1 : 0)
@@ -249,7 +280,8 @@ async function check($: Engine) {
     terminal: out?.terminal_reason,
   })
   if (step.action === 'halt') await notify($, `slice run halted: ${step.reason}`)
-  return text({ action: step.action, reason: step.reason, session_id: sessionId, passed, total, costUsd })
+  const seconds = step.seconds === undefined ? {} : { seconds: step.seconds }
+  return text({ action: step.action, reason: step.reason, session_id: sessionId, ...seconds, passed, total, costUsd })
 }
 
 function body(list: FeatureList, run: Run): string {

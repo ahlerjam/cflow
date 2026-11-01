@@ -13,6 +13,7 @@ export type Opts = {
   interactive?: boolean
   env?: Record<string, string>
   files?: Record<string, string>
+  limits?: { kind: string; percentUsed: number; resetsAt?: string }[]
   proc?: (argv: readonly string[]) => Reply | undefined
 }
 export async function boot($: Engine, on: On, opts: Opts = {}) {
@@ -46,6 +47,7 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   on('session.version', async () => ({ value: { version: opts.version ?? '2.1.312' } }))
   on('command.register', async (_, e) => (registered.push(e.name), { value: { command: e.name } }))
   on('tool.register', async (_, e) => (tools.push(e.name), { value: { tool: `mcp__slice__${e.name}` } }))
+  on('session.usage', async () => ({ value: { startedAt: 0, rateLimits: opts.limits ?? [] } as never }))
   on('session.start', async (_, e) => e)
   const start = { cwd: ROOT, surface: 'terminal', isInteractive: !opts.run && (opts.interactive ?? true) }
   await $.session.start(start as never)
