@@ -135,7 +135,7 @@ async function workerCommand($: Engine, run: Run, resume?: string): Promise<stri
     ? ['-p', '--resume', quote(resume), quote('Continue toward the goal.')]
     : ['-p', quote(goalText({ maxTurns }))]
   return [
-    'SLICE_RUN=1 claude', ...head,
+    `cd ${quote(run.wt)} && SLICE_RUN=1 claude`, ...head,
     '--output-format json',
     `--model ${quote(model)}`,
     `--fallback-model ${quote(fallback)}`,

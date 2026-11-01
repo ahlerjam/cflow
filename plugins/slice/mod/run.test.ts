@@ -47,6 +47,7 @@ test('worker command carries goal, budget, turns and settings', async ($, on) =>
   await boot($, on, setup({ marker: '{"budgetUsd":7,"maxTurns":50}', files: base }))
   const { cwd, command } = await decision($, { action: 'worker' }) as { cwd: string; command: string }
   expect(cwd).toBe(WT)
+  expect(command.startsWith(`cd '${WT}' && SLICE_RUN=1 claude -p`)).toBe(true)
   expect(command).toContain('Done means: every feature in .slice/features.json')
   expect(command).toContain('--max-budget-usd 7 --max-turns 50')
   expect(command).toContain(`--settings '${CACHE}/run-settings.json'`)

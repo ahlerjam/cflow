@@ -13,7 +13,8 @@ process in a worktree. The tool `mcp__slice__slice` does the mechanics. If it is
 2. End mode: the argument `$ARGUMENTS` if it is one of `pr`, `feature-prs`, `merge`, `branch`; else `end` from
    `.claude/slice.json`; else ask once with AskUserQuestion (recommended first: `pr`). Ask nothing else during the run.
 3. Call the tool with `action: "worker"`. It returns `cwd` and `command`. On an `error:` reply tell the person and stop.
-4. Run `command` with Bash, `run_in_background: true`, in `cwd`, without a timeout. Do not poll; wait for the
+4. Run `command` exactly as returned (it starts with `cd` into the worktree) with Bash, `run_in_background: true`,
+   without a timeout. Do not poll; wait for the
    completion notice. Tell the person once that the run started and that `/background` detaches this session.
 5. When the command exits, call the tool with `action: "check"`. It reads the builder's output file itself. Follow
    the returned `action`:
