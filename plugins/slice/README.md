@@ -50,13 +50,13 @@ A feature it can't finish stays `passes: false` with the reason in `.slice/progr
 
 After every builder exit, `.slice/features.json` may differ from the run base only in `passes`. Any other change halts the run.
 
-Each builder call is limited by `budgetUsd` (default 30) and `maxTurns` (default 400) from `.claude/slice.json`. A builder that stops early is resumed with its context (`claude -p --resume`). Two resumes in a row without a newly passing feature halt the run; so does a builder that reports success while features remain after one resume. On a halt the worktree stays for inspection.
+Each builder call is limited by `budgetUsd` (default 30) and `maxTurns` (default 400) from `.claude/slice.json`. A builder that stops early is resumed with its context (`claude -p --resume`). Two resumes in a row without a newly passing feature halt the run; so does a builder that reports success while features remain after one resume. The whole run is capped by `runBudgetUsd` (default 5 times `budgetUsd`): once the summed cost reaches it and the run is not finished, the run halts. On a halt the worktree stays for inspection.
 
 ## Where things live
 
 | What | Where |
 | --- | --- |
-| Marker: `excludedCommands`, `allowedDomains`, `budgetUsd`, `maxTurns`, `end` | `.claude/slice.json` |
+| Marker: `excludedCommands`, `allowedDomains`, `budgetUsd`, `maxTurns`, `runBudgetUsd`, `end` | `.claude/slice.json` |
 | Spec, feature list, builder log | `.slice/spec.md`, `.slice/features.json`, `.slice/progress.md` |
 | Run worktree and builder output | `~/.cache/slice/<repo>-<hash>/` (or under `XDG_CACHE_HOME`) |
 | Run state and event log | `.git/slice/` |

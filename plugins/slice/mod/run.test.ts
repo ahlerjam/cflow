@@ -166,3 +166,19 @@ test('finish prunes the worktree list when the directory is already gone', async
   await tool($, { action: 'finish', mode: 'branch' })
   expect(runs.some(r => r.includes('prune'))).toBe(true)
 })
+test('check halts once the run budget is reached', async ($, on) => {
+  await boot($, on, checkOpts(list(feat('f1', true), feat('f2')), MAX_TURNS, { marker: '{"runBudgetUsd":3}' }))
+  const r = await check($)
+  expect([r.action, r.reason]).toEqual([
+    'halt', 'run budget of $3 reached; the builder hit its turn limit; 1 of 2 remain',
+  ])
+})
+test('check does not halt below the run budget', async ($, on) => {
+  await boot($, on, checkOpts(list(feat('f1', true), feat('f2')), MAX_TURNS, { marker: '{"runBudgetUsd":4}' }))
+  expect((await check($)).action).toBe('resume')
+})
+test('check says plainly when every feature passes but the builder stopped on budget', async ($, on) => {
+  const out = result({ subtype: 'error_max_budget_usd', is_error: true })
+  await boot($, on, checkOpts(list(feat('f1', true), feat('f2', true)), out))
+  expect((await check($)).reason).toContain('the builder hit its budget; all features pass')
+})

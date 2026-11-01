@@ -191,18 +191,29 @@ function parseOut(raw: string): Out | null {
   return null
 }
 
-function decide(out: Out | null, passed: number, total: number, run: Run): Step & { stalls: number } {
+const STOPS: Record<string, string> = {
+  error_max_budget_usd: 'the builder hit its budget',
+  error_max_turns: 'the builder hit its turn limit',
+}
+
+type Verdict = Step & { stalls: number }
+
+function decide(out: Out | null, passed: number, total: number, run: Run, cap?: number): Verdict {
   const progress = passed > run.lastPassed
   const ok = out?.subtype === 'success' && !out.is_error
   if (ok && passed === total) return { action: 'finish', reason: 'all features pass', stalls: 0 }
-  const why = !out ? 'the builder produced no result' : ok ? 'features remain' : (out.subtype ?? 'error')
+  const stop = STOPS[out?.subtype ?? ''] ?? out?.subtype ?? 'error'
+  const why = !out ? 'the builder produced no result' : ok ? 'the builder stopped early' : stop
+  const done = 'all features pass, the final E2E pass is not done'
+  const left = passed === total ? done : `${total - passed} of ${total} remain`
+  if (cap) return { action: 'halt', reason: `run budget of $${cap} reached; ${why}; ${left}`, stalls: run.stalls }
   const stalls = progress ? 0 : run.stalls
   const limit = ok ? 1 : MAX_STALLS
   if (stalls >= limit) {
     return { action: 'halt', reason: `${why}; ${stalls} resumes in a row brought no new passing feature`, stalls }
   }
   if (!out?.session_id && !run.sessionId) return { action: 'halt', reason: `${why}; no session to resume`, stalls }
-  return { action: 'resume', reason: `${why}; ${total - passed} of ${total} remain`, stalls: progress ? 0 : stalls + 1 }
+  return { action: 'resume', reason: `${why}; ${left}`, stalls: progress ? 0 : stalls + 1 }
 }
 
 async function check($: Engine) {
@@ -215,6 +226,7 @@ async function check($: Engine) {
   const sessionCosts = { ...run.sessionCosts }
   if (out?.session_id && typeof out.total_cost_usd === 'number') sessionCosts[out.session_id] = out.total_cost_usd
   const costUsd = Object.values(sessionCosts).reduce((a, b) => a + b, 0)
+  const runBudget = S.marker.runBudgetUsd ?? (S.marker.budgetUsd ?? DEFAULT_BUDGET_USD) * 5
   const now = await readFeatures($, run)
   const base = await git($, ['show', `${run.base}:${FEATURES_PATH}`])
   let step: Step & { stalls: number }
@@ -225,7 +237,7 @@ async function check($: Engine) {
     ;[passed, total] = [countPassed(now), now.features.length]
     const intact = base.ok && onlyPassesChanged(base.out, await $.fs.read(`${run.wt}/${FEATURES_PATH}`))
     step = intact
-      ? decide(out, passed, total, { ...run, sessionId })
+      ? decide(out, passed, total, { ...run, sessionId }, costUsd >= runBudget ? runBudget : undefined)
       : { action: 'halt', reason: 'feature list changed beyond passes', stalls: run.stalls }
   }
   const resumes = run.resumes + (step.action === 'resume' ? 1 : 0)

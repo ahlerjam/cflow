@@ -7,6 +7,7 @@ export type Marker = {
   allowedDomains?: string[]
   budgetUsd?: number
   maxTurns?: number
+  runBudgetUsd?: number
   end?: EndMode
 }
 export type Miss = { t: number; line: string }
@@ -48,6 +49,7 @@ export function parseMarker(text: string): Marker {
     allowedDomains: strings(raw?.allowedDomains),
     budgetUsd: positive(raw?.budgetUsd),
     maxTurns: positive(raw?.maxTurns),
+    runBudgetUsd: positive(raw?.runBudgetUsd),
     end,
   }
   return Object.fromEntries(Object.entries(marker).filter(([, v]) => v !== undefined))
