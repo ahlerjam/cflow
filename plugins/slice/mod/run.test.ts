@@ -60,6 +60,17 @@ test('worker writes the marker domains and excluded commands into the run settin
   expect([sandbox.network.allowedDomains, sandbox.excludedCommands, sandbox.filesystem.allowWrite])
     .toEqual([['registry.test', 'api.example.com'], ['docker compose *'], [WT]])
 })
+test('in a cloud session the run settings come from cloud.json without a sandbox requirement', async ($, on) => {
+  const { files } = await boot($, on, setup({ files: base, env: { CLAUDE_CODE_REMOTE: 'true' } }))
+  await tool($, { action: 'worker' })
+  const settings = JSON.parse(files[`${CACHE}/run-settings.json`] ?? '')
+  expect([settings.sandbox, settings.permissions.deny]).toEqual([{ enabled: false }, ['Bash(git push*)']])
+})
+test('locally the run settings come from run.json with failIfUnavailable', async ($, on) => {
+  const { files } = await boot($, on, setup({ files: base }))
+  await tool($, { action: 'worker' })
+  expect(JSON.parse(files[`${CACHE}/run-settings.json`] ?? '').sandbox.failIfUnavailable).toBe(true)
+})
 test('worker command has --plugin-dir only with SLICE_PLUGIN_DIR', async ($, on) => {
   await boot($, on, setup({ files: base }))
   expect(await tool($, { action: 'worker' })).not.toContain('--plugin-dir')

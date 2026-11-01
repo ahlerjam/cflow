@@ -108,10 +108,12 @@ async function cacheDir($: Engine): Promise<string> {
 const cacheOf = (run: Run) => run.wt.replace(/\/run$/, '')
 
 async function runSettings($: Engine, wt: string): Promise<string> {
-  const profile: Json = JSON.parse(await $.fs.read(`${$.plugin.root}/profiles/run.json`))
+  // A cloud VM has no sandbox, and run.json would refuse to start without one
+  const remote = (await $.env.get('CLAUDE_CODE_REMOTE')) === 'true'
+  const profile: Json = JSON.parse(await $.fs.read(`${$.plugin.root}/profiles/${remote ? 'cloud' : 'run'}.json`))
   const sandbox: Json = profile.sandbox ?? {}
   const union = (a: unknown, b: string[] | undefined) => [...new Set([...(Array.isArray(a) ? a : []), ...(b ?? [])])]
-  const merged: Json = {
+  const merged: Json = remote ? profile : {
     ...profile,
     sandbox: {
       ...sandbox,

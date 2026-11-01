@@ -1,7 +1,10 @@
 import { mock, type Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 const OK = { exitCode: 0, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
-const PROFILE = { sandbox: { excludedCommands: [], network: { allowedDomains: ['registry.test'] } } }
+const RUN_PROFILE = {
+  sandbox: { failIfUnavailable: true, excludedCommands: [], network: { allowedDomains: ['registry.test'] } },
+}
+const CLOUD_PROFILE = { permissions: { deny: ['Bash(git push*)'] }, sandbox: { enabled: false } }
 export const ROOT = '/r'
 export const DIR = '/r/.git/slice'
 export type Reply = { exitCode?: number; stdout?: string; stderr?: string }
@@ -25,7 +28,8 @@ export async function boot($: Engine, on: On, opts: Opts = {}) {
   mock.env(on, { HOME: '/h', ...(opts.run ? { SLICE_RUN: '1' } : opts.env) })
   on('fs.exists', async (_, e) => ({ value: e.path in files }))
   on('fs.read', async (_, e) => {
-    const stub = e.path.endsWith('/profiles/run.json') ? JSON.stringify(PROFILE) : ''
+    const stub = e.path.endsWith('/profiles/run.json') ? JSON.stringify(RUN_PROFILE)
+      : e.path.endsWith('/profiles/cloud.json') ? JSON.stringify(CLOUD_PROFILE) : ''
     return { value: files[e.path] ?? stub }
   })
   on('fs.write', async (_, e) => ({ value: void (files[e.path] = e.text) }))
