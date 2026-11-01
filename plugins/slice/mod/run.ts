@@ -290,13 +290,19 @@ function body(list: FeatureList, run: Run): string {
   return [intro, '', ...rows, '', `Cost: $${run.costUsd.toFixed(2)}`].join('\n')
 }
 
+function prTitle(list: FeatureList): string {
+  const [first, ...rest] = list.features
+  if (rest.length === 0) return `slice: ${first!.title}`
+  return `slice: ${list.features.length} features (${first!.title} and ${rest.length} more)`
+}
+
 async function publish($: Engine, run: Run, list: FeatureList, mode: EndMode): Promise<Cmd & { prs: string[] }> {
   const pr = (base: string, head: string, title: string, bodyText: string) =>
     cmd($, ['gh', 'pr', 'create', '--draft', '--base', base, '--head', head, '--title', title, '--body', bodyText])
   if (mode === 'pr') {
     const pushed = await git($, ['push', '-u', 'origin', run.branch])
     if (!pushed.ok) return { ...pushed, prs: [] }
-    const made = await pr(run.baseBranch, run.branch, `slice: ${run.branch}`, body(list, run))
+    const made = await pr(run.baseBranch, run.branch, prTitle(list), body(list, run))
     return { ...made, prs: made.ok ? [made.out] : [] }
   }
   const log = await git($, ['log', '--reverse', '--format=%H%x09%s', `${run.base}..${run.branch}`])
@@ -308,7 +314,10 @@ async function publish($: Engine, run: Run, list: FeatureList, mode: EndMode): P
   let base = run.baseBranch
   for (const [sha, subject] of commits) {
     const id = subject!.split(' ')[1]!
-    const head = `slice/${id}`
+    const head = `${run.branch}-${id}`
+    const remote = await git($, ['ls-remote', '--heads', 'origin', head])
+    if (!remote.ok) return { ...remote, prs }
+    if (remote.out) return { ok: false, out: `branch ${head} already exists on origin; not overwriting it`, prs }
     for (const step of [['branch', '-f', head, sha!], ['push', '-u', 'origin', head]]) {
       const r = await git($, step)
       if (!r.ok) return { ...r, prs }

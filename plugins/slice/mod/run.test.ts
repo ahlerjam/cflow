@@ -213,3 +213,31 @@ test('a wait does not count as a stall', async ($, on) => {
   const { files } = await boot($, on, opts)
   expect([(await check($)).action, stored(files).stalls]).toEqual(['wait', 2])
 })
+const COMMITS = { stdout: 'c1\tslice: f1 Title f1\nc2\tslice: f2 Title f2' }
+const DONE = { [`${WT}/.slice/features.json`]: list(feat('f1', true), feat('f2', true)) }
+test('feature-prs names the branches after the run', async ($, on) => {
+  const { runs } = await boot($, on, setup({ state: state(), files: DONE, git: { log: COMMITS } }))
+  await tool($, { action: 'finish', mode: 'feature-prs' })
+  const heads = runs.filter(r => r[0] === 'gh').map(r => r[r.indexOf('--head') + 1])
+  expect(heads).toEqual([`${RUN.branch}-f1`, `${RUN.branch}-f2`])
+})
+test('feature-prs stacks each PR on the previous branch', async ($, on) => {
+  const { runs } = await boot($, on, setup({ state: state(), files: DONE, git: { log: COMMITS } }))
+  await tool($, { action: 'finish', mode: 'feature-prs' })
+  const bases = runs.filter(r => r[0] === 'gh').map(r => r[r.indexOf('--base') + 1])
+  expect(bases).toEqual(['main', `${RUN.branch}-f1`])
+})
+test('feature-prs refuses a branch that already exists on origin and keeps the worktree', async ($, on) => {
+  const { runs } = await boot($, on, setup({
+    state: state(), files: DONE,
+    git: { log: COMMITS, 'ls-remote': { stdout: 'c1\trefs/heads/x' } },
+  }))
+  expect(await tool($, { action: 'finish', mode: 'feature-prs' })).toContain('already exists on origin')
+  expect(runs.some(r => r.includes('remove'))).toBe(false)
+})
+test('the single PR title names the features', async ($, on) => {
+  const { runs } = await boot($, on, setup({ state: state(), files: DONE }))
+  await tool($, { action: 'finish', mode: 'pr' })
+  const gh = runs.find(r => r[0] === 'gh') ?? []
+  expect(gh[gh.indexOf('--title') + 1]).toBe('slice: 2 features (Title f1 and 1 more)')
+})
