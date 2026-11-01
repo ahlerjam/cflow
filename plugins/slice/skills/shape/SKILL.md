@@ -1,32 +1,31 @@
 ---
 name: shape
-description: Turns an idea or a stage into an approved slice queue with the person, about 20 minutes, ending in one approval of queue and permission scope by the slice tool. Use when the person runs /slice:shape before an unattended /slice:run.
+description: Plans a bigger piece of work as a product spec and a feature list with end-to-end steps, after a short interview, and optionally creates one GitHub issue per feature. Use when the person wants to plan a feature, app or stage before an unattended /slice:run.
+when_to_use: /slice:shape, "plan this", "write a spec", "break this into features", "Feature planen", "Spezifikation schreiben", "Arbeit in Features aufteilen", "vor dem Run".
 disable-model-invocation: true
 ---
-Shape one stage with the person. Without `.claude/slice.json` tell the person to run /slice:setup and stop. Write no plan, spec or notes file: the queue lives in the slice tool, the rest stays in this conversation.
+Plan the work with the person. Read the repo first (README, docs, existing code, `.slice/` if present). Write exactly two files, `.slice/spec.md` and `.slice/features.json`, plus optional GitHub issues. No other files.
 
 ## Interview
-At most 6 questions, one per AskUserQuestion, each with your recommended answer first. Never ask what the code, `NORTHSTAR.md`, `DESIGN.md` or the ADRs already answer; read them first.
-1. The value question: "How do you notice it works?" The answer becomes the stage scenario, a path a person walks end to end.
-2. Offer 2 to 3 approaches with their failure modes. Say so plainly when the person's idea is the weaker one and why.
-3. Ask only what changes the queue: scope edges, data, who uses it.
+At most 6 questions, one per AskUserQuestion, your recommended answer first. Never ask what the repo already answers. Ask what changes the plan: who uses it, how they notice it works, scope edges, data, hard constraints. Say plainly when the person's idea has a weaker approach and why.
 
-## What you hand over before the queue
-- A parity table against one real product the person names or accepts: a row per capability, the person strikes rows.
-- Every screen and its states (empty, loading, error, long data). For screens follow the `taste` skill: the chosen mockup per screen family (taste: 3 to 6 options, the person picks one), tokens from `DESIGN.md`.
-- A dependency allowlist: maintained packages, MIT or Apache, nothing else gets added during the run.
-- The field "ten times better": one line on what would make this stage clearly better than the reference, not just equal.
+## Scope
+Be ambitious. Plan the complete product the person describes, not a minimal first cut. Skip nothing a user would expect, and add what would make it clearly better than the obvious version.
 
-## The queue
-6 to 15 slices. Order: bug, infra, tracer, feature, then the two standing slices polish and consolidate. The tracer slice makes the stage scenario run end to end from slice 1, thinly.
-Each slice: `id`, `kind`, `claim` as checkable points (proof points plus the quality brief's references and anti-patterns), `brief`, `proof` (a make target, default `make verify`; a `verify-*` per scenario is better), `risk`, `after` (ids it needs), `ui` for screens.
-- polish: at most 3 rounds of fixes found on screens and texts.
-- consolidate: rebuild the weakest fix with what the stage taught; it suggests `/simplify` and, with high slices and an origin, `/security-review` to the person.
-Stage budget: percent of the weekly limit the stage may use (default 30); `maxHours` wall clock (default 48).
+## `.slice/spec.md`
+Product level only: purpose, users, what they can do, the quality bar. No implementation details, no file names, no stack unless the person fixed one. For screens, add the states that must exist (empty, loading, error, long data).
 
-## Two final checks, out loud
-1. Every point of the stage scenario belongs to a slice.
-2. Someone who never saw this chat can build each slice from its brief alone.
+## `.slice/features.json`
+```json
+{"features": [{"id": "f1", "title": "...", "steps": ["User does X", "Sees Y"], "passes": false, "ui": true, "issue": 12}]}
+```
+- Order so each feature can be built and checked after the ones before it; the first feature runs the core path end to end, thinly.
+- `steps`: what a user does in the running app and what they see, concrete enough to run with real data (inputs, expected output). A step the builder cannot execute and observe is not a step.
+- Every `passes` is `false`. `ui: true` on features with screens. `ui` and `issue` are optional.
+- Only `passes` may change after this skill; the run guard blocks every other change.
 
-## Approval
-Call the slice tool with action `queue` and `stage`: `{stage, budget, maxHours, slices}`. The mod asks the person in its own dialog to approve the queue and the permission scope; your words do not count. Rejected: change what the person says and queue again. Approved: tell the person to start with `/slice:run`.
+## GitHub issues
+Only if the person wants them and `gh auth status` works. One issue per feature, label `slice` (create it if missing), title = feature title, body = the steps. Store the number in `issue`.
+
+## Finish
+Show the feature titles in order. Tell the person to review the two files, then run /slice:run.

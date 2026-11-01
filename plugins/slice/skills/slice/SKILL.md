@@ -1,49 +1,34 @@
 ---
 name: slice
-description: Sizes a piece of work as throwaway, ticket or feature, sets its risk level from the diff, writes the claim as checkable points and ends the work with the slice tool, which runs the proof itself. Use when starting or finishing a change in a repo that has .claude/slice.json.
-when_to_use: Fix, implement, build a feature, "ultracode", before a commit or PR, "ist das fertig", "fertig melden", "Tests laufen lassen", "Ticket", "Feature bauen", "Freigabe prüfen".
+description: Sizes a piece of work and finishes it with proof from the running app. A small ticket is done in the current session, changed, checked with the project's verify recipe and committed only after the evidence is shown; bigger work goes through /slice:shape and /slice:run. Also holds the builder routine for unattended run sessions. Use when starting or finishing a change in a repo set up with slice (.claude/slice.json).
+when_to_use: Fix, implement, build a feature, "ultracode", before a commit or PR, "ist das fertig", "fertig melden", "Ticket", "Feature bauen", SLICE_RUN=1.
 ---
 Active only when `.claude/slice.json` exists in the repo. Otherwise ignore this skill.
 
-## Say the size in one line first
-`<size> · <risk> · proof: <command>`, for example `ticket · low · proof: make verify-export FILE=fixtures/umlauts.tex`. The person overrides size or risk with one word.
-- throwaway: a prototype. Skip the claim, proofs and `done`; the guard and the lock still apply.
-- ticket: small, clear, one place. Work in this session, no subagent, no plan or notes file.
-- feature: several files, UI, data or core paths. Write the claim first, then use `/slice:feature` (args: id, claim, brief, proof, risk, kind, ui), also when the person types "ultracode" or asks for a workflow. UI work: also use the `taste` skill.
+## Verdict
+The only verdict on "done" is an end-to-end run against the running app with real data, shown in the conversation after the last code change. Unit tests, linters and reviews help; they never decide.
 
-## Risk comes from the diff, not the path
-- low: text, styles, additive, under about 50 lines. If it touches UI, the proof includes the repo's ui-check target.
-- medium: logic in core paths (`corePaths`, path prefixes in `.claude/slice.json`). Run `/code-review high` yourself on the final tree before `done`; the mod records the review for that tree, so fixes after it need a new review. Your own `verdict` does not count; a skip only comes from the person in the mod's dialog.
-- high: data migration, auth, areas named in a `/slice-miss` note of the last 30 days (`misses` in `.git/slice/state.json`). High risk always goes through `/slice:feature` with `risk: high` (Opus verifier), whatever the size, and add security points to the claim, written as invariants with a test each ("user A never reads user B's data"); `done` checks that the verifier recorded a pass on the current tree; your own `verdict` does not count. `done` also refuses a level below what the diff touches: core paths need at least medium, paths from a miss need high.
+## Small ticket: do it here
+One place, clear outcome. Work in this session, no `.slice` files, no plan or notes file.
+1. Make the change.
+2. Invoke the `verify` skill (`.claude/skills/verify/SKILL.md`) and run its recipe against the running app. Show the evidence: commands and output, a screenshot for UI.
+3. Fix and repeat on failure. Commit only after the evidence is shown.
 
-## The claim
-Write results as checkable points, each with a command and what it proves. Numbers and references, not adjectives. A feature claim has two parts: proof points (binary: states empty, loading, error, long data; keyboard and a11y minimum; one real document or payload) and a quality brief with references, anti-patterns and the question "what would the impressive version look like". Ask only what the code, NORTHSTAR.md, DESIGN.md or ADRs do not already answer.
+If the repo has no verify recipe, run `/run-skill-generator` or run `/verify` once so one gets recorded, then continue.
 
-## The mod proves, you do not
-Never report a proof as passed from your own run. Call the slice tool:
-- `prove` (no `cmd` runs `make verify`) runs the allowed command under the machine lock and answers from cache on an unchanged tree. It rejects TODOs, stubs, placeholder text, tests without a value assertion and new Markdown files other than README, AGENTS, CLAUDE, CLAUDE.local, DESIGN, NORTHSTAR and docs/adr/NNNN-*.md; fix the cause. `BUSY` means another proof holds the lock: prove again later, it is not a failure.
-- `note` with `cmd` (a make command) and `files` freezes a proof, which `prove` then accepts beyond check, verify, test-affected and verify-*; later edits to those files need the person; `text` names the proof. With only `text` it logs a decision.
-- `red` needs `cmd` and `files` (the test files); it runs the proof before the code exists, which must fail on an assertion, and freezes the files as `<slice>:<cmd>`. `amend` opens a frozen proof once: `text` is the proof's name, `verdict` why it is wrong.
-- `done` closes the slice: pass `level` (low, medium or high), `cmd` (default `make verify`), `kind: bug` for a bug fix (it needs a FAIL of the same proof before the fix), a `verify-*` target or a frozen proof as `cmd` (`make check` and `test-affected` are too narrow to close) and `cwd` for a worktree. It refuses without a passed proof on that tree.
-Run only the affected tests while editing: `make test-affected FILES=…`. For a feature, suggest `/simplify` (if available) before the last proof; if it changes code, prove again. For a change to UI or runtime behaviour, suggest the person runs `/verify` (if available) on the running app.
+## Bigger work
+Several files, screens, data or core paths, or the person says "ultracode": suggest `/slice:shape` to plan it, then `/slice:run` to build it unattended. Do not start a big build in this session unasked.
 
-## In a run session
-The prompt starts with `slice run`: follow it, nothing else. Decide reversible questions yourself and log them with `note` (text, confidence 0 to 1); a new screen inside DESIGN.md's tokens and the chosen mockup is a "UX assumption" with a screenshot path in the note. Money, irreversible data operations, publishing, credentials, CI and framework changes stay with the person: note the question and carry on with what does not depend on it. `add` may add a slice inside the stage, with a reason, up to 30 % of the queue.
+## In a run session (SLICE_RUN=1)
+You build every feature in `.slice/features.json` in one long session. Decide reversible questions yourself; never wait for the person.
+1. Read `.slice/progress.md`, `git log --oneline -20` and `.slice/features.json`.
+2. Start the app via the verify recipe and run a short E2E check that it still works. Fix a broken state first.
+3. Take the first feature with `passes` false and build it.
+4. Run its E2E steps with the verify skill and show evidence (commands and output, a screenshot for UI). Judge UI against the `taste` skill criteria. On failure fix and repeat.
+5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
+6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style) and `/code-review` on the run diff, fix what holds, then run every feature's E2E steps once more with evidence.
 
-## Scope contract
-Do what was asked. Everything else becomes a suggestion in your report, not code: no extra tests, hooks, guards, ADRs, plan or notes files, no refactors of code you did not touch. Do not fix other agents' fixes. In repos with other committers follow their PR convention and leave slice vocabulary out.
+Never edit anything in `features.json` but `passes`. A feature you cannot finish: write the reason in `progress.md`, leave `passes` false and continue with the next.
 
-## Habits
-- Tests: about one per behaviour. The end-to-end run with real data is the main evidence; green unit tests are a hint.
-- Comments only for a non-obvious why. No error handling without a reason, no abstraction for a single use.
-- Debugging: reproduce first, then find the cause, then fix. After two failed attempts rethink the approach.
-- Test first where it pays: for a bug, the proof is a test that fails before the fix; let `prove` show that FAIL once, then fix. For a feature, write the proof points as tests before the code. No test per function or per line.
-- Plan, TDD or subagent skills from other plugins do not override this skill here: the claim replaces any plan file, and the tests rule above replaces a strict red-green cycle per function.
-- Decisions the person owns: direction, tech stack, architecture, UX. Suggest, never decide them silently.
-- Text for German UI follows the project's language rules; no dashes as punctuation in German text.
-
-## Report
-Result first. Then: which proofs the mod ran, what you added beyond the claim and what you discarded (each with a reason), what could not run on real data, and one better idea if you have one.
-
-## After a feature
-`/slice:feature` returns the worktree path and builds on branch `slice-<id>`. Call `done` with `cwd` set to the worktree before you merge: the proof and the verifier's verdict belong to that tree. Then, with the person's go, merge or cherry-pick, `git worktree remove <path>` and delete the branch. A `stuck` result keeps the worktree for inspection.
+## Scope
+Do what was asked; everything else becomes a suggestion in the report. Comments only for a non-obvious why. Debugging: reproduce first, then find the cause, then fix. Decisions the person owns (direction, stack, architecture, UX): suggest, never decide silently.
