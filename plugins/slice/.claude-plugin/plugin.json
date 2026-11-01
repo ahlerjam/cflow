@@ -1,0 +1,36 @@
+{
+  "name": "slice",
+  "version": "0.3.0",
+  "description": "Plans a spec and an E2E feature list, then one long run session builds and proves each feature.",
+  "author": {
+    "name": "ahlerjam"
+  },
+  "repository": "https://github.com/ahlerjam/cflow",
+  "license": "MIT",
+  "userConfig": {
+    "runModel": {
+      "type": "string",
+      "title": "Run model",
+      "description": "Model for run sessions",
+      "default": "opus"
+    },
+    "runEffort": {
+      "type": "string",
+      "title": "Run effort",
+      "description": "Effort for run sessions",
+      "default": "high",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "fallbackModel": {
+      "type": "string",
+      "title": "Fallback model",
+      "description": "Model a run session falls back to when the run model is unavailable",
+      "default": "sonnet"
+    }
+  }
+}

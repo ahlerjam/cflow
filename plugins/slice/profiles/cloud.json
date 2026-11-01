@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Edit",
+      "Write",
+      "Read",
+      "Grep",
+      "Glob",
+      "ToolSearch",
+      "Skill",
+      "Agent",
+      "PushNotification"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(gh pr *)",
+      "Bash(gh release *)",
+      "Bash(npm publish*)",
+      "Bash(pnpm publish*)",
+      "Bash(yarn publish*)",
+      "Bash(yarn npm publish*)",
+      "Bash(cargo publish*)",
+      "Bash(twine upload*)",
+      "Bash(git config core.hooksPath*)",
+      "Bash(* --no-verify*)",
+      "WebFetch",
+      "WebSearch",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.npmrc)",
+      "Read(~/.netrc)",
+      "Read(~/.gnupg/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(~/.aws/**)",
+      "Edit(~/.config/gh/**)",
+      "Edit(~/.npmrc)",
+      "Edit(~/.netrc)",
+      "Edit(~/.gnupg/**)",
+      "Read(~/.env*)",
+      "Edit(~/.env*)"
+    ],
+    "additionalDirectories": []
+  },
+  "sandbox": {
+    "enabled": false
+  },
+  "crossSessionInbound": "refuse",
+  "env": {
+    "CLAUDE_CODE_RETRY_WATCHDOG": "1",
+    "CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS": "18000000",
+    "DISABLE_AUTOUPDATER": "1",
+    "SLICE_RUN": "1"
+  }
+}
