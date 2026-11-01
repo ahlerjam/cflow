@@ -1,55 +1,70 @@
 # slice
 
-slice adds a small mod to your Claude Code session. The mod runs the proof itself, a fresh verifier checks the claim, and you accept the result, so the agent's own report of success is never the end of a job.
-
-It covers a small ticket, a supervised feature and an unattended run of a whole stage, on your Mac, in a Claude Code cloud session, or sent from your Mac to the cloud.
+slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, your project's verify recipe and `/code-review`.
 
 ## Requirements
 
 | Software | Needed for | Check |
 | --- | --- | --- |
-| Claude Code 2.1.312 or later | the plugin and its mod | `claude --version` |
-| git | state, worktrees, diffs and the proof cache | `git --version` |
-| make | every proof runs as a make target | `make --version` |
+| Claude Code (tested with 2.1.316) | the plugin, its mod and the builder sessions | `claude --version` |
+| git | run worktree, diffs, state | `git --version` |
+| gh | only the `pr` and `feature-prs` end modes | `gh auth status` |
 
-Node.js and Playwright (`npm install -g playwright`) are only needed in repos with a UI, for `scripts/ui-check.mjs`. A claude.ai login is needed for the acceptance page as an Artifact, for push notifications and for cloud runs; without it the page is a local HTML file.
-
-## Install
-
-In Claude Code: `/plugin install slice@cflow`.
-
-## Use
-
-Run `/slice:setup` once per repo. It measures the test suite, writes the make targets (`check`, `verify`, `test-affected`), a pre-commit hook, the lock script, a short verification section in `AGENTS.md`, and finally the marker `.claude/slice.json`. Without that marker the mod does nothing, in this repo too. Setup leaves the bundled `/verify` alone and suggests `/run-skill-generator` when the app needs more than a standard launch, so `/run` and `/verify` know how to start it.
-
-After a restart, the `slice` skill sizes each job in one line (`ticket · low · proof: make verify-export`). The agent then works as usual and ends with the `slice` tool:
-
-- `prove` runs an allowed make target under a machine-wide lock. It first rejects TODOs, stubs, placeholder text, tests without an assertion and new Markdown files in the diff since the main checkout's `HEAD`. A pass is cached per file tree, so an unchanged tree is not proved again.
-- `red` runs the proof before the code exists. It must fail on an assertion, not on a missing file, and then freezes the test files. `amend` opens a frozen proof once, with a reason that shows on the acceptance page.
-- `done` closes the job. It refuses without a passed proof on the current tree, and below the level the diff calls for (core paths at least medium, paths from a `/slice-miss` note of the last 30 days high). A bug fix needs its proof to have failed first. Medium risk needs the bundled `/code-review` on that tree, which the agent runs itself and the mod records, or a skip you choose in the mod's dialog. High risk needs a pass that the verifier recorded on the same tree.
-- `note` logs a decision, or freezes a proof (`cmd` and `files`). Later edits to frozen files in the main checkout need your approval, the candidate commit refuses a worktree where one changed, and a frozen proof cannot be frozen again.
-
-For a feature, the agent runs `/slice:feature` with an id, the claim and a quality brief (or you type "ultracode"). The mod creates a git worktree. `slice:builder` writes the proof tests, which must fail first, and then the code. The tool proves it, the mod commits the candidate, and a fresh `slice:verifier` checks it. Failures go back to the builder with its last report, three rounds at most.
-
-### An unattended run
-
-1. `/slice:shape` turns an idea into a queue of 6 to 15 slices with you, in about 20 minutes. It asks at most 6 questions and brings a parity table against a real product, mockups for screens, a dependency allowlist and a budget. It ends when you approve the queue and its permission scope in the mod's own dialog.
-2. `/slice:run` asks whether your Mac stays online and starts the first slice as a background session (`claude --bg`). Each session works one slice through `/slice:feature`, then the mod merges it into the run branch `slice/<stage>`, runs `make check` and every proof, reverts a merge that turns an old proof red, and starts the next session. Run sessions get a fixed permission profile: they edit only their worktree, run Bash in a sandbox (the guard blocks direct test runners and risky git), and cannot commit, push, open PRs or receive messages from other sessions.
-3. The run pauses above 90 % of the 5-hour limit and wakes itself after the reset. It halts at a spend or credit limit, at 70 % of the weekly limit, at three times the stage budget, under 20 GB free disk and after its wall-clock time. Each halt and the end send a push to your phone through Claude Code. After two slices a pilot page is written, and after every third slice a progress page.
-4. `/slice:accept` proves everything once more on the run branch and builds the acceptance page: waiting for you, changed, found. It shows one random low-risk slice for a full look. A reject queues a fix slice, a miss and a calibration example for the verifier. You merge the run branch yourself.
-
-`/slice-status` shows what is merged, running, in the cloud and waiting for you; the same summary appears as a status line when you open Claude Code. `/slice-pause`, `/slice-resume` and `/slice-stop` control the run. `/slice-miss "<line>"` records something the harness missed and offers one rule line for the verification section, which you confirm. The mod commands use a dash because a mod cannot register a colon.
-
-### Local, cloud, or hybrid
-
-Plugins do not load in Claude Code cloud sessions, so setup can copy slice into the repo (`.slice/plugin`) and add a small `slice-cloud` skill. A cloud session then only dispatches, and the work runs in a nested `claude -p --plugin-dir .slice/plugin` with the mod active. Local runs everything on your Mac. Cloud starts the approved stage from a cloud session, from your phone too, and your Mac can be off; progress comes back as a push and on the branch `slice-state/<stage>-status`, which `/slice-status` reads. Hybrid starts from your local Claude Code: `/slice:run` sends the whole approved stage to one cloud session, you close the Mac, and when you come back `/slice-status` shows what the cloud finished, with the work on `origin/slice/<stage>`. In cloud and hybrid runs the verifier runs in the cloud too. Cloud sessions count against the same usage limits as local ones: the cloud saves your Mac's CPU, memory and battery, but it uses the same tokens. They need a GitHub remote that cloud sessions can push to. After updating slice, run `/slice:setup` again so the copy in `.slice/plugin` and the `slice-cloud` skill on your default branch match.
-
-Models for run sessions are plugin options (`runModel`, `runEffort`, `fallbackModel`; set them with `/config`). With Sonnet as the main model, `/advisor opus` lets Sonnet and the `slice:builder` consult Opus at decision points; Anthropic reports higher scores at lower cost per task than Sonnet alone ([The advisor strategy](https://claude.com/blog/the-advisor-strategy)). The verifier stays a separate fresh context, because the advisor reads the same conversation.
-
-## What it protects against, and what it does not
-
-The guard is a safety net. It blocks `.skip`/`.only`, `|| true` in test and CI scripts, direct test runners in runs and subagents, writes to its own state, builders outside their worktree and a verifier that edits files or changes git state. Edits to Makefiles, hooks, CI, dependencies, `.env` files and ADRs ask you first. It does not read Bash commands for file writes, so the real limits are the sandbox, the proof the mod runs itself, CI and your acceptance. Commands listed in `excludedCommands` (patterns such as `docker compose *` or `latexmk *`) run outside the sandbox. `claude -p` counts as a run: the stricter rules apply. Mod errors block calls instead of passing them. Push notifications need a working session: a session that hangs sends none. The repo code that `/slice:setup` writes (make targets, hook, CI) keeps working if the mod is off.
+Node.js is optional: `scripts/ui-check.mjs` uses it for screenshots of UI states.
 
 ## Setup
 
-State lives in `.git/slice/` (state, log, proof cache, pages, run settings) and is never committed. Worktrees live under `~/.cache/slice/`. The keys of `.claude/slice.json` are optional: `corePaths` (path prefixes of core logic), `germanUiPaths`, `throwaway`, `excludedCommands`, `allowedDomains` and `cloud`. The path of the lock is `/tmp/slice-lock-<uid>.l`; set `SLICE_LOCK_WAIT` (seconds, default 90) for `scripts/slice-lock.sh`. That script's own cache only spares the hook a rerun; the mod never takes it as proof.
+1. Install from the cflow marketplace: `/plugin install slice@cflow`.
+2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json` and checks that `.claude/skills/verify/SKILL.md` exists. If it doesn't, record one with `/run-skill-generator` or `/verify` and run setup again. Restart the session afterwards, because the mod reads the marker at session start.
+
+## Use
+
+- **Small ticket.** Just ask. Claude changes the code, runs the verify recipe, shows the evidence and commits only after that.
+- **Bigger work.** `/slice:shape` interviews you (at most 6 questions) and writes `.slice/spec.md` and `.slice/features.json`, optionally one GitHub issue per feature. Review both files, then run `/slice:run [pr|feature-prs|merge|branch]`.
+- **End modes.** `pr` pushes the run branch and opens one draft PR. `feature-prs` opens one stacked draft PR per feature commit. `merge` merges the run branch into the base branch locally. `branch` leaves the branch alone. Without an argument, `/slice:run` takes `end` from the marker, or asks once.
+- `/background` detaches the session while the run goes on. `/slice-status` shows branch, passed/total, cost and the last action. `/slice-miss "<line>"` records something the checks missed and can propose a rule for your verification section.
+
+## How a run works
+
+```mermaid
+flowchart TD
+    A["/slice:shape: spec + features.json"] --> B["/slice:run"]
+    B --> C["Worker session in a worktree, started with /goal"]
+    C --> D["Build next feature"]
+    D --> E["Run its E2E steps, show evidence"]
+    E --> F["Set passes, commit"]
+    F --> G{"More features?"}
+    G -- yes --> D
+    G -- no --> H["Verifier agent + /code-review"]
+    H --> I["Final E2E pass of all features"]
+    I --> J{"Guard check"}
+    J -- "stopped early" --> K["Resume the session"]
+    K --> D
+    J -- "all pass" --> L["End mode: pr, feature-prs, merge, branch"]
+    J -- "list changed or stalled" --> M["Halt, worktree stays"]
+```
+
+A feature it can't finish stays `passes: false` with the reason in `.slice/progress.md`, and the worker moves on.
+
+## What the guard catches
+
+After every builder exit, `.slice/features.json` may differ from the run base only in `passes`. Any other change halts the run.
+
+Each builder call is limited by `budgetUsd` (default 30) and `maxTurns` (default 400) from `.claude/slice.json`. A builder that stops early is resumed with its context (`claude -p --resume`). Two resumes in a row without a newly passing feature halt the run; so does a builder that reports success while features remain after one resume. On a halt the worktree stays for inspection.
+
+## Where things live
+
+| What | Where |
+| --- | --- |
+| Marker: `excludedCommands`, `allowedDomains`, `budgetUsd`, `maxTurns`, `end` | `.claude/slice.json` |
+| Spec, feature list, builder log | `.slice/spec.md`, `.slice/features.json`, `.slice/progress.md` |
+| Run worktree and builder output | `~/.cache/slice/<repo>-<hash>/` (or under `XDG_CACHE_HOME`) |
+| Run state and event log | `.git/slice/` |
+
+Run model, effort and fallback model are plugin options (defaults `opus`, `high`, `sonnet`).
+
+## Limits
+
+- Cloud runs aren't tested end to end yet.
+- The builder runs sandboxed with `failIfUnavailable`. Network is limited to the package registries plus `allowedDomains`, and commands in `excludedCommands` run unsandboxed.
+- The plugin is small, around 1400 lines.
