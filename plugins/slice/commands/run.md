@@ -27,8 +27,8 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    later run starts from a clean tree.
    - a. Done is defined: every feature has at least one step with a concrete action and an observable expected
      result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
-   - b. It can check its own work: `.claude/skills/verify/SKILL.md` exists, unless the first feature is a walking
-     skeleton whose steps record the recipe.
+   - b. It can check its own work: `.claude/skills/verify/SKILL.md` exists. In a new app it is the stub from
+     `/slice:setup` that points to `docs/verify.md`, and the first feature is a walking skeleton that writes that recipe.
    - c. What it may touch: `.claude/slice-run.json` exists.
    - d. What stops it: `budgetUsd` (default 30), `maxTurns` (default 400) and `runBudgetUsd` (default 5 times
      `budgetUsd`) from `.claude/slice.json` resolve to numbers.
@@ -51,7 +51,7 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is `budgetUsd` for the first call.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
-   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run with the verify skill against the running app, with the evidence shown in the conversation after the last code change. Follow the run routine of the slice skill (section "In a run session"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
+   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run with the verify skill against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "In a run session"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
 
    Do not poll; wait for the completion notice. Tell the person once that the run started and that `/background`
    detaches this session.
@@ -89,5 +89,5 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
      evidence in the PR".
    If a push or API call fails, show the error, keep going with the rest and report what is missing.
 10. Report: source, branch, base commit, passed of total, spend in $, number of resumes, the halt reason if there
-    was one, PR links, the needs-decision list, and that `.slice/spec.md` and `.slice/features.json` are in the PR
+    was one, PR links, the needs-decision list, any `## Recipe changes` from `progress.md` (offer to apply them to the verify skill), and that `.slice/spec.md` and `.slice/features.json` are in the PR
     as the record of what was built. Do not merge.

@@ -44,7 +44,9 @@ points, risks. Its short summary goes into the epic under `## Context`.
 
 ## No app yet (greenfield)
 The first feature is always a walking skeleton: the app starts, the core path runs thinly end to end, and the verify
-recipe gets recorded (`/run-skill-generator`). Its steps say so.
+recipe is written to `docs/verify.md` (when to run, how to start and drive the app, what proves success, what to do on
+failure). Its steps say so. Run sessions cannot write `.claude/`; `/slice:setup` puts a stub skill there that points
+to that file.
 
 ## Scope
 Be ambitious. Plan the complete product the person describes, not a minimal first cut. Skip nothing a user would expect, and add what would make it clearly better than the obvious version.

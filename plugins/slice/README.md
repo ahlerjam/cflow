@@ -15,12 +15,12 @@ Node.js is optional: `scripts/ui-check.mjs` uses it for screenshots of UI states
 ## Setup
 
 1. Install from the cflow marketplace: `/plugin install slice@cflow`.
-2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json`, writes the run settings `.claude/slice-run.json` and checks that `.claude/skills/verify/SKILL.md` exists. If it doesn't, record one with `/run-skill-generator` or `/verify` and run setup again.
+2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json`, writes the run settings `.claude/slice-run.json` and checks that `.claude/skills/verify/SKILL.md` exists. If it doesn't, record one with `/run-skill-generator` or `/verify` and run setup again. In a new, empty repo setup writes a stub instead that points to `docs/verify.md`.
 
 ## Use
 
 - **Small ticket.** Just ask. Claude changes the code, runs the verify recipe, shows the evidence and commits only after that.
-- **Bigger work.** `/slice:shape` plans it. Quick mode asks at most 6 questions (a ticket); deep mode has no limit and ends only when no clarification is open, every feature has executable E2E steps and you confirmed a summary (an epic or milestone). In existing code it runs `Explore` first and puts the summary in the epic. In a new app the first feature is a walking skeleton that also records the verify recipe.
+- **Bigger work.** `/slice:shape` plans it. Quick mode asks at most 6 questions (a ticket); deep mode has no limit and ends only when no clarification is open, every feature has executable E2E steps and you confirmed a summary (an epic or milestone). In existing code it runs `Explore` first and puts the summary in the epic. In a new app the first feature is a walking skeleton that also writes the verify recipe to `docs/verify.md`.
 - **Where the plan goes.** With a GitHub remote and a working `gh`, shape offers to create issues. Without, it writes `.slice/spec.md` and `.slice/features.json`. Review them, then run `/slice:run`.
 
 `/background` detaches the session while the run goes on.
@@ -38,7 +38,7 @@ All calls use the REST API through `gh api`.
 `/slice:run [#<n> | milestone:<n>] [epic-pr | issue-prs]`
 
 - **Source.** `#<n>` is an epic or a ticket, `milestone:<n>` all its open issues. `scripts/issues-to-files.sh` turns them into `.slice/spec.md` and `.slice/features.json`, copying the steps verbatim, and the run commits both as `slice: plan from #<n>`. They stay in the PR as the record of what was built. Without an argument the run uses the existing `.slice` files.
-- **Readiness gate.** Before the builder starts, the run checks that every feature has steps with a concrete action and an observable result, that a verify recipe exists (or the first feature is a walking skeleton that records one), that `.claude/slice-run.json` exists, that budget, turn limit and run budget resolve, and that the delivery mode is known (for issues, `gh auth status` works). On a gap it lists everything, points to `/slice:shape` or `/slice:setup`, and stops without cost.
+- **Readiness gate.** Before the builder starts, the run checks that every feature has steps with a concrete action and an observable result, that a verify recipe exists, that `.claude/slice-run.json` exists, that budget, turn limit and run budget resolve, and that the delivery mode is known (for issues, `gh auth status` works). On a gap it lists everything, points to `/slice:shape` or `/slice:setup`, and stops without cost.
 - **Needs decision.** The builder cannot reach GitHub. It writes owner-only questions (direction, stack, architecture, UX, anything irreversible) to `.slice/progress.md` under `## Needs decision`, leaves that feature open and moves on. After the run each question becomes a comment on the feature's issue with the label `needs-decision`.
 - **Delivery.** The builder never pushes; the run does.
   - `epic-pr` (default for issues): one draft PR with `Closes #<n>` for every passed feature (and the epic if all passed), the open features with their reason, and the questions.

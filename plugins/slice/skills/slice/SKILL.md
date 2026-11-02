@@ -28,6 +28,11 @@ You build every feature in `.slice/features.json` in one long session. Never wai
 5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
 6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style) and `/code-review` on the run diff, plus `/security-review` when the diff touches authentication, secrets, network
    input or anything users submit; fix what holds, then run every feature's E2E steps once more with evidence.
+   These reviews are part of done: never skip one to save budget or turns. Leave room for them.
+
+You cannot write inside `.claude/`. When the verify recipe needs a change, edit the file the `verify` skill points to
+(`docs/verify.md` in a new app); if the recipe itself lives in `.claude/`, write the change to `.slice/progress.md`
+under `## Recipe changes`.
 
 Never edit anything in `features.json` but `passes`. A feature you cannot finish: write the reason in `progress.md`, leave `passes` false and continue with the next.
 
