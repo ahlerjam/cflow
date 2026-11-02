@@ -8,18 +8,35 @@ Plan the work with the person. Read the repo first (README, docs, existing code,
 either GitHub issues or the two files `.slice/spec.md` and `.slice/features.json`; nothing else is written.
 
 ## Mode
-- Quick: at most 6 questions. For a ticket.
-- Deep: no question limit. For an epic or a milestone.
+- Quick: at most 6 questions. For a ticket: one change in one place.
+- Deep: no question limit. For an epic, a milestone, or any new app or tool, however small it sounds.
 
-Suggest the mode by the size of the work; the person can override. Deep mode ends only when all three hold: no open
-clarification point remains, every feature has executable E2E steps, and the person confirmed a short summary of
-the plan.
+Suggest the mode by the size of the work; the person can override. Deep mode ends only when all three hold: every
+area of the coverage list is settled, every feature has executable E2E steps, and the person confirmed the summary.
+Both modes end with the summary.
 
 ## Interview
-Never ask what the repo already answers. Ask what changes the plan: who uses it, how they notice it works, scope
-edges, data, hard constraints. Where the options are clear, use AskUserQuestion, one question each, your recommended
-option first. Ask open questions for the goal, the users and what "good" means. If AskUserQuestion is unavailable,
-ask in plain text and end the turn. Say plainly when the person's idea has a weaker approach and why.
+Never ask what the repo already answers. Where the options are clear, use AskUserQuestion, one question each, your
+recommended option first. Ask open questions for the goal, the users and what "good" means. If AskUserQuestion is
+unavailable, ask in plain text and end the turn. Say plainly when the person's idea has a weaker approach and why.
+
+Deep mode works through the coverage list in rounds. Each area is settled when the person answered it or you decided
+it and wrote the decision down as an assumption. Skip an area only when it cannot apply. Every answer can open new
+questions; ask them in the next round. "You decide" settles that one question, never the interview.
+
+Coverage list:
+1. Goal, users, how they notice it works.
+2. Core flows and their variants (kinds of items, schedules, roles).
+3. Time and dates: time zones, when a day or week starts, past and future entries, gaps.
+4. Data: what is stored, where, format, limits; import, export and their exact format.
+5. Lifecycle: edit, undo, duplicates, rename, pause, archive, delete and its safeguard.
+6. Errors: invalid input, missing or corrupt data, messages, exit codes or HTTP status.
+7. Output: views, empty and long data, colors and when they are off, accessibility.
+8. Testability: how a test fixes the current time, the data location and other inputs; name the exact switches.
+9. Hard constraints: platform, install, performance, privacy.
+
+Summary: before writing anything, show the planned features in one line each and every assumption you made as its
+own line, and ask the person to confirm or correct. Apply corrections and show what changed.
 
 ## Existing code (brownfield)
 Before the interview run the built-in `Explore` subagent on the affected area: modules, existing patterns, entry
