@@ -61,4 +61,4 @@ All calls use the REST API through `gh api`.
 
 - The builder runs sandboxed with `failIfUnavailable`. Network is limited to the package registries plus `allowedDomains`, and commands in `excludedCommands` run unsandboxed.
 - On a cloud VM (`CLAUDE_CODE_REMOTE=true`) the run uses the profile without sandbox. Cloud runs aren't tested end to end for this version.
-- Nothing stops the builder from editing `.slice/features.json` beyond `passes`; the instruction is in the goal and the skill.
+- In a run session a hook (`scripts/guard-features.mjs`, Node.js) rejects any change to `.slice/features.json` other than `passes`. Shell commands that write the file are rejected outright, so the builder edits `passes` with the Edit tool.

@@ -48,10 +48,11 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    default of 10 minutes would kill it):
 
    ```
-   cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort high --max-budget-usd <B> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/worker.json 2> <out>/worker.err
+   cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --max-budget-usd <B> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/worker.json 2> <out>/worker.err
    ```
 
-   Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is `budgetUsd` for the first call.
+   Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is `budgetUsd` for the first call. `<E>` is `medium`; it rises to `high` for a resume after a call that
+   added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
    `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "In a run session"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
