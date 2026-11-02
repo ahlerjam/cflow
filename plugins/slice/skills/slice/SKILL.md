@@ -26,7 +26,8 @@ You build every feature in `.slice/features.json` in one long session. Decide re
 3. Take the first feature with `passes` false and build only that one. Do not implement later features ahead, even small ones. One feature is one cycle: build, E2E steps, `passes`, commit, then the next.
 4. Run its E2E steps by invoking the `verify` skill, and show evidence (commands and output, a screenshot for UI). Judge UI against the `taste` skill criteria. On failure fix and repeat.
 5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
-6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style) and `/code-review` on the run diff, fix what holds, then run every feature's E2E steps once more with evidence.
+6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style) and `/code-review` on the run diff, plus `/security-review` when the diff touches authentication, secrets, network
+   input or anything users submit; fix what holds, then run every feature's E2E steps once more with evidence.
 
 Never edit anything in `features.json` but `passes`. A feature you cannot finish: write the reason in `progress.md`, leave `passes` false and continue with the next.
 
