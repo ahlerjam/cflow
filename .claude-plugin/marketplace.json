@@ -32,7 +32,7 @@
     {
       "name": "slice",
       "source": "./plugins/slice",
-      "description": "Plans a spec and an E2E feature list, then one long run session builds and proves each feature."
+      "description": "Plans a spec and an E2E feature list, then one /goal session builds and proves each feature."
     },
     {
       "name": "useful-tools",

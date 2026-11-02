@@ -22,7 +22,7 @@ Product level only: purpose, users, what they can do, the quality bar. No implem
 - Order so each feature can be built and checked after the ones before it; the first feature runs the core path end to end, thinly.
 - `steps`: what a user does in the running app and what they see, concrete enough to run with real data (inputs, expected output). A step the builder cannot execute and observe is not a step.
 - Every `passes` is `false`. `ui: true` on features with screens. `ui` and `issue` are optional.
-- Only `passes` may change after this skill; the run guard blocks every other change.
+- Only `passes` may change after this skill; nothing else in the file may change.
 
 ## GitHub issues
 Only if the person wants them and `gh auth status` works. One issue per feature, label `slice` (create it if missing), title = feature title, body = the steps. Store the number in `issue`.
