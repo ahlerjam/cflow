@@ -15,6 +15,8 @@ Check:
 - Every requirement in the spec is implemented, not stubbed, hard-coded or only present in a test.
 - Every step of every feature can happen in the code path a user reaches: the action exists, wired up, and produces the result the step names.
 - States the spec names (empty, loading, error, long data) exist.
+- Every item under `## Quality bar` in the spec holds in the code.
+- Code slop that changes behavior: swallowed errors, checks or branches that hide failures, dead or placeholder code, a test edited to pass.
 
 Report gaps that change behavior. Skip style, naming, formatting and refactoring taste.
 

@@ -8,14 +8,14 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 | --- | --- | --- |
 | Claude Code | the plugin and the builder sessions | `claude --version` |
 | git | run branch, diffs, commits | `git --version` |
-| Node.js | the Playwright plugin, which slice installs as a dependency (`npx @playwright/mcp`) | `node --version` |
+| Node.js | the Playwright plugin, which slice installs as a dependency (`npx @playwright/mcp`), and the guard hook of run sessions | `node --version` |
 | gh | issue planning in `/slice:shape`, `/slice:run #<n>` and PR delivery; optional for files only | `gh auth status` |
 
 
 ## Setup
 
 1. Install from the cflow marketplace: `/plugin install slice@cflow`.
-2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json`, writes the run settings `.claude/slice-run.json` and audits the repo. If there is no recorded run recipe yet, it suggests running Claude Code's `/run-skill-generator` (or `/verify` once) so builders follow it instead of guessing how to start the app.
+2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json`, writes the run settings `.claude/slice-run.json` and audits the repo. If there is no recorded run recipe yet, it suggests running Claude Code's `/run-skill-generator` (or `/verify` once) so builders start the app the recorded way.
 
 ## Use
 
@@ -24,6 +24,17 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 - **Where the plan goes.** With a GitHub remote and a working `gh`, shape offers to create issues. Without, it writes `.slice/spec.md` and `.slice/features.json`. Review them, then run `/slice:run`.
 
 `/background` detaches the session while the run goes on.
+
+## Know-how
+
+The `practices` skill holds rules with their sources. slice loads each file only when the work needs it:
+
+- **Issues:** outcome titles, vertical slices, INVEST, Given/When/Then turned into executable E2E steps, epics with sub-issues and milestones.
+- **Cookbooks:** CLI, web UI, HTTP API, library and data job. Each one has coverage questions for the interview, a quality bar and how to test it end to end. `/slice:shape` writes the quality bar into the spec, and the builder and reviewers check against it.
+- **Code:** the repo's formatter and linter, and rules against AI slop (no filler comments, no abstraction without a second caller, no swallowed errors, no tests edited to pass).
+- **Architecture:** walking skeleton, vertical slices, ADRs in MADR format.
+
+The `taste` skill covers how screens look: it lists tells of machine-made UI and asks for a design plan before code. The builder looks up library APIs in Context7 before it uses them.
 
 ## Issue formats
 

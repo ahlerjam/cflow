@@ -15,6 +15,11 @@ Suggest the mode by the size of the work; the person can override. Deep mode end
 area of the coverage list is settled, every feature has executable E2E steps, and the person confirmed the summary.
 Both modes end with the summary.
 
+## Know-how
+Before the interview, invoke the `practices` skill and load its `references/issues.md` plus the cookbook for each project
+type the work is (CLI, web, API, library, data job), and its `references/architecture.md` for a new app. Add the
+cookbook's coverage questions to the coverage list below.
+
 ## Interview
 Never ask what the repo already answers. Where the options are clear, use AskUserQuestion, one question each, your
 recommended option first. Ask open questions for the goal, the users and what "good" means. If AskUserQuestion is
@@ -47,10 +52,13 @@ The first feature is always a walking skeleton: the app starts with one document
 and the core path runs thinly end to end. Its steps say so.
 
 ## Scope
-Be ambitious. Plan the complete product the person describes, not a minimal first cut. Skip nothing a user would expect, and add what would make it clearly better than the obvious version.
+Plan the complete product the person describes, not a minimal first cut, and skip nothing a user would expect. Suggest what would make it clearly better during the interview; plan it only when the person agrees.
 
 ## Spec
-Product level only: purpose, users, what they can do, the quality bar. No implementation details, no file names, no stack unless the person fixed one. For screens, add the states that must exist (empty, loading, error, long data).
+Product level only: the first line `Type: <cli|web|api|library|data-job>` (several if they apply), purpose, users, what they can do, the quality bar. No implementation details or file names. Owner decisions and every assumption from the summary (stack, storage, platform, conventions) go under `## Decisions`, so the builder never has to guess them. For screens, add the states that must exist (empty, loading, error, long data).
+
+Add `## Quality bar` to the spec: the cookbook's quality bar items that apply, adjusted to what the person said. The
+builder and the reviewers check against it.
 
 ## Features
 - Order so each feature can be built and checked after the ones before it; the first feature runs the core path end to end, thinly.
@@ -74,7 +82,7 @@ Create what is missing, with `gh api repos/<o>/<r>/...`:
 3. Epic: `POST issues`, then each feature in build order with `POST issues`. Link every feature with
    `POST issues/<epic>/sub_issues -F sub_issue_id=<id>`; `<id>` is the feature's numeric `id` from the create
    response, not its number.
-4. A single ticket is one issue with `## E2E steps`, no epic.
+4. A single ticket is one issue with `## E2E steps`, plus `## Quality bar` and `## Decisions` when they apply; no epic.
 
 Show the issue numbers and titles in order, and say: review them, then `/slice:run #<epic>` (or `milestone:<n>`).
 

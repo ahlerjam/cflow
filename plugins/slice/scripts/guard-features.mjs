@@ -25,8 +25,11 @@ const strip = text => {
 
 if (tool === 'Bash') {
   const cmd = args.command || ''
-  const writes = new RegExp('(>|\\btee\\b|\\bsed\\s+-i|\\b(mv|cp|rm|truncate|node|perl|ruby)\\b|\\bpython'
-    + '|\\bgit\\s+(checkout|restore|reset))')
+  const target = /features\.json/
+  const redirect = />>?\s*\S*features\.json/
+  const tool = /\b(tee|mv|cp|rm|truncate|sed\s+-i|git\s+(checkout|restore|reset))\b/
+  const script = /\b(python3?|node|perl|ruby)\b[\s\S]*\b(write|dump|open\([^)]*['"][wa])/
+  const writes = { test: c => redirect.test(c) || tool.test(c) || script.test(c) }
   if (/features\.json/.test(cmd) && writes.test(cmd)) {
     deny('Change .slice/features.json only with the Edit tool, and only the passes fields.')
   }

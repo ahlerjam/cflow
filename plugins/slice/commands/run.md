@@ -55,7 +55,7 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
-   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "In a run session"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
+   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "Routine"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
 
    Do not poll; wait for the completion notice. Tell the person once that the run started and that `/background`
    detaches this session.
