@@ -20,7 +20,7 @@ If the repo has no verify recipe, run `/run-skill-generator` or run `/verify` on
 Several files, screens, data or core paths, or the person says "ultracode": suggest `/slice:shape` to plan it, then `/slice:run` to build it unattended. Do not start a big build in this session unasked.
 
 ## In a run session (SLICE_RUN=1)
-You build every feature in `.slice/features.json` in one long session. Decide reversible questions yourself; never wait for the person.
+You build every feature in `.slice/features.json` in one long session. Never wait for the person.
 1. Read `.slice/progress.md`, `git log --oneline -20` and `.slice/features.json`.
 2. Before changing any code, start the app via the verify recipe and run the E2E steps on the code as it is. Show the output. If a feature's steps already fail on existing code, say so: that is the defect to fix, shown red first.
 3. Take the first feature with `passes` false and build only that one. Do not implement later features ahead, even small ones. One feature is one cycle: build, E2E steps, `passes`, commit, then the next.
@@ -30,6 +30,8 @@ You build every feature in `.slice/features.json` in one long session. Decide re
    input or anything users submit; fix what holds, then run every feature's E2E steps once more with evidence.
 
 Never edit anything in `features.json` but `passes`. A feature you cannot finish: write the reason in `progress.md`, leave `passes` false and continue with the next.
+
+Owner-only questions (direction, stack, architecture, UX, anything irreversible): you cannot reach the person. Write each to `.slice/progress.md` under `## Needs decision` as `- f<k>: <question>`, leave that feature `passes` false and continue with the next. Reversible choices: decide, and note them in `progress.md`.
 
 ## Scope
 Do what was asked; everything else becomes a suggestion in the report. Comments only for a non-obvious why. Debugging: reproduce first, then find the cause, then fix. Decisions the person owns (direction, stack, architecture, UX): suggest, never decide silently.

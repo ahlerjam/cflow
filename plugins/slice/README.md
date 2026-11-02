@@ -8,7 +8,7 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 | --- | --- | --- |
 | Claude Code | the plugin and the builder sessions | `claude --version` |
 | git | run branch, diffs, commits | `git --version` |
-| gh | only for GitHub issues in `/slice:shape` | `gh auth status` |
+| gh | issue planning in `/slice:shape`, `/slice:run #<n>` and PR delivery; optional for files only | `gh auth status` |
 
 Node.js is optional: `scripts/ui-check.mjs` uses it for screenshots of UI states.
 
@@ -20,15 +20,32 @@ Node.js is optional: `scripts/ui-check.mjs` uses it for screenshots of UI states
 ## Use
 
 - **Small ticket.** Just ask. Claude changes the code, runs the verify recipe, shows the evidence and commits only after that.
-- **Bigger work.** `/slice:shape` interviews you (at most 6 questions) and writes `.slice/spec.md` and `.slice/features.json`, optionally one GitHub issue per feature. Review both files, then run `/slice:run`. When it ends, open a PR yourself with `gh pr create` or merge the run branch.
+- **Bigger work.** `/slice:shape` plans it. Quick mode asks at most 6 questions (a ticket); deep mode has no limit and ends only when no clarification is open, every feature has executable E2E steps and you confirmed a summary (an epic or milestone). In existing code it runs `Explore` first and puts the summary in the epic. In a new app the first feature is a walking skeleton that also records the verify recipe.
+- **Where the plan goes.** With a GitHub remote and a working `gh`, shape offers to create issues. Without, it writes `.slice/spec.md` and `.slice/features.json`. Review them, then run `/slice:run`.
 
 `/background` detaches the session while the run goes on.
 
-## How a run works
+## Issue formats
 
-`/slice:run` commits the plan, creates the branch `slice/run-<date>-<time>` and starts one `claude -p` builder session with a `/goal`: every feature has `passes` true and a final E2E pass of all features is shown. The builder works one feature at a time: build, verify with evidence, set `passes`, commit. A feature it can't finish stays `passes: false` with the reason in `.slice/progress.md`.
+All calls use the REST API through `gh api`.
 
-When the builder stops on its budget or turn limit, or reports success with features still open, the same session is resumed. The run halts when the spend reaches `runBudgetUsd`, when two resumes in a row add no passing feature, or on any other result. Each resume gets at most the remaining run budget. The command then reports branch, passed of total, spend and resumes. It does not push, open a PR or merge.
+- **Epic.** Label `slice`. Body: `## Spec` (product-level spec) and optionally `## Context` (summary of the existing code). Its sub-issues are the features, in build order.
+- **Feature or ticket.** Label `slice`, plus `ui` for features with screens. Body: `## E2E steps` as a `- ` list of what a user does and sees, with concrete inputs and expected output; optionally `## Notes`.
+- **Milestone.** Holds epics and/or tickets.
+
+## `/slice:run`
+
+`/slice:run [#<n> | milestone:<n>] [epic-pr | issue-prs]`
+
+- **Source.** `#<n>` is an epic or a ticket, `milestone:<n>` all its open issues. `scripts/issues-to-files.sh` turns them into `.slice/spec.md` and `.slice/features.json`, copying the steps verbatim, and the run commits both as `slice: plan from #<n>`. They stay in the PR as the record of what was built. Without an argument the run uses the existing `.slice` files.
+- **Readiness gate.** Before the builder starts, the run checks that every feature has steps with a concrete action and an observable result, that a verify recipe exists (or the first feature is a walking skeleton that records one), that `.claude/slice-run.json` exists, that budget, turn limit and run budget resolve, and that the delivery mode is known (for issues, `gh auth status` works). On a gap it lists everything, points to `/slice:shape` or `/slice:setup`, and stops without cost.
+- **Needs decision.** The builder cannot reach GitHub. It writes owner-only questions (direction, stack, architecture, UX, anything irreversible) to `.slice/progress.md` under `## Needs decision`, leaves that feature open and moves on. After the run each question becomes a comment on the feature's issue with the label `needs-decision`.
+- **Delivery.** The builder never pushes; the run does.
+  - `epic-pr` (default for issues): one draft PR with `Closes #<n>` for every passed feature (and the epic if all passed), the open features with their reason, and the questions.
+  - `issue-prs`: one stacked draft PR per feature commit, on branches `<run branch>-f<k>`, each based on the previous one, with `Closes #<issue>`. Stacked PRs close their issue only after retargeting to the default branch.
+  - Files only: the branch, then you open the PR.
+  - Each passed feature issue gets a comment with the run branch and commit.
+- **Default branch.** GitHub closes issues with `Closes` only on a merge into the default branch. If the base is another branch, the PR body and the report say so.
 
 ## Where things live
 
@@ -36,7 +53,7 @@ When the builder stops on its budget or turn limit, or reports success with feat
 | --- | --- |
 | Marker: `budgetUsd` (30), `maxTurns` (400), `runBudgetUsd` (5 times `budgetUsd`), `allowedDomains`, `excludedCommands` | `.claude/slice.json` |
 | Builder settings: the plugin's `profiles/run.json` plus the marker's domains and commands | `.claude/slice-run.json` |
-| Spec, feature list, builder log | `.slice/spec.md`, `.slice/features.json`, `.slice/progress.md` |
+| Spec, feature list, builder log (from the issues, for an issue source) | `.slice/spec.md`, `.slice/features.json`, `.slice/progress.md` |
 | Builder output (`worker.json`, `worker.err`) | `~/.cache/slice/<repo>/` (or under `XDG_CACHE_HOME`) |
 
 ## Limits

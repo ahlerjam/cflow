@@ -1,19 +1,40 @@
 ---
-description: Starts one long builder session for the planned features, resumes it after budget or turn stops and reports.
+description: Builds the planned features in one long builder session, from GitHub issues or from .slice files, checks readiness first, resumes after budget or turn stops, delivers draft PRs and reports.
+argument-hint: "[#<n> | milestone:<n>] [epic-pr | issue-prs]"
 allowed-tools: Bash, Read
 disable-model-invocation: true
 ---
 Run the feature list in `.slice/features.json`. The builder is a separate `claude -p` process with a `/goal`. This
-session only starts it, resumes it and reports; it builds nothing itself.
+session only prepares the run, starts the builder, resumes it, delivers and reports; it builds nothing itself. The
+builder works from the two files and cannot reach GitHub (sandbox); everything on GitHub happens here. All GitHub
+calls use REST through `gh api`, never `gh issue` or `gh pr` (GraphQL fails in cloud sessions).
 
-1. Require `.slice/features.json` and `.slice/spec.md`; if one is missing, say to run `/slice:shape` first and stop.
-   Require `.claude/slice-run.json`; if missing, say to run `/slice:setup` first and stop. If `.slice/` has
-   uncommitted changes (`git status --porcelain .slice`), commit only those as `slice: plan`. The working tree must
-   be clean otherwise; if not, say so and stop.
-2. Create and switch to the branch `slice/run-<YYYYMMDD-HHMM>` from the current branch. Remember the base commit
-   (`git rev-parse HEAD` before the switch).
-3. Read `budgetUsd` (default 30), `maxTurns` (default 400) and `runBudgetUsd` (default 5 times `budgetUsd`) from
-   `.claude/slice.json`.
+Arguments: `#<n>` (an epic or a ticket) or `milestone:<n>` as the source, and the delivery mode `epic-pr` (default
+for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
+
+1. Source. The working tree must be clean (`git status --porcelain`), except `.slice/` when there is no source
+   argument. Remember the base branch and base commit (`git rev-parse HEAD`).
+   - With a source: get `<owner/repo>` from `gh repo view --json nameWithOwner --jq .nameWithOwner` (or, if that
+     fails, from `git remote get-url origin`), then run
+     `${CLAUDE_PLUGIN_ROOT}/scripts/issues-to-files.sh <owner/repo> <n or milestone:n>`. It writes `.slice/spec.md`
+     and `.slice/features.json` from the issues (open features in build order, steps copied verbatim). If it fails,
+     show its message and stop.
+   - Without a source: require `.slice/features.json` and `.slice/spec.md`; if one is missing, say to run
+     `/slice:shape` first and stop.
+2. Readiness gate. Check all five before any builder starts. On any failure list every gap, name `/slice:shape` for
+   the gaps in the plan and `/slice:setup` for the others, and stop: no builder, no cost.
+   - a. Done is defined: every feature has at least one step with a concrete action and an observable expected
+     result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
+   - b. It can check its own work: `.claude/skills/verify/SKILL.md` exists, unless the first feature is a walking
+     skeleton whose steps record the recipe.
+   - c. What it may touch: `.claude/slice-run.json` exists.
+   - d. What stops it: `budgetUsd` (default 30), `maxTurns` (default 400) and `runBudgetUsd` (default 5 times
+     `budgetUsd`) from `.claude/slice.json` resolve to numbers.
+   - e. Where the result goes: the delivery mode is known. For an issue source, `gh auth status` works and the
+     remote branch of the base exists (`git ls-remote --exit-code --heads origin <base branch>`).
+3. Create and switch to the branch `slice/run-<YYYYMMDD-HHMM>` from the current branch. Commit `.slice/` (the
+   changes only) as `slice: plan from #<n>` (milestone: `slice: plan from milestone <n>`; no source: `slice: plan`).
+   These files stay in the PR as the record of what was built.
 4. Settings file: `.claude/slice-run.json`, except when the env var `CLAUDE_CODE_REMOTE` is `true` (cloud VM, no
    sandbox): then `${CLAUDE_PLUGIN_ROOT}/profiles/cloud.json`.
 5. Output dir `<out>` = `${XDG_CACHE_HOME:-$HOME/.cache}/slice/<repo dir name>/` (`mkdir -p`). The builder must not
@@ -42,5 +63,29 @@ session only starts it, resumes it and reports; it builds nothing itself.
      - Otherwise resume with the same command, but `claude -p --resume <session_id> 'Continue toward the goal.'`
        and `--max-budget-usd` = min(`budgetUsd`, `runBudgetUsd` - spend), rounded to cents. Wait as in step 6.
    - Anything else (no JSON, other subtype): halt and show the tail of `<out>/worker.err`.
-8. Report: branch, base commit, passed of total, spend in $, number of resumes and the halt reason if there was one.
-   Say that the person can open a PR with `gh pr create` or merge the branch. Do not push, open a PR or merge.
+   A halt still goes on to step 8 when at least one feature passed; with none, report only.
+8. Owner questions. The builder writes them to `.slice/progress.md` under `## Needs decision` as `- f<k>: <question>`.
+   For an issue source, map `f<k>` to its `issue` in `.slice/features.json`, post the question as a comment on
+   that issue (`gh api repos/<o>/<r>/issues/<issue>/comments -f body=...`) and add the label `needs-decision`
+   (`gh api repos/<o>/<r>/issues/<issue>/labels -f 'labels[]=needs-decision'`). Create the label first if
+   `gh api repos/<o>/<r>/labels/needs-decision` returns 404 (`POST repos/<o>/<r>/labels -f name=needs-decision -f color=d93f0b`).
+   For a files-only source, only list the questions in the report.
+9. Delivery, outside the sandbox; the builder never pushes. Never force-push.
+   - Files-only source: branch only. Suggest `gh pr create`.
+   - `epic-pr`: `git push -u origin <run branch>`, then one draft PR:
+     `gh api repos/<o>/<r>/pulls -f title=... -f head=<run branch> -f base=<base branch> -F draft=true -f body=...`.
+     Body: summary, one line `Closes #<issue>` for every feature with `passes` true (and `Closes #<epic>` if all
+     pass), the features still false with the reason from `progress.md`, the needs-decision list. Get the default
+     branch with `gh api repos/<o>/<r> --jq .default_branch`. If the base branch is not it, say in the body and in
+     the report that GitHub closes issues only on merge into the default branch.
+   - `issue-prs`: one stacked draft PR per feature commit (`git log --reverse --grep '^slice: f' <base commit>..HEAD`).
+     Branch `<run branch>-f<k>` at that commit (not `<run branch>/f<k>`: git cannot hold a branch and a branch
+     folder of the same name). Push it, open the PR via the same `pulls` call. Its base is the previous feature
+     branch, the first one's base is the base branch. Body: `Closes #<issue>`. Features still false get no PR.
+     Say that stacked PRs close their issue only after the stack is retargeted to the default branch and merged.
+   - For every feature issue that passed, post a comment: run branch, commit, "E2E steps passed in the run;
+     evidence in the PR".
+   If a push or API call fails, show the error, keep going with the rest and report what is missing.
+10. Report: source, branch, base commit, passed of total, spend in $, number of resumes, the halt reason if there
+    was one, PR links, the needs-decision list, and that `.slice/spec.md` and `.slice/features.json` are in the PR
+    as the record of what was built. Do not merge.
