@@ -23,6 +23,8 @@ You build every feature in `.slice/features.json` in one long session. Never wai
    input or anything users submit; fix what holds, then run every feature's E2E steps once more with evidence.
    These reviews are part of done: never skip one to save budget or turns. Leave room for them.
 
+Before using a library, framework or CLI API you are not sure about, look up its current docs with the Context7 tools (`resolve-library-id`, then `query-docs`) if they are available; otherwise read the installed package's own docs. Never guess an API.
+
 Keep command output short: filter long test or build output to the failures before reading it.
 
 Never edit anything in `features.json` but `passes`. A feature you cannot finish: write the reason in `progress.md`, leave `passes` false and continue with the next.

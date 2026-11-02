@@ -1,6 +1,6 @@
 # slice
 
-slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, `/verify`, `/code-review` and the official Playwright plugin.
+slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, `/verify`, `/code-review` and the official Playwright and Context7 plugins.
 
 ## Requirements
 
