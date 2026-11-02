@@ -22,7 +22,9 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    - Without a source: require `.slice/features.json` and `.slice/spec.md`; if one is missing, say to run
      `/slice:shape` first and stop.
 2. Readiness gate. Check all five before any builder starts. On any failure list every gap, name `/slice:shape` for
-   the gaps in the plan and `/slice:setup` for the others, and stop: no builder, no cost.
+   the gaps in the plan and `/slice:setup` for the others, and stop: no builder, no cost. If step 1 wrote the
+   `.slice/` files from issues, restore them first (`git checkout -- .slice` for tracked, delete untracked ones), so a
+   later run starts from a clean tree.
    - a. Done is defined: every feature has at least one step with a concrete action and an observable expected
      result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
    - b. It can check its own work: `.claude/skills/verify/SKILL.md` exists, unless the first feature is a walking
