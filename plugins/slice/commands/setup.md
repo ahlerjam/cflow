@@ -12,5 +12,12 @@ Set up slice in the current repo. Interactive: it runs in your session because r
 3. New repo without docs (no README, `NORTHSTAR.md` or `docs/adr/`): offer `NORTHSTAR.md` (at most 30 lines: goal, non-goals, how success is measured, first stage) and one stack ADR `docs/adr/0001-stack.md`. Write them only if the person wants them.
 
 4. Run settings. Write `.claude/slice-run.json` as a copy of `${CLAUDE_PLUGIN_ROOT}/profiles/run.json`, with `sandbox.network.allowedDomains` extended by the marker's `allowedDomains` and `sandbox.excludedCommands` extended by the marker's `excludedCommands`; keep everything else of the profile. The sandbox already allows writes to the working directory, so no `allowWrite` is needed. If `.claude/slice-run.json` exists, show the diff before changing it.
+5. Sandbox check. Builders run inside this profile, so prove that the verify recipe's tools start there. Pick the
+   shortest command from the recipe that starts the app or its driver (for a browser recipe: launch the browser
+   headless, open `about:blank`, close it) and run it through the profile:
+   `claude -p 'Run this Bash command and print its exit code and the last lines of output: <command>' --settings .claude/slice-run.json --permission-mode dontAsk --allowedTools Bash --model haiku --max-budget-usd 0.2`.
+   If it fails inside the sandbox, show the error and offer to add that command pattern to the marker's
+   `excludedCommands` (it then runs unsandboxed), then repeat step 4 and this check. A run whose builder cannot
+   start the app cannot verify anything.
 
 Write nothing else: no make targets, lock, hooks or cloud setup. End with: small tickets work right away; for bigger work run /slice:shape, then /slice:run.
