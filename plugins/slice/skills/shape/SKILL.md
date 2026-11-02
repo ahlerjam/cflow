@@ -43,10 +43,8 @@ Before the interview run the built-in `Explore` subagent on the affected area: m
 points, risks. Its short summary goes into the epic under `## Context`.
 
 ## No app yet (greenfield)
-The first feature is always a walking skeleton: the app starts, the core path runs thinly end to end, and the verify
-recipe is written to `docs/verify.md` (when to run, how to start and drive the app, what proves success, what to do on
-failure). Its steps say so. Run sessions cannot write `.claude/`; `/slice:setup` puts a stub skill there that points
-to that file.
+The first feature is always a walking skeleton: the app starts with one documented command (README or `Makefile`)
+and the core path runs thinly end to end. Its steps say so.
 
 ## Scope
 Be ambitious. Plan the complete product the person describes, not a minimal first cut. Skip nothing a user would expect, and add what would make it clearly better than the obvious version.

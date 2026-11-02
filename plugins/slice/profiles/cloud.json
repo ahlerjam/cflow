@@ -10,7 +10,8 @@
       "ToolSearch",
       "Skill",
       "Agent",
-      "PushNotification"
+      "PushNotification",
+      "mcp__plugin_playwright_playwright__*"
     ],
     "deny": [
       "Bash(git push*)",

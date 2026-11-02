@@ -29,8 +29,9 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    later run starts from a clean tree.
    - a. Done is defined: every feature has at least one step with a concrete action and an observable expected
      result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
-   - b. It can check its own work: `.claude/skills/verify/SKILL.md` exists. In a new app it is the stub from
-     `/slice:setup` that points to `docs/verify.md`, and the first feature is a walking skeleton that writes that recipe.
+   - b. It can run the app: a project skill `verify` or `run-<name>` exists in `.claude/skills/`, or the README,
+     `Makefile` or package scripts say how to start it, or the first feature is a walking skeleton. For features
+     marked `ui`, the Playwright plugin is installed and enabled (`claude plugin list`).
    - c. What it may touch: `.claude/slice-run.json` exists.
    - d. What stops it: `budgetUsd` (default 30), `maxTurns` (default 400) and `runBudgetUsd` (default 5 times
      `budgetUsd`) from `.claude/slice.json` resolve to numbers.
@@ -47,24 +48,30 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    default of 10 minutes would kill it):
 
    ```
-   cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort high --max-budget-usd <B> --max-turns <maxTurns> --permission-mode dontAsk --settings <settings> > <out>/worker.json 2> <out>/worker.err
+   cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort high --max-budget-usd <B> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/worker.json 2> <out>/worker.err
    ```
 
    Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is `budgetUsd` for the first call.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
-   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run with the verify skill against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "In a run session"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
+   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "In a run session"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
 
    Do not poll; wait for the completion notice. Tell the person once that the run started and that `/background`
    detaches this session.
 7. On exit read `<out>/worker.json`: `session_id`, `subtype`, `total_cost_usd`. `total_cost_usd` is cumulative for
    the session, so the run's spend is its latest value; never sum calls. Count features with `passes: true` in
    `.slice/features.json`.
-   - All pass and `subtype` is `success`: go to step 8.
+   - All pass and `subtype` is `success`: acceptance. Run Claude Code's own `/verify` as an independent check,
+     sandboxed like the builder, `run_in_background: true`, `timeout: 3600000`:
+     `cd <repo root> && claude -p '/verify Run every E2E step of every feature in .slice/features.json against the running app. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
+     Add its cost to the spend. Every feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
+     prompt `Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
+     then run acceptance again. A second acceptance with FAIL lines: halt and list them in the report.
    - `subtype` is `error_max_budget_usd` or `error_max_turns`, or `success` with features still false:
      - spend >= `runBudgetUsd`: halt.
      - Two resumes in a row added no newly passing feature: halt.
-     - Otherwise resume with the same command, but `claude -p --resume <session_id> 'Continue toward the goal.'`
+     - Otherwise resume with the same command, but `claude -p --resume <session_id> '<GOAL>'` (setting the goal again
+       also restores it if an error cleared it)
        and `--max-budget-usd` = min(`budgetUsd`, `runBudgetUsd` - spend), rounded to cents. Wait as in step 6.
    - Anything else (no JSON, other subtype): halt and show the tail of `<out>/worker.err`.
    A halt still goes on to step 8 when at least one feature passed; with none, report only.
@@ -90,6 +97,7 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    - For every feature issue that passed, post a comment: run branch, commit, "E2E steps passed in the run;
      evidence in the PR".
    If a push or API call fails, show the error, keep going with the rest and report what is missing.
-10. Report: source, branch, base commit, passed of total, spend in $, number of resumes, the halt reason if there
-    was one, PR links, the needs-decision list, any `## Recipe changes` from `progress.md` (offer to apply them to the verify skill), and that `.slice/spec.md` and `.slice/features.json` are in the PR
+10. Report: source, branch, base commit, passed of total, the acceptance result, spend in $, number of resumes,
+    the `permission_denials` from `worker.json` (what the builder was refused; offer to allow it in `.claude/slice-run.json`), the halt reason if there
+    was one, PR links, the needs-decision list, any `## Recipe changes` from `progress.md` (offer to apply them to the recorded recipe), and that `.slice/spec.md` and `.slice/features.json` are in the PR
     as the record of what was built. Do not merge.
