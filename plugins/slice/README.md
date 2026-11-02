@@ -1,6 +1,6 @@
 # slice
 
-slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, `/verify`, `/code-review` and the official Playwright and Context7 plugins.
+slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, `/verify`, `/code-review` and the official Playwright plugin.
 
 ## Requirements
 
@@ -10,6 +10,8 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 | git | run branch, diffs, commits | `git --version` |
 | Node.js | the Playwright plugin, which slice installs as a dependency (`npx @playwright/mcp`), and the guard hook of run sessions | `node --version` |
 | gh | issue planning in `/slice:shape`, `/slice:run #<n>` and PR delivery; optional for files only | `gh auth status` |
+
+Optional: a Context7 MCP server (the `context7` plugin or your own). Builders use it to look up library docs when it is there.
 
 
 ## Setup
