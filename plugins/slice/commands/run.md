@@ -7,7 +7,9 @@ disable-model-invocation: true
 Run the feature list in `.slice/features.json`. The builder is a separate `claude -p` process with a `/goal`. This
 session only prepares the run, starts the builder, resumes it, delivers and reports; it builds nothing itself. The
 builder works from the two files and cannot reach GitHub (sandbox); everything on GitHub happens here. All GitHub
-calls use REST through `gh api`, never `gh issue` or `gh pr` (GraphQL fails in cloud sessions).
+calls use REST through `gh api`, never `gh issue` or `gh pr` (GraphQL fails in cloud sessions). Write every
+comment and PR body to a file in `<out>` and pass it with `-F body=@<file>`, never inline: backticks in a quoted
+shell string run as commands and blank out commit hashes.
 
 Arguments: `#<n>` (an epic or a ticket) or `milestone:<n>` as the source, and the delivery mode `epic-pr` (default
 for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
@@ -68,14 +70,14 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    A halt still goes on to step 8 when at least one feature passed; with none, report only.
 8. Owner questions. The builder writes them to `.slice/progress.md` under `## Needs decision` as `- f<k>: <question>`.
    For an issue source, map `f<k>` to its `issue` in `.slice/features.json`, post the question as a comment on
-   that issue (`gh api repos/<o>/<r>/issues/<issue>/comments -f body=...`) and add the label `needs-decision`
+   that issue (`gh api repos/<o>/<r>/issues/<issue>/comments -F body=@<file>`) and add the label `needs-decision`
    (`gh api repos/<o>/<r>/issues/<issue>/labels -f 'labels[]=needs-decision'`). Create the label first if
    `gh api repos/<o>/<r>/labels/needs-decision` returns 404 (`POST repos/<o>/<r>/labels -f name=needs-decision -f color=d93f0b`).
    For a files-only source, only list the questions in the report.
 9. Delivery, outside the sandbox; the builder never pushes. Never force-push.
    - Files-only source: branch only. Suggest `gh pr create`.
    - `epic-pr`: `git push -u origin <run branch>`, then one draft PR:
-     `gh api repos/<o>/<r>/pulls -f title=... -f head=<run branch> -f base=<base branch> -F draft=true -f body=...`.
+     `gh api repos/<o>/<r>/pulls -f title=... -f head=<run branch> -f base=<base branch> -F draft=true -F body=@<file>`.
      Body: summary, one line `Closes #<issue>` for every feature with `passes` true (and `Closes #<epic>` if all
      pass), the features still false with the reason from `progress.md`, the needs-decision list. Get the default
      branch with `gh api repos/<o>/<r> --jq .default_branch`. If the base branch is not it, say in the body and in
