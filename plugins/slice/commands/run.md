@@ -64,17 +64,19 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
 7. On exit read `<out>/worker.json`: `session_id`, `subtype`, `total_cost_usd`. `total_cost_usd` is cumulative for
    the session, so the run's spend is its latest value; never sum calls. Count features with `passes: true` in
    `.slice/features.json`.
-   - All pass and `subtype` is `success`, no feature marked `ui` and no `accept` argument: go to step 8.
-   - All pass and `subtype` is `success`, otherwise: acceptance. Run Claude Code's own `/verify` as an independent check,
+   All features pass, whatever the `subtype` (a call can stop on its cap right after the last step):
+   - No feature marked `ui` and no `accept` argument: go to step 8.
+   - Otherwise: acceptance, if at least 0.5 $ of `runBudgetUsd` is left (else say it was skipped for budget and go to
+     step 8). Run Claude Code's own `/verify` as an independent check,
      sandboxed like the builder, `run_in_background: true`, `timeout: 3600000`:
      `cd <repo root> && claude -p '/verify Run every E2E step of every feature in .slice/features.json against the running app. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
      Add its cost to the spend. Every feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
      prompt `Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
      then run acceptance again. A second acceptance with FAIL lines: halt and list them in the report.
-   - `subtype` is `error_max_budget_usd` or `error_max_turns`, or `success` with features still false:
-     - spend >= `runBudgetUsd`: halt.
-     - Two resumes in a row added no newly passing feature: halt.
-     - Otherwise resume with the same command, but `claude -p --resume <session_id> '<GOAL>'` (setting the goal again
+   Features still false and `subtype` is `error_max_budget_usd`, `error_max_turns` or `success`:
+   - spend >= `runBudgetUsd`: halt.
+   - Two resumes in a row added no newly passing feature: halt.
+   - Otherwise resume with the same command, but `claude -p --resume <session_id> '<GOAL>'` (setting the goal again
        also restores it if an error cleared it)
        and `--max-budget-usd` = min(`budgetUsd`, 0.7 × (`runBudgetUsd` - spend)), rounded to cents. The cap is checked
        between turns, so a call overshoots it by its last turn (reviews and subagents); the 30 % is headroom.
