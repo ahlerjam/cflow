@@ -4,7 +4,10 @@
       {
         "matcher": "Edit|Write|Bash",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-features.mjs" }
+          {
+            "type": "command",
+            "command": "[ \"$SLICE_RUN\" != 1 ] || node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-features.mjs"
+          }
         ]
       }
     ],
@@ -12,7 +15,10 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-features.mjs post" }
+          {
+            "type": "command",
+            "command": "[ \"$SLICE_RUN\" != 1 ] || node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-features.mjs post"
+          }
         ]
       }
     ]

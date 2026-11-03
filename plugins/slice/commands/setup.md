@@ -5,13 +5,15 @@ disable-model-invocation: true
 ---
 Set up slice in the current repo. Interactive: it runs in your session because run sessions cannot edit `.claude`. Change nothing that exists without showing it first.
 
-1. Marker. If `.claude/slice.json` is missing, write it. Fields: `excludedCommands` (commands that run outside the sandbox, `Bash(...)` pattern syntax, e.g. `docker compose *`), `allowedDomains` (network the run sessions may reach), `budgetUsd` 30, `maxTurns` 400, `runBudgetUsd` (cap for the whole run, default 5 times `budgetUsd`). Ask at most one question with AskUserQuestion, recommended answer first: the domains the app's dependencies need beyond the package registries already allowed (suggest from the stack and lockfiles). Leave `excludedCommands` empty unless the app needs a tool that cannot run sandboxed, and say that such commands run unsandboxed. If the file exists, show it and change only what the person asks for.
+1. Marker. If `.claude/slice.json` is missing, write it. Fields: `excludedCommands` (commands that run outside the sandbox, `Bash(...)` pattern syntax, e.g. `docker compose *`), `allowedDomains` (network the run sessions may reach), `budgetUsd` 10, `maxTurns` 400, `runBudgetUsd` (cap for the whole run, default 3 times `budgetUsd`). Ask at most one question with AskUserQuestion, recommended answer first: the domains the app's dependencies need beyond the package registries already allowed (suggest from the stack and lockfiles). Leave `excludedCommands` empty unless the app needs a tool that cannot run sandboxed, and say that such commands run unsandboxed. If the file exists, show it and change only what the person asks for.
 2. Run recipe. Look for a project skill `verify` or `run-<name>` in `.claude/skills/`. Claude Code's own `/verify`
-   records `verify`, `/run-skill-generator` records `run-<name>`; slice does not check or write their content.
+   records `verify`, `/run-skill-generator` records `run-<name>`; slice does not check or write their content. Only a
+   project skill named `verify` makes Claude Code run it before each commit in interactive sessions; a `run-<name>`
+   skill only tells sessions how to start the app.
    - Present: name it and go on.
-   - Missing in an existing app: recommend running `/run-skill-generator` now, or `/verify` once on a small change, so
+   - Missing in an existing app: recommend running `/verify` once on a small change (it records `verify`), or `/run-skill-generator`, so
      builders and the before-commit check follow a recorded recipe instead of guessing. Go on either way.
-   - Missing in a greenfield repo: skip; there is nothing to record yet. Suggest `/run-skill-generator` after the
+   - Missing in a greenfield repo: skip; there is nothing to record yet. Suggest `/verify` after the
      first run.
 3. Audit. Propose only what is missing; show it, write after consent.
    - One command each to start, test and lint, e.g. as `make` targets.
@@ -40,4 +42,4 @@ Set up slice in the current repo. Interactive: it runs in your session because r
    `excludedCommands` (it then runs unsandboxed), then repeat step 4 and this check. A run whose builder cannot
    start the app cannot verify anything.
 
-Write nothing beyond the marker, the run settings and what the person accepted in step 3 (including language server plugins): no lock, hooks or cloud setup. End with: small tickets need nothing from slice (with a recorded `verify` skill Claude Code runs it before each commit); for bigger work run /slice:shape, then /slice:run.
+Write nothing beyond the marker, the run settings and what the person accepted in step 3 (including language server plugins): no lock, hooks or cloud setup. End with: small tickets need nothing from slice (with a recorded project skill named `verify`, Claude Code runs it before each commit in interactive sessions); for bigger work run /slice:shape, then /slice:run.

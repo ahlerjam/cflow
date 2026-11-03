@@ -35,7 +35,7 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
      marked `ui`, the Playwright plugin is installed and enabled (`claude plugin list`). Not a gate: if no language
      server plugin (`*-lsp`) is enabled for the repo's main language, say so in the report and name `/slice:setup`.
    - c. What it may touch: `.claude/slice-run.json` exists.
-   - d. What stops it: `budgetUsd` (default 30), `maxTurns` (default 400) and `runBudgetUsd` (default 5 times
+   - d. What stops it: `budgetUsd` (default 10), `maxTurns` (default 400) and `runBudgetUsd` (default 3 times
      `budgetUsd`) from `.claude/slice.json` resolve to numbers.
    - e. Where the result goes: the delivery mode is known. For an issue source, `gh auth status` works and the
      remote branch of the base exists (`git ls-remote --exit-code --heads origin <base branch>`).

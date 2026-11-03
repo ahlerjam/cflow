@@ -17,11 +17,11 @@ Optional: a Context7 MCP server (the `context7` plugin or your own). Builders us
 ## Setup
 
 1. Install from the cflow marketplace: `/plugin install slice@cflow`.
-2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json`, writes the run settings `.claude/slice-run.json` and audits the repo. If there is no recorded run recipe yet, it suggests running Claude Code's `/run-skill-generator` (or `/verify` once) so builders start the app the recorded way.
+2. Run `/slice:setup` in the repo. It writes the marker `.claude/slice.json`, writes the run settings `.claude/slice-run.json` and audits the repo. If there is no recorded run recipe yet, it suggests running Claude Code's `/verify` once (or `/run-skill-generator`) so builders start the app the recorded way.
 
 ## Use
 
-- **Small ticket.** slice stays out of it. With a recorded `verify` skill in the repo, Claude Code runs it before each commit on its own.
+- **Small ticket.** slice stays out of it. With a project skill named `verify` in `.claude/skills/` (what `/verify` records), Claude Code runs it before each commit in interactive sessions. A `run-<name>` skill does not trigger this, and for `claude -p` it is not documented.
 - **Bigger work.** `/slice:shape` plans it. Quick mode asks at most 6 questions (a ticket); deep mode has no limit and ends only when every area of its coverage list is settled, every feature has executable E2E steps and you confirmed a summary (an epic or milestone). In existing code it runs `Explore` first and puts the summary in the epic. In a new app the first feature is a walking skeleton: the app starts with one documented command and the core path runs end to end.
 - **Where the plan goes.** With a GitHub remote and a working `gh`, shape offers to create issues. Without, it writes `.slice/spec.md` and `.slice/features.json`. Review them, then run `/slice:run`.
 
@@ -66,7 +66,7 @@ All calls use the REST API through `gh api`.
 
 | What | Where |
 | --- | --- |
-| Marker: `budgetUsd` (30), `maxTurns` (400), `runBudgetUsd` (5 times `budgetUsd`), `allowedDomains`, `excludedCommands` | `.claude/slice.json` |
+| Marker: `budgetUsd` (10), `maxTurns` (400), `runBudgetUsd` (3 times `budgetUsd`), `allowedDomains`, `excludedCommands` | `.claude/slice.json` |
 | Builder settings: the plugin's `profiles/run.json` plus the marker's domains and commands | `.claude/slice-run.json` |
 | Spec, feature list, builder log (from the issues, for an issue source) | `.slice/spec.md`, `.slice/features.json`, `.slice/progress.md` |
 | Builder and acceptance output (`worker.json`, `accept.json`, their `.err` files) | `~/.cache/slice/<repo>/` (or under `XDG_CACHE_HOME`) |
@@ -74,5 +74,5 @@ All calls use the REST API through `gh api`.
 ## Limits
 
 - The builder runs sandboxed with `failIfUnavailable`. Network is limited to the package registries plus `allowedDomains`, and commands in `excludedCommands` run unsandboxed.
-- On a cloud VM (`CLAUDE_CODE_REMOTE=true`) the run uses the profile without sandbox. There the builder could reach GitHub; only `git push`, `gh pr` and `gh release` are denied. Cloud runs aren't tested end to end for this version.
-- In a run session a hook (`scripts/guard-features.mjs`, Node.js) rejects edits to `.slice/features.json` other than `passes`, and shell commands that name the file in anything but a read. After every shell command it compares the file with the `slice: plan` commit and tells the builder to restore it when more than `passes` changed.
+- On a cloud VM (`CLAUDE_CODE_REMOTE=true`) the run uses the profile without sandbox. There the builder could reach GitHub; only `git push`, `gh pr` and `gh release` are denied. Cloud runs aren't tested end to end for this version. Cloud sessions don't install plugins from the repo's settings, so slice has to be loaded another way there, and background shell work in a cloud VM is limited in time, which can cut a long builder short.
+- In a run session (`SLICE_RUN=1`; other sessions skip it before Node starts) a hook (`scripts/guard-features.mjs`, Node.js) rejects edits to `.slice/features.json` other than `passes`, and shell commands that name the file in anything but a read. After every shell command it compares the file with the `slice: plan` commit and tells the builder to restore it when more than `passes` changed.
