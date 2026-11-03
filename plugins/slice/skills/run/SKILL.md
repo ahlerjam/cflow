@@ -112,8 +112,9 @@ State changes are committed in `<agent>` as `slice: state <id> <state>`. Only th
      with the failing test as reason, and put the tail of the failing output in the changelog entry.
 8. Finish. Push the agent branch when the repo has a remote (`git -C <agent> push origin <agentBranch>`, never force;
    a failed push is reported, not fatal). Remove the run worktree (`git worktree remove --force <run>`); keep the
-   branch. Write the changelog entry. Start the next queued plan, if any. In the chat say one line: done, merged to
-   `<agentBranch>`, the link to the changelog (or the merge commit). Nothing more.
+   branch. Write the changelog entry. Start the next queued plan, if any. Your last chat message is exactly one line, for
+   example `Done: 13/13 features merged to agent, report: <changelog link or merge commit>`. No list, no details, no
+   hints: the report lives in the changelog and the merge commit.
    Notifications: after each finished feature the builder sends one itself. Send the halt notification
    here, immediately on a halt, with the reason, using the PushNotification tool if it is available (skip silently
    otherwise). slice has resumed on its own first (step 6); a halt means that did not help.

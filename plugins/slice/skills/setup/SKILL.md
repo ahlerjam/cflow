@@ -19,6 +19,9 @@ Set up slice in the current repo, only because the person asked. Interactive: it
    - One command each to start, test and lint, e.g. as `make` targets.
    - `CLAUDE.md` (or `AGENTS.md`) under 200 lines that names those commands. If it is missing, suggest `/init`.
    - The run recipe (step 2) and a clean starting state: `git status` clean, the app starts.
+   - Screens: if the app has or will have a browser UI, check that the Playwright plugin is enabled (`claude plugin
+     list`); missing: after consent, `claude plugin install playwright@claude-plugins-official`. Builders and the
+     acceptance use its browser tools; runs without screens do not need it.
    - `.slice/` is committed on the agent branch; `.claude/slice-run.json` is local and may be gitignored.
    - Code intelligence: for each language the repo is written in that has an official language server plugin
      (`typescript-lsp`, `pyright-lsp`, `gopls-lsp`, `rust-analyzer-lsp`, `jdtls-lsp`, `kotlin-lsp`, `csharp-lsp`,

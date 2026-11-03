@@ -8,7 +8,8 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 | --- | --- | --- |
 | Claude Code | the plugin and the builder sessions | `claude --version` |
 | git | worktrees, run branches, commits | `git --version` |
-| Node.js | the Playwright plugin, which slice installs as a dependency (`npx @playwright/mcp`), and the guard hook of run sessions | `node --version` |
+| Node.js | the guard hook of run sessions | `node --version` |
+| Playwright plugin | features with screens (builder and acceptance use its browser tools); install with `/plugin install playwright@claude-plugins-official` | `claude plugin list` |
 
 Optional: a Context7 MCP server (the `context7` plugin or your own). Builders use it to look up library docs when it is there. Also optional: a language server for each language in the repo, used by the official `*-lsp` plugins that the `setup` skill offers. Pushing needs a git remote, and the changelog needs the Claude Docs connector; both are used when available.
 
