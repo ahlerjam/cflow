@@ -32,7 +32,7 @@
     {
       "name": "slice",
       "source": "./plugins/slice",
-      "description": "Plans a spec and an E2E feature list, then one /goal session builds and proves each feature."
+      "description": "Plans work in a chat interview, builds it unattended, merges to an agent branch when E2E passes."
     },
     {
       "name": "useful-tools",

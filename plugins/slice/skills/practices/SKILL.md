@@ -1,7 +1,7 @@
 ---
 name: practices
-description: Engineering know-how for planning and building with slice. Rules and sources for writing good GitHub issues and E2E steps, per-project-type cookbooks (CLI, web UI, HTTP API, library, data job) with coverage questions, quality bar and E2E approach, code rules against AI slop, and architecture records (ADR, vertical slices, walking skeleton). Use when /slice:shape plans work or a slice run session builds it.
-when_to_use: /slice:shape, slice run session, .slice/spec.md, slice cookbook.
+description: Engineering know-how for planning and building with slice. Rules and sources for writing good work items and E2E steps, per-project-type cookbooks (CLI, web UI, HTTP API, library, data job) with coverage questions, quality bar and E2E approach, code rules against AI slop, and architecture records (ADR, vertical slices, walking skeleton). Use when the shape skill plans work or a slice run session builds it.
+when_to_use: /slice:shape, slice run session, .slice/plans, slice cookbook.
 user-invocable: false
 ---
 Load only the files the task needs. Each file states rules first and its sources last; follow the rules, look up the
@@ -10,7 +10,7 @@ access: there, use only Context7 or the installed package's docs.
 
 | File | Load when |
 |---|---|
-| `${CLAUDE_SKILL_DIR}/references/issues.md` | Planning: writing the spec, features, E2E steps, epics, sub-issues, milestones |
+| `${CLAUDE_SKILL_DIR}/references/issues.md` | Planning: writing the spec, features and E2E steps |
 | `${CLAUDE_SKILL_DIR}/references/cli.md` | The work is a command line tool |
 | `${CLAUDE_SKILL_DIR}/references/web.md` | The work has screens in a browser |
 | `${CLAUDE_SKILL_DIR}/references/api.md` | The work is or exposes an HTTP API |

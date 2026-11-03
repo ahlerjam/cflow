@@ -1,17 +1,21 @@
 ---
 name: shape
-description: Plans a piece of work as a product spec and a feature list with executable end-to-end steps, after an interview, and writes it as GitHub issues (epic with sub-issues, or one ticket) or as .slice files. Use when the person wants to plan a ticket, feature, app, epic or milestone before an unattended /slice:run.
-when_to_use: /slice:shape, "plan this", "write a spec", "break this into features", "create issues for this", "Feature planen", "Spezifikation schreiben", "Arbeit in Features aufteilen", "Epic anlegen", "vor dem Run".
-disable-model-invocation: true
+description: Plans a piece of work as a product spec and a feature list with executable end-to-end steps after an interview sized to the work, saves it as a plan on the agent branch and asks whether to start it. Use when the person asks to build, add, change or fix something in a repo set up with slice (.claude/slice.json), or to plan before a run. Not for listing, starting, changing or deleting saved plans (run).
+when_to_use: /slice:shape, "plan this", "build this", "fix this bug", "write a spec", "break this into features", "Feature planen", "baue", "ändere", "behebe", "Fehler beheben", "füge ... hinzu", "Spezifikation schreiben", "Arbeit in Features aufteilen".
 ---
-Plan the work with the person. Read the repo first (README, docs, existing code, `.slice/` if present). The result is
-either GitHub issues or the two files `.slice/spec.md` and `.slice/features.json`; nothing else is written.
+Plan the work with the person. Read the repo first (README, docs, existing code) and the agent worktree's `.slice/`
+if it exists. The agent worktree is `${XDG_CACHE_HOME:-$HOME/.cache}/slice/<repo dir name>/agent` on `agentBranch` from
+the marker. Create it when missing with `git worktree add <path> <agentBranch>`; stop if `agentBranch` equals the
+repo's default branch or is checked out in the person's checkout. The result is a plan: `spec.md` and `features.json` under `.slice/plans/<id>/` on the agent branch.
+Nothing else is written, and the person's checkout is never switched or modified. Without the marker
+`.claude/slice.json`, tell the person to set slice up first (`setup` skill) and stop.
 
 ## Mode
-- Quick: at most 6 questions. For a ticket: one change in one place.
-- Deep: no question limit. For an epic, a milestone, or any new app or tool, however small it sounds.
+Estimate the size of the work first, then pick the mode and say which one you use.
+- Quick: at most 6 questions. For a small change: one change in one place.
+- Deep: no question limit. For anything bigger, and for any new app or tool, however small it sounds.
 
-Suggest the mode by the size of the work; the person can override. Deep mode ends only when all three hold: every
+The person can override the mode. Deep mode ends only when all three hold: every
 area of the coverage list is settled, every feature has executable E2E steps, and the person confirmed the summary.
 Both modes end with the summary.
 
@@ -40,13 +44,15 @@ Coverage list:
    formats the person cares about (labels, messages, totals), written into the steps verbatim.
 8. Testability: how a test fixes the current time, the data location and other inputs; name the exact switches.
 9. Hard constraints: platform, install, performance, privacy.
+10. Keys and access: env var names, accounts and services the work needs. Ask for them up front. Record the names
+    (never values) under `## Access` in the spec. A missing key is no blocker: the builder builds against a fake.
 
 Summary: before writing anything, show the planned features in one line each and every assumption you made as its
 own line, and ask the person to confirm or correct. Apply corrections and show what changed.
 
 ## Existing code (brownfield)
 Before the interview run the built-in `Explore` subagent on the affected area: modules, existing patterns, entry
-points, risks. Its short summary goes into the epic under `## Context`.
+points, risks. Its short summary goes into the spec under `## Context`.
 
 ## No app yet (greenfield)
 The first feature is always a walking skeleton: the app starts with one documented command (README or `Makefile`)
@@ -58,7 +64,7 @@ Plan the complete product the person describes, not a minimal first cut, and ski
 ## Spec
 Product level only: the first line `Type: <cli|web|api|library|data-job>` (several if they apply), purpose, users, what they can do, the quality bar. No implementation details or file names. Owner decisions and every assumption from the summary (stack, storage, platform, conventions) go under `## Decisions`, so the builder never has to guess them. For screens, add the states that must exist (empty, loading, error, long data).
 
-Add `## Quality bar` to the spec: the cookbook's quality bar items that apply, adjusted to what the person said. The
+Add `## Access` (names only) when the work needs keys or services, and `## Quality bar` to the spec: the cookbook's quality bar items that apply, adjusted to what the person said. The
 builder and the reviewers check against it.
 
 ## Features
@@ -67,29 +73,17 @@ builder and the reviewers check against it.
 - Every feature with screens is marked `ui`.
 
 ## Output
-Ask once whether to create GitHub issues (recommended yes), only if the repo has a GitHub remote and `gh auth status`
-works. Use REST through `gh api` only, never `gh issue` (GraphQL fails in cloud sessions).
+Plan id: `YYYYMMDD-<short-slug>`. Work in the agent worktree. Write:
+- `.slice/plans/<id>/spec.md`
+- `.slice/plans/<id>/features.json`:
+  ```json
+  {"features": [{"id": "f1", "title": "...", "steps": ["User does X", "Sees Y"], "passes": false, "ui": true}]}
+  ```
+  Every `passes` is `false`; `ui` is optional. Only `passes` may change after this skill.
+- `.slice/plans/<id>/state.json`: `{"state": "parked"}`.
 
-Issue formats, the same ones `/slice:run` reads:
-- Epic: one parent issue, label `slice`. Body sections `## Spec` (the product-level spec) and optional `## Context`
-  (the exploration summary). Its sub-issues are the features, in build order.
-- Feature or ticket: one issue, label `slice` (plus `ui` for features with screens). Body section `## E2E steps` as
-  a `- ` list, one line per step; optional `## Notes`.
-- Milestone: a GitHub milestone holding epics and/or tickets.
-
-Create what is missing, with `gh api repos/<o>/<r>/...`:
-1. Labels `slice` and `ui` (`POST labels`, skip if `GET labels/<name>` succeeds).
-2. Optional milestone (`POST milestones -f title=...`), set on the issues with `-F milestone=<number>`.
-3. Epic: `POST issues`, then each feature in build order with `POST issues`. Link every feature with
-   `POST issues/<epic>/sub_issues -F sub_issue_id=<id>`; `<id>` is the feature's numeric `id` from the create
-   response, not its number.
-4. A single ticket is one issue with `## E2E steps`, plus `## Quality bar` and `## Decisions` when they apply; no epic.
-
-Show the issue numbers and titles in order, and say: review them, then `/slice:run #<epic>` (or `milestone:<n>`).
-
-Without issues, write `.slice/spec.md` and `.slice/features.json`:
-```json
-{"features": [{"id": "f1", "title": "...", "steps": ["User does X", "Sees Y"], "passes": false, "ui": true}]}
-```
-Every `passes` is `false`; `ui` is optional. Only `passes` may change after this skill. Show the feature titles in
-order and say: review both files, then `/slice:run`.
+Commit them in the agent worktree as `slice: plan <id>`, and push the agent branch when the repo has a remote (never
+force). Then ask one AskUserQuestion, the start question: `Start now` (recommended), `Park`, `Plan another task`.
+- Start now: invoke the `run` skill for the plan.
+- Park: the plan stays `parked`; say how to start it later ("start plan <id>").
+- Plan another task: begin a new interview.

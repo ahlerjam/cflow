@@ -1,4 +1,4 @@
-# Issues, features and E2E steps
+# Work items, features and E2E steps
 
 ## Rules
 - Title names the outcome a user gets ("Export habits as CSV"), not the activity ("Implement export").
@@ -18,16 +18,10 @@
   repeated actions, undo, permissions. Name the expected message or status.
 - Build order: the first feature is the walking skeleton (see `references/architecture.md`); each later feature can be checked
   with only the ones before it.
-- GitHub: an epic is a parent issue whose sub-issues are the features; progress comes from closed sub-issues, not from
-  checkboxes. Each sub-issue closes on its own. A milestone is a shippable stage. Labels are few and orthogonal
-  (type, area), never combined meanings; slice's own labels (`slice`, `ui`, `needs-decision`) come on top.
 - Owner decisions (direction, stack, architecture, UX, anything irreversible) are settled in planning or written down
   as an assumption in the summary, never left for the builder to guess.
 
 ## Sources
-- GitHub sub-issues: https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues
-- GitHub issue forms: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
-- GitHub milestones: https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/about-milestones
 - INVEST: https://www.agilealliance.org/glossary/invest/
 - Given/When/Then: https://martinfowler.com/bliki/GivenWhenThen.html, https://cucumber.io/docs/bdd/better-gherkin/
 - Splitting stories: https://www.humanizingwork.com/the-humanizing-work-guide-to-splitting-user-stories/

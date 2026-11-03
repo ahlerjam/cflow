@@ -1,11 +1,11 @@
 ---
-description: Opts the repo into slice with a marker file, points to Claude Code's run recipe and audits the repo for what an unattended run needs.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
-disable-model-invocation: true
+name: setup
+description: Opts the repo into slice with a marker file, creates the agent branch, writes the run settings and audits the repo for what an unattended run needs. Use only when the person asks to set up slice in the current repo.
+when_to_use: /slice:setup, "set up slice", "richte slice ein", "slice einrichten", "slice in diesem Repo einrichten".
 ---
-Set up slice in the current repo. Interactive: it runs in your session because run sessions cannot edit `.claude`. Change nothing that exists without showing it first.
+Set up slice in the current repo, only because the person asked. Interactive: it runs in your session because run sessions cannot edit `.claude`. Change nothing that exists without showing it first.
 
-1. Marker. If `.claude/slice.json` is missing, write it. Fields: `excludedCommands` (commands that run outside the sandbox, `Bash(...)` pattern syntax, e.g. `docker compose *`), `allowedDomains` (network the run sessions may reach), `maxTurns` 400. Write no dollar cap; an optional `budgetUsd` (cap for a whole run) is only for test runs. Ask at most one question with AskUserQuestion, recommended answer first: the domains the app's dependencies need beyond the package registries already allowed (suggest from the stack and lockfiles). Leave `excludedCommands` empty unless the app needs a tool that cannot run sandboxed, and say that such commands run unsandboxed. If the file exists, show it and change only what the person asks for.
+1. Marker. If `.claude/slice.json` is missing, write it. Fields: `agentBranch` (`agent`), `testCommand` (the repo's test command; detect it, confirm it), `startCommand` (optional, how to start the app), `maxTurns` 400, `allowedDomains` (network the run sessions may reach), `excludedCommands` (commands that run outside the sandbox, `Bash(...)` pattern syntax, e.g. `docker compose *`), `changelogDoc` (optional, step 7). Write no dollar cap; an optional `budgetUsd` (cap for a whole run) is only for test runs. Ask at most two questions with AskUserQuestion, recommended answer first: the test command if it is unclear, and the domains the app's dependencies need beyond the package registries already allowed (suggest from the stack and lockfiles). Leave `excludedCommands` empty unless the app needs a tool that cannot run sandboxed, and say that such commands run unsandboxed. If the file exists, show it and change only what the person asks for.
 2. Run recipe. Look for a project skill `verify` or `run-<name>` in `.claude/skills/`. Claude Code's own `/verify`
    records `verify`, `/run-skill-generator` records `run-<name>`; slice does not check or write their content. Only a
    project skill named `verify` makes Claude Code run it before each commit in interactive sessions; a `run-<name>`
@@ -19,6 +19,7 @@ Set up slice in the current repo. Interactive: it runs in your session because r
    - One command each to start, test and lint, e.g. as `make` targets.
    - `CLAUDE.md` (or `AGENTS.md`) under 200 lines that names those commands. If it is missing, suggest `/init`.
    - The run recipe (step 2) and a clean starting state: `git status` clean, the app starts.
+   - `.slice/` is committed on the agent branch; `.claude/slice-run.json` is local and may be gitignored.
    - Code intelligence: for each language the repo is written in that has an official language server plugin
      (`typescript-lsp`, `pyright-lsp`, `gopls-lsp`, `rust-analyzer-lsp`, `jdtls-lsp`, `kotlin-lsp`, `csharp-lsp`,
      `clangd-lsp`, `php-lsp`, `ruby-lsp`, `swift-lsp`, `lua-lsp` in `claude-plugins-official`), check whether it is
@@ -31,7 +32,7 @@ Set up slice in the current repo. Interactive: it runs in your session because r
    - Architecture. New app beyond a few files: propose a style in `docs/adr/0001-architecture.md` with the stack;
      default proposal is Vertical Slice Architecture. A small app names the stack in its README. Existing code: detect the style in use and document it there.
    Greenfield (empty directory or no commits): offer to scaffold the same list (`git init`, make targets,
-   `CLAUDE.md`, the ADR) and to create the GitHub repo with `gh repo create` (ask; private by default).
+   `CLAUDE.md`, the ADR).
 
 4. Run settings. Write `.claude/slice-run.json` as a copy of `${CLAUDE_PLUGIN_ROOT}/profiles/run.json`, with `sandbox.network.allowedDomains` extended by the marker's `allowedDomains` and `sandbox.excludedCommands` extended by the marker's `excludedCommands`; keep everything else of the profile. The sandbox already allows writes to the working directory, so no `allowWrite` is needed. If `.claude/slice-run.json` exists, show the diff before changing it.
 5. Sandbox check. Builders run inside this profile, so prove that the app's tools start there. Pick the
@@ -41,5 +42,13 @@ Set up slice in the current repo. Interactive: it runs in your session because r
    If it fails inside the sandbox, show the error and offer to add that command pattern to the marker's
    `excludedCommands` (it then runs unsandboxed), then repeat step 4 and this check. A run whose builder cannot
    start the app cannot verify anything.
+6. Agent branch. Create the branch `agentBranch` from the repo's default branch (`git symbolic-ref
+   --short refs/remotes/origin/HEAD`, else `main` or `master`) without switching the person's checkout
+   (`git branch <agentBranch> <default>`). It exists already: leave it. A greenfield repo needs one commit first.
+7. Changelog doc. If the Claude Docs connector is available in this session, offer to create one doc as the repo's
+   changelog and store its link in the marker as `changelogDoc`. Without the connector, skip and say runs report in
+   the merge commit instead.
 
-Write nothing beyond the marker, the run settings and what the person accepted in step 3 (including language server plugins): no lock, hooks or cloud setup. End with: small tickets need nothing from slice (with a recorded project skill named `verify`, Claude Code runs it before each commit in interactive sessions); for bigger work run /slice:shape, then /slice:run.
+Write nothing beyond the marker, the agent branch, the run settings and what the person accepted in step 3 (including
+language server plugins): no lock, hooks or cloud setup. End with: just describe what to build, slice plans it and
+asks to start; "show my plans" lists the plans.
