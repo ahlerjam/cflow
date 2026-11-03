@@ -23,8 +23,10 @@
 - Looks: follow the `taste` skill.
 
 ## E2E approach
-Drive the running app with the Playwright browser tools: navigate, fill, click, read the text, take a screenshot per
-state and width, read the console messages. Assert visible text and states, not DOM internals.
+Write the steps as Playwright tests in one file against the running app (fill, click, assert visible text and states,
+not DOM internals; fail on console errors) and run them in one go; in a sandboxed run session through the Playwright
+tools' run-code tool. Look at each screen with the Playwright
+browser tools: a screenshot per state and width.
 
 ## Sources
 - https://www.w3.org/WAI/WCAG22/quickref/

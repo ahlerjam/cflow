@@ -11,10 +11,12 @@ between slices keep them apart. Each slice may pick the structure it needs. Prop
 existing codebase keeps its style.
 
 ## Decision records
-Record decisions that are costly to reverse (stack, storage, architecture style, public interfaces) in
+Record decisions that are costly to reverse and had real alternatives (stack, storage, architecture style, public
+interfaces) in
 `docs/adr/NNNN-title.md` using MADR: `## Context and Problem Statement`, `## Considered Options`,
 `## Decision Outcome` (with `### Consequences`), optionally `## Decision Drivers`. One decision per record; a changed
-decision gets a new record that supersedes the old one.
+decision gets a new record that supersedes the old one. A small app of a few files needs no records; its README
+names the stack.
 
 ## Sources
 - https://jimmybogard.com/vertical-slice-architecture/

@@ -16,12 +16,15 @@ Use the project's `verify` skill (`.claude/skills/verify/SKILL.md`) or a `run-<n
 You build every feature in `.slice/features.json` in one long session. Never wait for the person.
 1. Read `.slice/progress.md`, `git log --oneline -20`, `.slice/spec.md` (with its `## Quality bar`) and `.slice/features.json`. Invoke the `practices` skill and load its `references/code.md`, the cookbook for the type the spec names, and in a new app its `references/architecture.md`. After a resume or a compaction, do this again first.
 2. Before changing any code, start the app and run the E2E steps on the code as it is. Show the output. If a feature's steps already fail on existing code, say so: that is the defect to fix, shown red first. With no app yet, say so and start with the walking skeleton.
-3. Take the first feature with `passes` false and build only that one. Do not implement later features ahead, even small ones. One feature is one cycle: build, E2E steps, `passes`, commit, then the next.
-4. Run its E2E steps against the running app and show evidence (commands and output, a screenshot for UI). Keep the
-   steps as a script in the repo's test setup (see `references/code.md`), so the final pass is one command. Judge UI against the `taste` skill criteria. On failure fix and repeat.
-   The walking skeleton commit also records each decision under the spec's `## Decisions` that is costly to reverse as an ADR (`references/architecture.md` of `practices`).
+3. Take the first feature with `passes` false and build only that one. Do not implement later features ahead, even small ones. One feature is one cycle: build, E2E steps, `passes`, commit, then the next. A feature that needs no new code: run its tests and mark it in the next commit. Fold new state and handlers into the existing structure instead of appending them.
+4. Run its E2E steps against the running app and show evidence (commands and output, a screenshot for UI). Write the
+   steps as tests in the repo's one E2E test file, one test per feature, and run them all in one go; that run is the
+   evidence. For screens the file holds Playwright code that you run with the Playwright tools' run-code tool, since
+   Chromium cannot start inside the Bash sandbox. Use the Playwright browser tools only to look at each new or
+   changed screen and take its screenshot, not to click through every step. Judge UI against the `taste` skill criteria. On failure fix and repeat.
+   The walking skeleton commit also records as an ADR each decision under the spec's `## Decisions` that is costly to reverse and was chosen between real alternatives (`references/architecture.md` of `practices`). An app of a few files needs none; its README names the stack.
 5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
-6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style; brief it with the base commit, the parent of the `slice: plan` commit: `git rev-parse "$(git log --format=%H --grep='^slice: plan' -1)^"`) and `/code-review` on the diff from that base, plus `/security-review` when the diff touches authentication, secrets, network
+6. Take the next feature. When all pass, run Claude Code's `/simplify` on the diff from the base below and rerun the tests. Then run the `slice:verifier` agent (spec review, skip style; brief it with the base commit, the parent of the `slice: plan` commit: `git rev-parse "$(git log --format=%H --grep='^slice: plan' -1)^"`) and `/code-review` on the diff from that base, plus `/security-review` when the diff touches authentication, secrets, network
    input or anything users submit (it needs a remote; without one, have a subagent review `git diff <base>` for
    security instead). Fix every finding that holds, then run every feature's E2E steps once more with evidence.
    These reviews and their fixes are part of done: never skip or defer one to save budget or turns. When about a
