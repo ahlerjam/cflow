@@ -17,12 +17,15 @@ You build every feature in `.slice/features.json` in one long session. Never wai
 1. Read `.slice/progress.md`, `git log --oneline -20`, `.slice/spec.md` (with its `## Quality bar`) and `.slice/features.json`. Invoke the `practices` skill and load its `references/code.md`, the cookbook for the type the spec names, and in a new app its `references/architecture.md`. After a resume or a compaction, do this again first.
 2. Before changing any code, start the app and run the E2E steps on the code as it is. Show the output. If a feature's steps already fail on existing code, say so: that is the defect to fix, shown red first. With no app yet, say so and start with the walking skeleton.
 3. Take the first feature with `passes` false and build only that one. Do not implement later features ahead, even small ones. One feature is one cycle: build, E2E steps, `passes`, commit, then the next.
-4. Run its E2E steps against the running app and show evidence (commands and output, a screenshot for UI). Judge UI against the `taste` skill criteria. On failure fix and repeat.
+4. Run its E2E steps against the running app and show evidence (commands and output, a screenshot for UI). Keep the
+   steps as a script in the repo's test setup (see `references/code.md`), so the final pass is one command. Judge UI against the `taste` skill criteria. On failure fix and repeat.
    The walking skeleton commit also records each decision under the spec's `## Decisions` that is costly to reverse as an ADR (`references/architecture.md` of `practices`).
 5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
 6. Take the next feature. When all pass, run the `slice:verifier` agent (spec review, skip style; brief it with the base commit, the parent of the `slice: plan` commit: `git rev-parse "$(git log --format=%H --grep='^slice: plan' -1)^"`) and `/code-review` on the diff from that base, plus `/security-review` when the diff touches authentication, secrets, network
-   input or anything users submit; fix what holds, then run every feature's E2E steps once more with evidence.
-   These reviews are part of done: never skip one to save budget or turns. Leave room for them.
+   input or anything users submit (it needs a remote; without one, have a subagent review `git diff <base>` for
+   security instead). Fix every finding that holds, then run every feature's E2E steps once more with evidence.
+   These reviews and their fixes are part of done: never skip or defer one to save budget or turns. When about a
+   quarter of the budget is left, start no new feature and do this step.
 
 Before using a library, framework or CLI API you are not sure about, look up its current docs with the Context7 tools (`resolve-library-id`, then `query-docs`) if they are available; otherwise read the installed package's own docs. Never guess an API.
 

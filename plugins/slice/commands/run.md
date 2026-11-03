@@ -51,7 +51,7 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --max-budget-usd <B> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/worker.json 2> <out>/worker.err
    ```
 
-   Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is `budgetUsd` for the first call. `<E>` is `medium`; it rises to `high` for a resume after a call that
+   Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is min(`budgetUsd`, 0.8 × `runBudgetUsd`) for the first call. `<E>` is `medium`; it rises to `high` for a resume after a call that
    added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
@@ -73,7 +73,9 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
      - Two resumes in a row added no newly passing feature: halt.
      - Otherwise resume with the same command, but `claude -p --resume <session_id> '<GOAL>'` (setting the goal again
        also restores it if an error cleared it)
-       and `--max-budget-usd` = min(`budgetUsd`, `runBudgetUsd` - spend), rounded to cents. Wait as in step 6.
+       and `--max-budget-usd` = min(`budgetUsd`, 0.7 × (`runBudgetUsd` - spend)), rounded to cents. The cap is checked
+       between turns, so a call overshoots it by its last turn (reviews and subagents); the 30 % is headroom.
+       Less than 1 $ left: halt instead. Wait as in step 6.
    - Anything else (no JSON, other subtype): halt and show the tail of `<out>/worker.err`.
    A halt still goes on to step 8 when at least one feature passed; with none, report only.
 8. Owner questions. The builder writes them to `.slice/progress.md` under `## Needs decision` as `- f<k>: <question>`.

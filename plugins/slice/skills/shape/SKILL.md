@@ -36,7 +36,8 @@ Coverage list:
 4. Data: what is stored, where, format, limits; import, export and their exact format.
 5. Lifecycle: edit, undo, duplicates, rename, pause, archive, delete and its safeguard.
 6. Errors: invalid input, missing or corrupt data, messages, exit codes or HTTP status.
-7. Output: views, empty and long data, colors and when they are off, accessibility.
+7. Output: views, empty and long data, colors and when they are off, accessibility; the exact texts and number
+   formats the person cares about (labels, messages, totals), written into the steps verbatim.
 8. Testability: how a test fixes the current time, the data location and other inputs; name the exact switches.
 9. Hard constraints: platform, install, performance, privacy.
 

@@ -24,7 +24,7 @@ Before code, write a short plan: 4 to 6 named colors, typefaces and their roles,
 Review it against the spec: anything you would produce for any similar app is a default, not a choice; change it and
 say why. The spec's own words win, also when it asks for a look listed in the tells. Spend boldness in one place and
 keep the rest quiet. Quality floor: works down to 360 px, visible keyboard focus, reduced motion respected, contrast
-at least 4.5:1. Buttons name their action; errors say what happened and how to fix it.
+at least 4.5:1, touch targets 44 px. Buttons name their action; errors say what happened and how to fix it.
 
 ## Evidence
 With the Playwright browser tools, open every state at every width (default 360, 768, 1280; resize the window), take a screenshot each, and check that the page has no horizontal overflow (`document.documentElement.scrollWidth` equals the window width) and no console errors beyond `console-allow`. Look at the images and grade them; "it renders" is not a grade. Fix and re-shoot until nothing generic is left. In a run session decide alone; otherwise show the person the screenshots and let them choose between alternatives.
