@@ -67,7 +67,7 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
    - All pass and `subtype` is `success`, no feature marked `ui` and no `accept` argument: go to step 8.
    - All pass and `subtype` is `success`, otherwise: acceptance. Run Claude Code's own `/verify` as an independent check,
      sandboxed like the builder, `run_in_background: true`, `timeout: 3600000`:
-     `cd <repo root> && claude -p '/verify Run every E2E step of every feature in .slice/features.json against the running app. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
+     `cd <repo root> && claude -p '/verify Run every E2E step of every feature in .slice/features.json against the running app. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
      Add its cost to the spend. Every feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
      prompt `Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
      then run acceptance again. A second acceptance with FAIL lines: halt and list them in the report.
