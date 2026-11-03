@@ -1,5 +1,5 @@
 ---
-description: Builds the planned features in one long builder session, from GitHub issues or from .slice files, checks readiness first, resumes after budget or turn stops, delivers draft PRs and reports.
+description: Builds the planned features in one long builder session, from GitHub issues or from .slice files, checks readiness first, resumes after turn stops or a killed process, delivers draft PRs and reports.
 argument-hint: "[#<n> | milestone:<n>] [epic-pr | issue-prs] [accept]"
 allowed-tools: Bash, Read
 disable-model-invocation: true
@@ -35,8 +35,8 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
      marked `ui`, the Playwright plugin is installed and enabled (`claude plugin list`). Not a gate: if no language
      server plugin (`*-lsp`) is enabled for the repo's main language, say so in the report and name `/slice:setup`.
    - c. What it may touch: `.claude/slice-run.json` exists.
-   - d. What stops it: `budgetUsd` (default 10), `maxTurns` (default 400) and `runBudgetUsd` (default 3 times
-     `budgetUsd`) from `.claude/slice.json` resolve to numbers.
+   - d. What stops it: `maxTurns` (default 400) from `.claude/slice.json` resolves to a number. `budgetUsd` is
+     optional and has no default: only when it is set (for test runs) does the run get a dollar cap.
    - e. Where the result goes: the delivery mode is known. For an issue source, `gh auth status` works and the
      remote branch of the base exists (`git ls-remote --exit-code --heads origin <base branch>`).
 3. Create and switch to the branch `slice/run-<YYYYMMDD-HHMM>` from the current branch. Commit `.slice/` (the
@@ -50,10 +50,12 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
    default of 10 minutes would kill it):
 
    ```
-   cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --max-budget-usd <B> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/worker.json 2> <out>/worker.err
+   cd <repo root> && SLICE_RUN=1 claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/worker.json 2> <out>/worker.err
    ```
 
-   Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. `<B>` is min(`budgetUsd`, 0.8 × `runBudgetUsd`) for the first call. `<E>` is `medium`; it rises to `high` for a resume after a call that
+   `<uuid>` is a new one from `uuidgen` (lowercase), kept for the whole run, so a killed builder can be resumed. Add
+   `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. Only when `budgetUsd` is set, add
+   `--max-budget-usd` with 0.8 × `budgetUsd` for the first call. `<E>` is `medium`; it rises to `high` for a resume after a call that
    added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
@@ -61,27 +63,28 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
 
    Do not poll; wait for the completion notice. Tell the person once that the run started and that `/background`
    detaches this session.
-7. On exit read `<out>/worker.json`: `session_id`, `subtype`, `total_cost_usd`. `total_cost_usd` is cumulative for
+7. On exit read `<out>/worker.json`: `subtype`, `total_cost_usd`. `total_cost_usd` is cumulative for
    the session, so the run's spend is its latest value; never sum calls. Count features with `passes: true` in
    `.slice/features.json`.
    All features pass, whatever the `subtype` (a call can stop on its cap right after the last step):
    - No feature marked `ui` and no `accept` argument: go to step 8.
-   - Otherwise: acceptance, if at least 0.5 $ of `runBudgetUsd` is left (else say it was skipped for budget and go to
-     step 8). Run Claude Code's own `/verify` as an independent check,
+   - Otherwise: acceptance (with `budgetUsd` set, only if at least 0.5 $ of it is left; else say it was skipped for
+     budget and go to step 8). Run Claude Code's own `/verify` as an independent check,
      sandboxed like the builder, `run_in_background: true`, `timeout: 3600000`:
-     `cd <repo root> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/features.json against it. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
-     Add its cost to the spend. Every feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
+     `cd <repo root> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/features.json against it. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
+     With `budgetUsd` set, add `--max-budget-usd` = `budgetUsd` minus the spend. Add its cost to the spend. Every
+     feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
      prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
      then run acceptance again. A second acceptance with FAIL lines: halt and list them in the report.
-   Features still false and `subtype` is `error_max_budget_usd`, `error_max_turns` or `success`:
-   - spend >= `runBudgetUsd`: halt.
+   Features still false and `subtype` is `error_max_turns`, `error_max_budget_usd` or `success`, or `worker.json` is
+   empty because the process was killed (timeout, crash):
    - Two resumes in a row added no newly passing feature: halt.
-   - Otherwise resume with the same command, but `claude -p --resume <session_id> '<GOAL>'` (setting the goal again
-       also restores it if an error cleared it)
-       and `--max-budget-usd` = min(`budgetUsd`, 0.7 × (`runBudgetUsd` - spend)), rounded to cents. The cap is checked
-       between turns, so a call overshoots it by its last turn (reviews and subagents); the 30 % is headroom.
-       Less than 1 $ left: halt instead. Wait as in step 6.
-   - Anything else (no JSON, other subtype): halt and show the tail of `<out>/worker.err`.
+   - `budgetUsd` set and spend >= `budgetUsd`, or less than 1 $ of it left: halt.
+   - Otherwise resume with the same command, but `claude -p --resume <uuid> '<GOAL>'` instead of `--session-id`
+       (setting the goal again also restores it if an error cleared it). With `budgetUsd` set,
+       `--max-budget-usd` = 0.7 × (`budgetUsd` - spend), rounded to cents; the cap is checked between turns, so a call
+       overshoots it by its last turn, and the 30 % is headroom. Wait as in step 6.
+   - Anything else (other subtype, or `--resume` fails): halt and show the tail of `<out>/worker.err`.
    A halt still goes on to step 8 when at least one feature passed; with none, report only.
 8. Owner questions. The builder writes them to `.slice/progress.md` under `## Needs decision` as `- f<k>: <question>`.
    For an issue source, map `f<k>` to its `issue` in `.slice/features.json`, post the question as a comment on
@@ -105,7 +108,7 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
    - For every feature issue that passed, post a comment: run branch, commit, "E2E steps passed in the run;
      evidence in the PR".
    If a push or API call fails, show the error, keep going with the rest and report what is missing.
-10. Report: source, branch, base commit, passed of total, the acceptance result (if it ran), spend in $, number of resumes,
+10. Report: source, branch, base commit, passed of total, the acceptance result (if it ran), spend in $ (from `total_cost_usd`; for information, not a limit), number of resumes,
     the `permission_denials` from `worker.json` (what the builder was refused; offer to allow it in `.claude/slice-run.json`), the halt reason if there
     was one, PR links, the needs-decision list, any `## Recipe changes` from `progress.md` (offer to apply them to the recorded recipe), and that `.slice/spec.md` and `.slice/features.json` are in the PR
     as the record of what was built. Do not merge.
