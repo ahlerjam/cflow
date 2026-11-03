@@ -17,7 +17,8 @@ Build the features in their order, the way you would on your own. With no app ye
 Follow `## Decisions`; record a decision as an ADR only when it is costly to reverse and had real alternatives (an app
 of a few files needs none; its README names the stack).
 
-Write each feature's steps as tests in the repo's one E2E test file and run them against the running app. When a
+Write each feature's steps as tests in the repo's one E2E test file (for screens, the format in the web cookbook)
+and run them against the running app. When a
 feature's tests pass, set its `passes` to true and commit `slice: <id> <title>`; these commits let a resumed session
 continue where it stopped.
 
@@ -39,7 +40,7 @@ When all features pass, work on the diff from the base commit, the parent of the
    tools at 360 and 1280 px, take a screenshot each and judge it against the `taste` skill and the `## Quality bar`;
    fix what fails and rerun the tests.
 
-These steps are part of done: never skip one to save budget or turns. When about a quarter of the budget is left,
+These steps are part of done: never skip one to save budget or turns. When about three quarters of your turn limit are used,
 start no new feature and finish.
 
 ## Rules

@@ -26,6 +26,9 @@ sub_count() {
   echo "$c"
 }
 
+# die inside $(...) ends only the subshell, so pass its failure on.
+has_subs() { c=$(sub_count "$1") || exit 1; [ "$c" -gt 0 ]; }
+
 # Sub-issue numbers in build order. GitHub returns them in the epic's order.
 subs() {
   sel='.[]'
@@ -60,7 +63,8 @@ add_feature() {
 # Adds an epic's open sub-issues as features; returns 1 if there are none.
 add_epic_features() {
   before=$k
-  for s in $(subs "$1"); do add_feature "$s"; done
+  sublist=$(subs "$1") || die "cannot read the sub-issues of #$1 in $repo"
+  for s in $sublist; do add_feature "$s"; done
   [ "$k" -gt "$before" ]
 }
 
@@ -74,12 +78,12 @@ case $src in
     [ -n "$list" ] || die "milestone $m has no issues"
     : >"$tmp/covered"
     for n in $list; do
-      if [ "$(sub_count "$n")" -gt 0 ]; then subs "$n" >>"$tmp/covered"; fi
+      if has_subs "$n"; then subs "$n" >>"$tmp/covered"; fi
     done
     for n in $list; do
       grep -qx "$n" "$tmp/covered" && continue
       title=$(issue "$n" '.title')
-      if [ "$(sub_count "$n")" -gt 0 ]; then
+      if has_subs "$n"; then
         if ! add_epic_features "$n"; then
           echo "issues-to-files: epic #$n has no open sub-issues, skipped" >&2
           continue
@@ -92,7 +96,7 @@ case $src in
     ;;
   *)
     n=$src
-    if [ "$(sub_count "$n")" -gt 0 ]; then
+    if has_subs "$n"; then
       { printf '# %s\n\n' "$(issue "$n" '.title')"; body "$n"; } >"$tmp/spec"
       add_epic_features "$n" || die "epic #$n has no open sub-issues"
     else

@@ -17,7 +17,7 @@
 
 ## E2E approach
 Each step runs the tool with exact arguments in a fresh data directory and checks stdout, stderr and the exit code
-literally. Pipe output to test the non-TTY path; for the TTY path use `script -q /dev/null <cmd>` where the sandbox
+literally. Pipe output to test the non-TTY path; for the TTY path use `script -q /dev/null <cmd>` (macOS) or `script -q -c '<cmd>' /dev/null` (Linux) where the sandbox
 allows a pseudo-terminal.
 
 ## Sources

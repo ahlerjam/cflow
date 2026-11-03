@@ -17,8 +17,8 @@
   tests for impossible cases.
 - No dead code, unused exports, commented-out code, placeholder data or TODOs left behind.
 - Keep diffs small and on topic; no drive-by refactors.
-- E2E tests live in one file in the repo's test setup, run from the repo root with one command, and take paths and
-  ports from arguments or env; never an absolute path from the build machine. A test switch in production code only
+- E2E tests live in one file in the repo's test setup, run in one go (from the repo root with one command; for web in
+  a sandboxed run session through the Playwright tools, see `web.md`), and take paths and ports from arguments or env; never an absolute path from the build machine. A test switch in production code only
   when the spec names it.
 - Keep a module's state in one place, not spread between functions and listeners.
 - Unsure about a library or API: look it up (Context7 or the installed package's docs) instead of guessing.

@@ -1,6 +1,6 @@
 ---
 name: taste
-description: Judges and builds UI against four criteria (design quality, originality, craft, functionality) so screens do not look machine-made, using screenshots taken with the Playwright browser tools and a list of known AI tells. Use when building or changing UI in a repo set up with slice (.claude/slice.json), and for every feature with ui true in a run session.
+description: Judges and builds UI against four criteria (design quality, originality, craft, functionality) so screens do not look machine-made, using screenshots taken with the Playwright browser tools and a list of known AI tells. Use when building or changing UI in a repo set up with slice (.claude/slice.json), and in the finish step of a run session.
 when_to_use: 'Screen, layout, design, UI looks generic or AI-made, "sieht nach KI aus", "Oberfläche", "Bildschirm", features with ui true.'
 paths:
   - "**/*.tsx"
@@ -27,4 +27,4 @@ keep the rest quiet. Quality floor: works down to 360 px, visible keyboard focus
 at least 4.5:1, touch targets 44 px. Buttons name their action; errors say what happened and how to fix it.
 
 ## Evidence
-With the Playwright browser tools, open every state at every width (default 360, 768, 1280; resize the window), take a screenshot each, and check that the page has no horizontal overflow (`document.documentElement.scrollWidth` equals the window width) and no console errors beyond `console-allow`. Look at the images and grade them; "it renders" is not a grade. Fix and re-shoot until nothing generic is left. In a run session decide alone; otherwise show the person the screenshots and let them choose between alternatives.
+With the Playwright browser tools, open every state at every width (default 360, 768, 1280; resize the window), take a screenshot each, and check that the page has no horizontal overflow (`document.documentElement.scrollWidth` equals the window width) and no console errors beyond `console-allow`. Look at the images and grade them; "it renders" is not a grade. Fix and re-shoot until nothing generic is left. In a run session take the screenshots only in the slice skill's finish step (360 and 1280 px) and decide alone; otherwise show the person the screenshots and let them choose between alternatives.

@@ -1,7 +1,7 @@
 ---
 name: practices
 description: Engineering know-how for planning and building with slice. Rules and sources for writing good GitHub issues and E2E steps, per-project-type cookbooks (CLI, web UI, HTTP API, library, data job) with coverage questions, quality bar and E2E approach, code rules against AI slop, and architecture records (ADR, vertical slices, walking skeleton). Use when /slice:shape plans work or a slice run session builds it.
-when_to_use: /slice:shape, slice run session, "gute Issues", "Best Practices", "Akzeptanzkriterien", "Cookbook", "ADR", "AI slop", "Code-Stil".
+when_to_use: /slice:shape, slice run session, .slice/spec.md, slice cookbook.
 user-invocable: false
 ---
 Load only the files the task needs. Each file states rules first and its sources last; follow the rules, look up the

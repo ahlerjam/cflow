@@ -26,14 +26,14 @@ Set up slice in the current repo. Interactive: it runs in your session because r
      navigate by symbol. Recommend it strongly in a large repo; in a greenfield repo, offer it once the stack is set.
    - Large repo (many packages or roughly 50k+ lines): a `CLAUDE.md` per area, a lean root `CLAUDE.md` (pointers and
      gotchas), Read deny rules for build output.
-   - Architecture. New app: propose a style in `docs/adr/0001-architecture.md` with the stack; default proposal is
-     Vertical Slice Architecture. Existing code: detect the style in use and document it there.
+   - Architecture. New app beyond a few files: propose a style in `docs/adr/0001-architecture.md` with the stack;
+     default proposal is Vertical Slice Architecture. A small app names the stack in its README. Existing code: detect the style in use and document it there.
    Greenfield (empty directory or no commits): offer to scaffold the same list (`git init`, make targets,
    `CLAUDE.md`, the ADR) and to create the GitHub repo with `gh repo create` (ask; private by default).
 
 4. Run settings. Write `.claude/slice-run.json` as a copy of `${CLAUDE_PLUGIN_ROOT}/profiles/run.json`, with `sandbox.network.allowedDomains` extended by the marker's `allowedDomains` and `sandbox.excludedCommands` extended by the marker's `excludedCommands`; keep everything else of the profile. The sandbox already allows writes to the working directory, so no `allowWrite` is needed. If `.claude/slice-run.json` exists, show the diff before changing it.
 5. Sandbox check. Builders run inside this profile, so prove that the app's tools start there. Pick the
-   shortest command from the recipe or README that starts the app (for a terminal tool whose spec needs colors or prompts, also `script -q /dev/null true`, which needs a
+   shortest command from the recipe or README that starts the app (for a terminal tool whose spec needs colors or prompts, also `script -q /dev/null true` on macOS or `script -q -c true /dev/null` on Linux, which needs a
    pseudo-terminal; skip the browser, the Playwright plugin runs outside the Bash sandbox) and run it through the profile:
    `claude -p 'Run this Bash command and print its exit code and the last lines of output: <command>' --settings .claude/slice-run.json --permission-mode dontAsk --allowedTools Bash --model haiku --max-budget-usd 0.2`.
    If it fails inside the sandbox, show the error and offer to add that command pattern to the marker's

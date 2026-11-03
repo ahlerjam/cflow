@@ -6,7 +6,7 @@ disable-model-invocation: true
 ---
 Run the feature list in `.slice/features.json`. The builder is a separate `claude -p` process with a `/goal`. This
 session only prepares the run, starts the builder, resumes it, delivers and reports; it builds nothing itself. The
-builder works from the two files and cannot reach GitHub (sandbox); everything on GitHub happens here. All GitHub
+builder works from the two files and, in the sandbox profile, cannot reach GitHub; everything on GitHub happens here. All GitHub
 calls use REST through `gh api`, never `gh issue` or `gh pr` (GraphQL fails in cloud sessions). Write every
 comment and PR body to a file in `<out>` and pass it with `-F body=@<file>`, never inline: backticks in a quoted
 shell string run as commands and blank out commit hashes.
@@ -57,7 +57,7 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
    added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
-   `/goal Done means: every feature in .slice/features.json has passes true, and the finish steps of the slice skill ran: /simplify, /code-review, and a full E2E run with its output shown after the last code change. Follow the slice skill. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns.`
+   `/goal Done means: every feature in .slice/features.json has passes true, and the finish steps of the slice skill ran: /simplify, /code-review (and /security-review when the slice skill requires it), a full E2E run with its output shown after the last code change, and for screens a screenshot of each view at 360 and 1280 px. Follow the slice skill. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns.`
 
    Do not poll; wait for the completion notice. Tell the person once that the run started and that `/background`
    detaches this session.
@@ -69,9 +69,9 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
    - Otherwise: acceptance, if at least 0.5 $ of `runBudgetUsd` is left (else say it was skipped for budget and go to
      step 8). Run Claude Code's own `/verify` as an independent check,
      sandboxed like the builder, `run_in_background: true`, `timeout: 3600000`:
-     `cd <repo root> && claude -p '/verify Run every E2E step of every feature in .slice/features.json against the running app. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
+     `cd <repo root> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/features.json against it. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
      Add its cost to the spend. Every feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
-     prompt `Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
+     prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
      then run acceptance again. A second acceptance with FAIL lines: halt and list them in the report.
    Features still false and `subtype` is `error_max_budget_usd`, `error_max_turns` or `success`:
    - spend >= `runBudgetUsd`: halt.
@@ -90,7 +90,7 @@ acceptance when any feature is marked `ui`, or when the argument `accept` is giv
    `gh api repos/<o>/<r>/labels/needs-decision` returns 404 (`POST repos/<o>/<r>/labels -f name=needs-decision -f color=d93f0b`).
    For a files-only source, only list the questions in the report.
 9. Delivery, outside the sandbox; the builder never pushes. Never force-push.
-   - Files-only source: branch only. Suggest `gh pr create`.
+   - Files-only source: branch only. Tell the person they can open a PR themselves (for example with `gh pr create`).
    - `epic-pr`: `git push -u origin <run branch>`, then one draft PR:
      `gh api repos/<o>/<r>/pulls -f title=... -f head=<run branch> -f base=<base branch> -F draft=true -F body=@<file>`.
      Body: summary, one line `Closes #<issue>` for every feature with `passes` true (and `Closes #<epic>` if all

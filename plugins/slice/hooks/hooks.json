@@ -7,6 +7,14 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-features.mjs" }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-features.mjs post" }
+        ]
+      }
     ]
   }
 }

@@ -6,8 +6,8 @@
 - Slice vertically: each feature runs end to end through every layer it needs and is useful on its own. Never split
   by layer (database, backend, UI). Split big features by workflow step, by rule variant, by data variant, or happy
   path first and edge cases after.
-- INVEST: independent, negotiable, valuable, estimable, small, testable. Small means one builder session builds and
-  proves it; testable means a pass/fail check exists before building starts.
+- INVEST: independent, negotiable, valuable, estimable, small, testable. Small means it is built and proved within a few
+  commits; testable means a pass/fail check exists before building starts.
 - Acceptance criteria are Given/When/Then: Given a state, When the user does one thing, Then they observe a result.
   One behaviour per criterion, declarative ("Given a habit with a 3 day streak"), no click-by-click scripts, no
   implementation details in Then.

@@ -23,10 +23,10 @@
 - Looks: follow the `taste` skill.
 
 ## E2E approach
-Write the steps as Playwright tests in one file against the running app (fill, click, assert visible text and states,
-not DOM internals; fail on console errors) and run them in one go; in a sandboxed run session through the Playwright
-tools' run-code tool. Look at each screen with the Playwright
-browser tools: a screenshot per state and width.
+Write the steps as Playwright code in one file against the running app (fill, click, assert visible text and states,
+not DOM internals; fail on console errors) and run them in one go. In a sandboxed run session the file holds one plain
+`async (page) => { ... }` block per feature, no test runner, so the Playwright tools' run-code tool can run it. Look at
+each view with the Playwright browser tools; in a run session once, in the finish step (see the slice skill).
 
 ## Sources
 - https://www.w3.org/WAI/WCAG22/quickref/
