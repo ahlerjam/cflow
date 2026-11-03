@@ -24,15 +24,23 @@ You build every feature in `.slice/features.json` in one long session. Never wai
    changed screen and take its screenshot, not to click through every step. Judge UI against the `taste` skill criteria. On failure fix and repeat.
    The walking skeleton commit also records as an ADR each decision under the spec's `## Decisions` that is costly to reverse and was chosen between real alternatives (`references/architecture.md` of `practices`). An app of a few files needs none; its README names the stack.
 5. Only then set `passes` to true, update `.slice/progress.md` (newest first: done, next, blockers) and commit `slice: <id> <title>`.
-6. Take the next feature. When all pass, run Claude Code's `/simplify` on the diff from the base below and rerun the tests. Then run the `slice:verifier` agent (spec review, skip style; brief it with the base commit, the parent of the `slice: plan` commit: `git rev-parse "$(git log --format=%H --grep='^slice: plan' -1)^"`) and `/code-review` on the diff from that base, plus `/security-review` when the diff touches authentication, secrets, network
-   input or anything users submit (it needs a remote; without one, have a subagent review `git diff <base>` for
-   security instead). Fix every finding that holds, then run every feature's E2E steps once more with evidence.
+6. Take the next feature. When all pass, finish on the diff from the base commit, the parent of the `slice: plan`
+   commit (`git rev-parse "$(git log --format=%H --grep='^slice: plan' -1)^"`):
+   - Claude Code's `/simplify`, then rerun the tests.
+   - `/code-review`, plus `/security-review` when the diff touches authentication, secrets, network input or
+     anything users submit (it needs a remote; without one, have a subagent review `git diff <base>` for security
+     instead).
+   - Only when the goal says `Mode: thorough`: also the `slice:verifier` agent (spec review, skip style; brief it with
+     the base commit).
+   Fix every finding that holds, then run all E2E tests once more with evidence.
    These reviews and their fixes are part of done: never skip or defer one to save budget or turns. When about a
    quarter of the budget is left, start no new feature and do this step.
 
 Before using a library, framework or CLI API you are not sure about, look up its current docs with the Context7 tools (`resolve-library-id`, then `query-docs`) if they are available; otherwise read the installed package's own docs. Never guess an API.
 
 Keep command output short: filter long test or build output to the failures before reading it.
+
+With a language server running, read the diagnostics after each edit and fix them before running anything; use the `LSP` tool to find definitions and references instead of text search.
 
 Never edit anything in `features.json` but `passes`. A feature you cannot finish: write the reason in `progress.md`, leave `passes` false and continue with the next.
 

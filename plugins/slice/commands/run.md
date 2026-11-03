@@ -1,6 +1,6 @@
 ---
 description: Builds the planned features in one long builder session, from GitHub issues or from .slice files, checks readiness first, resumes after budget or turn stops, delivers draft PRs and reports.
-argument-hint: "[#<n> | milestone:<n>] [epic-pr | issue-prs]"
+argument-hint: "[#<n> | milestone:<n>] [epic-pr | issue-prs] [thorough]"
 allowed-tools: Bash, Read
 disable-model-invocation: true
 ---
@@ -12,7 +12,8 @@ comment and PR body to a file in `<out>` and pass it with `-F body=@<file>`, nev
 shell string run as commands and blank out commit hashes.
 
 Arguments: `#<n>` (an epic or a ticket) or `milestone:<n>` as the source, and the delivery mode `epic-pr` (default
-for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
+for issue sources) or `issue-prs`. No source: use the existing `.slice/` files. `thorough` adds the spec reviewer
+agent and an independent `/verify` acceptance; the default (lean) ends with `/simplify` and `/code-review`.
 
 1. Source. The working tree must be clean (`git status --porcelain`), except `.slice/` when there is no source
    argument. Remember the base branch and base commit (`git rev-parse HEAD`).
@@ -31,7 +32,8 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
      result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
    - b. It can run the app: a project skill `verify` or `run-<name>` exists in `.claude/skills/`, or the README,
      `Makefile` or package scripts say how to start it, or the first feature is a walking skeleton. For features
-     marked `ui`, the Playwright plugin is installed and enabled (`claude plugin list`).
+     marked `ui`, the Playwright plugin is installed and enabled (`claude plugin list`). Not a gate: if no language
+     server plugin (`*-lsp`) is enabled for the repo's main language, say so in the report and name `/slice:setup`.
    - c. What it may touch: `.claude/slice-run.json` exists.
    - d. What stops it: `budgetUsd` (default 30), `maxTurns` (default 400) and `runBudgetUsd` (default 5 times
      `budgetUsd`) from `.claude/slice.json` resolve to numbers.
@@ -55,14 +57,15 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<maxTurns>` filled in (it contains no single quote, so it fits in single quotes):
 
-   `/goal Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "Routine"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
+   `/goal Mode: <lean|thorough>. Done means: every feature in .slice/features.json has passes true, and your final turns contain a full E2E pass of the steps of every feature, run against the running app, with the evidence shown in the conversation after the last code change, and the reviews of step 6 of that routine ran. Follow the run routine of the slice skill (section "Routine"). Order per feature: build, verify with evidence, then set passes and commit. Never change anything in .slice/features.json except passes. You have at most <maxTurns> turns; spend them on the features, not on polish.`
 
    Do not poll; wait for the completion notice. Tell the person once that the run started and that `/background`
    detaches this session.
 7. On exit read `<out>/worker.json`: `session_id`, `subtype`, `total_cost_usd`. `total_cost_usd` is cumulative for
    the session, so the run's spend is its latest value; never sum calls. Count features with `passes: true` in
    `.slice/features.json`.
-   - All pass and `subtype` is `success`: acceptance. Run Claude Code's own `/verify` as an independent check,
+   - All pass and `subtype` is `success`, lean mode: go to step 8.
+   - All pass and `subtype` is `success`, thorough mode: acceptance. Run Claude Code's own `/verify` as an independent check,
      sandboxed like the builder, `run_in_background: true`, `timeout: 3600000`:
      `cd <repo root> && claude -p '/verify Run every E2E step of every feature in .slice/features.json against the running app. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --max-budget-usd <min(5, runBudgetUsd - spend)> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/accept.json 2> <out>/accept.err`.
      Add its cost to the spend. Every feature PASS: go to step 8. Any FAIL: resume the builder (as below) with the
@@ -100,7 +103,7 @@ for issue sources) or `issue-prs`. No source: use the existing `.slice/` files.
    - For every feature issue that passed, post a comment: run branch, commit, "E2E steps passed in the run;
      evidence in the PR".
    If a push or API call fails, show the error, keep going with the rest and report what is missing.
-10. Report: source, branch, base commit, passed of total, the acceptance result, spend in $, number of resumes,
+10. Report: source, branch, base commit, mode, passed of total, the acceptance result (thorough), spend in $, number of resumes,
     the `permission_denials` from `worker.json` (what the builder was refused; offer to allow it in `.claude/slice-run.json`), the halt reason if there
     was one, PR links, the needs-decision list, any `## Recipe changes` from `progress.md` (offer to apply them to the recorded recipe), and that `.slice/spec.md` and `.slice/features.json` are in the PR
     as the record of what was built. Do not merge.

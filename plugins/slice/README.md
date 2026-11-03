@@ -1,6 +1,6 @@
 # slice
 
-slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, `/verify`, `/code-review` and the official Playwright plugin.
+slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. It builds on Claude Code's `/goal`, `/simplify`, `/code-review`, `/verify` and the official Playwright plugin.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 | Node.js | the Playwright plugin, which slice installs as a dependency (`npx @playwright/mcp`), and the guard hook of run sessions | `node --version` |
 | gh | issue planning in `/slice:shape`, `/slice:run #<n>` and PR delivery; optional for files only | `gh auth status` |
 
-Optional: a Context7 MCP server (the `context7` plugin or your own). Builders use it to look up library docs when it is there.
+Optional: a Context7 MCP server (the `context7` plugin or your own). Builders use it to look up library docs when it is there. Also optional: a language server for each language in the repo, used by the official `*-lsp` plugins that `/slice:setup` offers.
 
 
 ## Setup
@@ -52,7 +52,8 @@ All calls use the REST API through `gh api`.
 
 - **Source.** `#<n>` is an epic or a ticket, `milestone:<n>` all its open issues. `scripts/issues-to-files.sh` turns them into `.slice/spec.md` and `.slice/features.json`, copying the steps verbatim, and the run commits both as `slice: plan from #<n>`. They stay in the PR as the record of what was built. Without an argument the run uses the existing `.slice` files.
 - **Readiness gate.** Before the builder starts, the run checks that every feature has steps with a concrete action and an observable result, that the app can be started (recorded recipe, README or a walking skeleton), that the Playwright plugin is enabled for features with screens, that `.claude/slice-run.json` exists, that budget, turn limit and run budget resolve, and that the delivery mode is known (for issues, `gh auth status` works). On a gap it lists everything, points to `/slice:shape` or `/slice:setup`, and stops without cost.
-- **Acceptance.** When the builder reports every feature passed, the run starts Claude Code's `/verify` in a fresh session, sandboxed like the builder, on every feature's steps. A failure goes back to the builder once; a second failure halts the run with the list.
+- **Modes.** By default the builder ends with Claude Code's `/simplify` and `/code-review` (plus `/security-review` when the change handles user input or secrets). `/slice:run thorough` also runs the spec reviewer agent and an acceptance: Claude Code's `/verify` in a fresh session, sandboxed like the builder, on every feature's steps. A failed acceptance goes back to the builder once; a second failure halts the run with the list.
+- **Code intelligence.** `/slice:setup` offers the official language server plugin for each language in the repo (`typescript-lsp`, `pyright-lsp` and others). With it, the builder sees type errors after every edit and finds code by symbol. Each plugin needs its language server installed; setup shows the command. Cloud sessions start no language servers.
 - **Needs decision.** The builder cannot reach GitHub. It writes owner-only questions (direction, stack, architecture, UX, anything irreversible) to `.slice/progress.md` under `## Needs decision`, leaves that feature open and moves on. After the run each question becomes a comment on the feature's issue with the label `needs-decision`.
 - **Delivery.** The builder never pushes; the run does.
   - `epic-pr` (default for issues): one draft PR with `Closes #<n>` for every passed feature (and the epic if all passed), the open features with their reason, and the questions.

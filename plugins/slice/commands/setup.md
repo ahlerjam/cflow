@@ -17,8 +17,15 @@ Set up slice in the current repo. Interactive: it runs in your session because r
    - One command each to start, test and lint, e.g. as `make` targets.
    - `CLAUDE.md` (or `AGENTS.md`) under 200 lines that names those commands. If it is missing, suggest `/init`.
    - The run recipe (step 2) and a clean starting state: `git status` clean, the app starts.
+   - Code intelligence: for each language the repo is written in that has an official language server plugin
+     (`typescript-lsp`, `pyright-lsp`, `gopls-lsp`, `rust-analyzer-lsp`, `jdtls-lsp`, `kotlin-lsp`, `csharp-lsp`,
+     `clangd-lsp`, `php-lsp`, `ruby-lsp`, `swift-lsp`, `lua-lsp` in `claude-plugins-official`), check whether it is
+     enabled (`claude plugin list`) and whether its binary is on `PATH` (`which <binary>`). Missing: show the binary's
+     install command from the plugin's README and, after consent, run
+     `claude plugin install <plugin>@claude-plugins-official`. Builders then see type errors after each edit and
+     navigate by symbol. Recommend it strongly in a large repo; in a greenfield repo, offer it once the stack is set.
    - Large repo (many packages or roughly 50k+ lines): a `CLAUDE.md` per area, a lean root `CLAUDE.md` (pointers and
-     gotchas), Read deny rules for build output, an LSP plugin for the main language.
+     gotchas), Read deny rules for build output.
    - Architecture. New app: propose a style in `docs/adr/0001-architecture.md` with the stack; default proposal is
      Vertical Slice Architecture. Existing code: detect the style in use and document it there.
    Greenfield (empty directory or no commits): offer to scaffold the same list (`git init`, make targets,
@@ -33,4 +40,4 @@ Set up slice in the current repo. Interactive: it runs in your session because r
    `excludedCommands` (it then runs unsandboxed), then repeat step 4 and this check. A run whose builder cannot
    start the app cannot verify anything.
 
-Write nothing beyond the marker, the run settings and what the person accepted in step 3: no lock, hooks or cloud setup. End with: small tickets need nothing from slice (with a recorded `verify` skill Claude Code runs it before each commit); for bigger work run /slice:shape, then /slice:run.
+Write nothing beyond the marker, the run settings and what the person accepted in step 3 (including language server plugins): no lock, hooks or cloud setup. End with: small tickets need nothing from slice (with a recorded `verify` skill Claude Code runs it before each commit); for bigger work run /slice:shape, then /slice:run.
