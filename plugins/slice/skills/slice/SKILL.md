@@ -70,8 +70,10 @@ start no new feature and finish.
   ```
   If the feature cannot work without the answer, leave `passes` false and go on. Reversible choices: decide and note
   them in `progress.md`.
-- Before using a library, framework or CLI API you are not sure about, look up its current docs with the Context7
-  tools (`resolve-library-id`, then `query-docs`) if they are available; otherwise read the installed package's docs.
+- Library docs first: before you write code against a library, framework or tool API for the first time in this run,
+  and whenever an API call fails or surprises you, look up its current docs with the Context7 tools
+  (`resolve-library-id`, then `query-docs` with the version the repo uses). Without Context7, read the installed
+  package's docs. Never write an API call from memory alone.
 - With a language server running, fix its diagnostics after each edit; use the `LSP` tool to find definitions and
   references instead of text search.
 - Keep command output short: filter long test or build output to the failures.

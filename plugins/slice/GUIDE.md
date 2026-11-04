@@ -60,6 +60,7 @@ Costs: each run reports what the builder and the acceptance spent. There is no l
 
 - **Cloud sessions: use auto mode.** A cloud session that waits for a permission answer stands still until you look. slice starts cloud sessions with `--permission-mode auto`; if your session still shows another mode in its mode menu, switch it to **Auto**. When you work in the web chat directly, pick Auto when you create the session. Auto appears only when your organization and the model allow it.
 - **Long cloud runs:** set `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` in your cloud environment's variables (for example 3600000 and 7200000), so a long builder is not cut short.
+- **Library docs:** the builder looks up every library in Context7 before it writes code against it. Without your own Context7 server, slice brings one; set `CONTEXT7_API_KEY` (locally and in the cloud environment) for higher rate limits.
 - **Keys and secrets:** say in the interview which services the work needs. Locally, put the values in `.env` (or list such files in `.worktreeinclude`); in the cloud, set them as environment variables of the cloud environment. Missing keys are no blocker; the builder uses a fake and tells you.
 - **Push your branch before a cloud start.** The cloud clones your current branch from GitHub.
 - **Be concrete in the interview.** Exact texts, number formats and edge cases you care about go straight into the test steps. "You decide" is fine for single questions.

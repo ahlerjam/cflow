@@ -88,8 +88,11 @@ whenever the file is rewritten.
 4. Settings file: `<repo>/.claude/slice-run.json`, except when the env var `CLAUDE_CODE_REMOTE` is `true` (cloud VM, no
    sandbox): then `${CLAUDE_PLUGIN_ROOT}/profiles/cloud.json`. Browser: when any feature is marked `ui`, `<mcp>` is
    ` --mcp-config "${CLAUDE_PLUGIN_ROOT}/mcp/playwright.json"` (a headless Playwright server, tools
-   `mcp__playwright__*`; the profiles switch off the Playwright plugin so no second, headed browser exists);
-   otherwise `<mcp>` is empty.
+   `mcp__playwright__*`; the profiles switch off the Playwright plugin so no second, headed browser exists).
+   Library docs: when `claude mcp get context7` fails (no `context7` server is configured for the person), or in a
+   cloud session, add `"${CLAUDE_PLUGIN_ROOT}/mcp/context7.json"` to `<mcp>` (Context7 over HTTP; it uses the env var
+   `CONTEXT7_API_KEY` when set and works without it at lower rate limits). Several files go after one `--mcp-config`,
+   separated by spaces. Without either, `<mcp>` is empty.
 5. Start the builder in `<run>` with Bash, `run_in_background: true` and `timeout: 7200000` (2 hours; the default of
    10 minutes would kill it):
 
@@ -111,7 +114,8 @@ whenever the file is rewritten.
    every 2 s for at most 60 s; `grep -m1 '"subtype":"init"'`). Read that line's `plugins` (names) and
    `mcp_servers` (name and status). The check fails when `slice` is not among the plugins, when a `plugin_errors` entry names `slice`
    (other plugins' errors are ignored: the run settings switch the Playwright plugin off, which `plugin_errors` reports
-   for plugins that depend on it), or, with `<mcp>` set, when no `playwright` server has the status `connected`. A failed check: stop the
+   for plugins that depend on it), or, for a plan with a `ui` feature, when no `playwright` server has the status `connected`. A `context7` server
+   that is not connected does not fail the check; note it in the report. A failed check: stop the
    builder (TaskStop; else `pkill -f <uuid>`), set `state.json` to `halted` with the reason (for example "plugin
    slice not loaded: <plugin_errors>" or "playwright MCP server not connected"), send the halt notification (step 8),
    go on as a halt with no passing feature (step 6, last paragraph), and do not resume. No `init` line within 60 s

@@ -12,7 +12,7 @@ New here? Start with the short [GUIDE](GUIDE.md). This file explains how it work
 | git | worktrees, run branches, commits | `git --version` |
 | Node.js | the guard hook of run sessions; `npx` starts the headless Playwright server for features with screens | `node --version`, `npx --version` |
 
-Optional: a Context7 MCP server (the `context7` plugin or your own), which builders use to look up library docs; a language server for each language in the repo, used by the official `*-lsp` plugins that setup offers; a git remote for pushing the agent branch, a GitHub remote for cloud runs, `expect` for starting cloud runs automatically, and the Claude Docs connector for the changelog.
+Library docs: builders look up every library they use in Context7. slice brings its own Context7 server config (`mcp/context7.json`) and uses it when you have none, also in the cloud; set `CONTEXT7_API_KEY` for higher rate limits. Optional: a language server for each language in the repo, used by the official `*-lsp` plugins that setup offers; a git remote for pushing the agent branch, a GitHub remote for cloud runs, `expect` for starting cloud runs automatically, and the Claude Docs connector for the changelog.
 
 ## Contents
 
@@ -336,7 +336,7 @@ sequenceDiagram
 | Independent checks | `/verify` in a fresh session, `/code-review medium` on the plan's diff, and the test gate before any merge |
 | Your branches | No writes to your checkout or default branch, no force pushes |
 
-Features with screens use a headless Playwright server from `mcp/playwright.json`, passed with `--mcp-config` to the builder and the acceptance only. The run settings switch off the official Playwright plugin for those sessions, so no browser window opens on your screen.
+Features with screens use a headless Playwright server from `mcp/playwright.json`, passed with `--mcp-config` to the builder and the acceptance only. The same way, `mcp/context7.json` gives the builder Context7 when you have no `context7` server of your own. The run settings switch off the official Playwright plugin for those sessions, so no browser window opens on your screen.
 
 ## Where things live
 
@@ -362,6 +362,7 @@ Real runs, November 2026:
 | Cloud, web plan with headless acceptance | 3/3 features, `/verify` PASS, 4.17 $ |
 | Start in the cloud from slice | 3/3 features merged in the cloud; a failed push once started a second session, fixed since (the push is verified before the start) |
 | Setup without write access to `.claude/` | stops with an instruction and plans nothing |
+| Context7 without your own server | the bundled config connects next to the Playwright one with the run profile; a docs lookup works without a key |
 | Better code than Claude Code without slice, same spec | one valid pair: the reviewer gave slice 16 and plain 15 points, within noise. Not proven. |
 
 Not seen yet: push notifications, the changelog doc, cloud builders running longer than about 11 minutes, the web-chat way, parallel runs.
