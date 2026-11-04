@@ -126,11 +126,10 @@ whenever the file is rewritten.
    `total_cost_usd` is cumulative for the session, so the run's spend is its latest value; never sum calls. Count
    features with `passes: true` in `<run>/.slice/plans/<id>/features.json`.
    All features pass, whatever the `subtype` (a call can stop on its cap right after the last step):
-   - No feature marked `ui`: go to step 7.
-   - Otherwise acceptance (with `budgetUsd` set, only if at least 0.5 $ of it is left; else note it was skipped for
+   - Acceptance, for every plan (with `budgetUsd` set, only if at least 0.5 $ of it is left; else note it was skipped for
      budget and go to step 7). Run Claude Code's own `/verify` as an independent check, sandboxed like the builder,
      `run_in_background: true`, `timeout: 3600000`:
-     `cd <run> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/plans/<id>/features.json against it. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools (`mcp__playwright__*`), never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-accept.json 2> <out>/<id>-accept.err`.
+     `cd <run> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/plans/<id>/features.json against it, at its real surface: a command-line tool in the terminal, an API with requests, screens in the browser. Then probe the unhappy paths that .slice/plans/<id>/spec.md and its quality bar name (invalid, empty, long or repeated input); a real defect there is a FAIL for the feature it belongs to. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools (`mcp__playwright__*`), never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-accept.json 2> <out>/<id>-accept.err`.
      With `budgetUsd` set, add `--max-budget-usd` = `budgetUsd` minus the spend. Add its cost to the spend. Every
      feature PASS: go to step 7. Any FAIL: resume the builder (as below) with the
      prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,

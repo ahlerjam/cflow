@@ -177,8 +177,8 @@ sequenceDiagram
     alt features still open
         S->>B: Resume the same session (--resume)
     end
-    opt any feature with screens
-        S->>V: Independent check of every E2E step
+    opt always
+        S->>V: Independent check of every E2E step and the unhappy paths
         V-->>S: PASS or FAIL lines (one FAIL round goes back to the builder)
     end
     S->>R: Merge the agent branch in, run testCommand
@@ -234,7 +234,7 @@ The builder runs on Opus with Sonnet as fallback, and the acceptance runs on Son
 | `/code-review` | once, as `/code-review medium <base>..HEAD` on the plan's diff, then a check against `spec.md`; only findings that affect correctness against the spec or the quality bar are fixed | `skills/slice/SKILL.md`, Finish 2 |
 | `/security-review` | only when the diff touches sign-in, secrets, network input or user input; without a remote a subagent reviews the diff for security | `skills/slice/SKILL.md`, Finish 2 |
 | Screenshots judged by `taste` | at the end, for features with screens, at 360 and 1280 px | `skills/slice/SKILL.md`, Finish 3 |
-| `/verify` acceptance | after the builder, in a fresh session, when any feature has screens; one FAIL round goes back to the builder | `skills/run/SKILL.md`, step 6 |
+| `/verify` acceptance | after the builder, in a fresh session, for every plan: each E2E step at its real surface (terminal, request, browser) plus the unhappy paths from the spec's quality bar; one FAIL round goes back to the builder | `skills/run/SKILL.md`, step 6 |
 | Your repo's `verify` skill | switched off in run sessions (`skillOverrides`), so it does not run before every feature commit; the builder only reads its recipe | `profiles/run.json`, `profiles/cloud.json` |
 | `testCommand` | the gate before every merge, on the run branch | `skills/run/SKILL.md`, step 7 |
 
