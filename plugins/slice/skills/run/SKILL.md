@@ -110,8 +110,9 @@ whenever the file is rewritten.
    set, add `--max-budget-usd` with 0.8 x `budgetUsd` for the first call. Model: `<model>` is the marker's `builderModel`
    when set, else the plan's `builderModel` in `state.json` (set by `shape` from the size: `sonnet` for a small
    change, `opus` for anything bigger), else `opus`. `<fallback>` is ` --fallback-model sonnet` when `<model>` is
-   `opus`, else empty. Advisor: the marker's `builderAdvisor` set to a model alias makes `<advisor>`
-   ` --advisor <alias>` and `<advisor-off>` empty; unset or `off`, `<advisor>` is empty and `<advisor-off>` is
+   `opus`, else empty. Advisor: `builderAdvisor` from the marker when set, else from the plan's
+   `state.json` (`shape` sets `opus` for large plans), else `off`. A model alias makes `<advisor>` ` --advisor <alias>`
+   and `<advisor-off>` empty; `off` makes `<advisor>` empty and `<advisor-off>`
    ` CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`, so the person's own advisor setting does not change the build. `<E>` is `medium`; it rises to `high` for a
    resume after a call that added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<id>` and `<maxTurns>` filled in (it contains no single quote):

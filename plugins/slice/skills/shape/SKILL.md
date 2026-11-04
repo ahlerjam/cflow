@@ -81,7 +81,9 @@ Plan id: `YYYYMMDD-<short-slug>`. Work in the agent worktree. Write:
   ```
   Every `passes` is `false`; `ui` is optional. Only `passes` may change after this skill.
 - `.slice/plans/<id>/state.json`: `{"state": "parked", "builderModel": "<model>"}` with `<model>` `sonnet` when you
-  used quick mode (a small change in one place) and `opus` for anything bigger. The marker's `builderModel` overrides it.
+  used quick mode (a small change in one place) and `opus` for anything bigger. For a large plan add
+  `"builderAdvisor": "opus"`: deep mode and at least one of a new app, an architecture decision in `## Decisions`, or 8
+  or more features. The marker's `builderModel` and `builderAdvisor` override both.
 
 Commit them in the agent worktree as `slice: plan <id>`, and push the agent branch when the repo has a remote (never
 force). Then ask one AskUserQuestion, the start question: `Start now` (recommended), `Start in the cloud` (only when the repo has a GitHub remote), `Park`, `Plan another task`.

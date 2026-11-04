@@ -223,7 +223,7 @@ On a resume the builder first starts the app and reruns the E2E tests of feature
 
 The run settings set `skillOverrides` to `"user-invocable-only"` for `verify`. The [skills docs](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit) say a project skill named `verify` makes Claude run it before each commit and name no interactive-only condition, so without the override it would also apply to the unattended builder. Builders read the recipe file instead of invoking the skill.
 
-The builder's model follows the size of the work: Sonnet for a small change (quick mode), Opus for anything bigger, with Sonnet as fallback. A test in November 2026 found Sonnet as good as Opus on a small CLI plan at about 40 % lower cost, and clearly behind on an 11-feature web app. The advisor ([advisor](https://code.claude.com/docs/en/advisor)) is off in runs, whatever your own setting; `builderModel` and `builderAdvisor` in the marker override both. The acceptance runs on Sonnet. Planning and run control use the model of your own session.
+The builder's model follows the size of the work: Sonnet for a small change (quick mode), Opus for anything bigger, with Sonnet as fallback. A test in November 2026 found Sonnet as good as Opus on a small CLI plan at about 40 % lower cost, and clearly behind on an 11-feature web app. For large plans (deep mode and a new app, an architecture decision or 8 or more features) Opus also gets an Opus advisor ([advisor](https://code.claude.com/docs/en/advisor)) to consult at key points; that choice is not measured on large plans yet. Otherwise the advisor is off in runs, whatever your own setting. `builderModel` and `builderAdvisor` in the marker override the choice. The acceptance runs on Sonnet. Planning and run control use the model of your own session.
 
 ## Checks and how the rules reach the model
 
@@ -342,7 +342,7 @@ Features with screens use a headless Playwright server from `mcp/playwright.json
 
 | What | Where |
 | --- | --- |
-| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `builderModel` (overrides the size-based choice), `builderAdvisor` (off by default), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd` and `cloudPluginRef`, both only for tests | `.claude/slice.json` |
+| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `builderModel` (overrides the size-based choice), `builderAdvisor` (overrides the plan's choice: opus for large plans, else off), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd` and `cloudPluginRef`, both only for tests | `.claude/slice.json` |
 | Run settings: the plugin's `profiles/run.json` plus the marker's domains and commands | `.claude/slice-run.json` |
 | Plan: `spec.md`, `features.json`, `progress.md`, `state.json` | `.slice/plans/<id>/` on the agent branch |
 | Open decisions | `.slice/decisions.md` on the agent branch |
