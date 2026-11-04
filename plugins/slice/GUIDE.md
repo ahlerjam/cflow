@@ -27,6 +27,8 @@ You describe what you want in the Claude Code chat. slice asks the questions a g
 | "How far is the run?" | features done of total |
 | "Stop the run" | stops; "start plan `<id>`" later resumes |
 | "Plan decision D2: …" | turns an open question into a new plan |
+| "Check my plans" | starts queued plans, resumes technically stopped runs once, reports the rest |
+| "Set up a check-in routine" | prints a routine prompt for `/schedule` |
 
 No slash commands needed. `/slice:setup`, `/slice:shape` and `/slice:run` exist as a back door.
 
@@ -59,6 +61,7 @@ Costs: each run reports what the builder and the acceptance spent. There is no l
 
 ## Tips
 
+- **Pro tip: a check-in routine that never expires.** Ask slice to "set up a check-in routine". It prints a ready prompt; create a Claude Code routine from it with `/schedule`, for example every 2 hours on Sonnet. The routine runs in the cloud, in auto mode, even while your machine is off: it starts queued plans, resumes runs that stopped for technical reasons once, and reports what needs you. It never resumes a red gate or answers a decision for you. Locally, `/loop 2h check my plans` does the same while your session stays open.
 - **Cloud sessions: use auto mode.** A cloud session that waits for a permission answer stands still until you look. slice starts cloud sessions with `--permission-mode auto`; if your session still shows another mode in its mode menu, switch it to **Auto**. When you work in the web chat directly, pick Auto when you create the session. Auto appears only when your organization and the model allow it.
 - **Long cloud runs:** set `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` in your cloud environment's variables (for example 3600000 and 7200000), so a long builder is not cut short.
 - **Library docs:** the builder looks up every library in Context7 before it writes code against it. Without your own Context7 server, slice brings one; set `CONTEXT7_API_KEY` (locally and in the cloud environment) for higher rate limits.

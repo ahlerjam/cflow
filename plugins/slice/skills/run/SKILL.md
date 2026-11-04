@@ -1,7 +1,7 @@
 ---
 name: run
 description: Runs a saved slice plan with a separate builder session in its own git worktree and run branch, checks readiness first, resumes after turn stops, gates on the tests, fast-forwards the agent branch, logs decisions and the changelog. Also lists, changes, deletes, stops and reports on plans. Use when the person starts a plan after the start question or asks to start (here or in the cloud), stop or list plans, ask how far a run is, or turn a decision into a plan.
-when_to_use: /slice:run, "start plan", "show my plans", "zeig meine Pläne", "plan decision", "stop the run", "stop plan <id>", "Lauf stoppen", "how far is the run?", "wie weit ist der Lauf?", "Plan starten", "Plan löschen", "Plan ändern", "start plan <id> in the cloud", "in der Cloud starten".
+when_to_use: /slice:run, "start plan", "check my plans", "prüfe meine Pläne", "set up a check-in routine", "show my plans", "zeig meine Pläne", "plan decision", "stop the run", "stop plan <id>", "Lauf stoppen", "how far is the run?", "wie weit ist der Lauf?", "Plan starten", "Plan löschen", "Plan ändern", "start plan <id> in the cloud", "in der Cloud starten".
 ---
 Slice's plans live on the agent branch under `.slice/plans/<id>/`. The builder is a separate `claude -p` process with a
 `/goal`. This session only prepares the run, starts the builder, resumes it, merges and reports; it builds nothing
@@ -35,6 +35,20 @@ say to set slice up (`setup` skill) and stop.
   A plan whose `state.json` says `"where": "cloud"`: `git -C <agent> fetch origin <agentBranch>`, then report from
   `origin/<agentBranch>` (`git show origin/<agentBranch>:.slice/plans/<id>/state.json` and `features.json`: state, passes
   of total) and add the `cloudSession` URL. The run branch lives only in the cloud VM until it is merged.
+- "check my plans" / "prüfe meine Pläne" (meant for scheduled check-ins: a routine or `/loop`): with a remote,
+  `git fetch origin` first. Then, plan by plan, and do at most one thing per plan:
+  - `running` but its builder is gone (`pgrep -f <sessionId>` finds nothing, and it is not a cloud plan whose state
+    on origin is still `running`): treat it as killed and resume it (restart rule below).
+  - `halted` for a technical reason (process killed, timeout, usage limit, failed load check): resume it once. Write
+    `"checkResumes": 1` into `state.json`; a plan that halts again with `checkResumes` 1 is only reported.
+  - `halted` for any other reason (red gate, two resumes without progress, acceptance failed twice, stopped by the
+    person) and `partial` plans: report only; never resume them on your own.
+  - When no plan is running, start the oldest `queued` plan.
+  End with one line per plan that needs the person (state, reason, open decisions `D<n>`), or "All plans fine".
+  In a non-interactive session keep the wait loop of step 5 for any run you started.
+- "set up a check-in routine": print a ready prompt for a Claude Code routine (cloud scheduled task) and tell the
+  person to create it with `/schedule` (for example every 2 hours, model Sonnet). The prompt is the cloud task from
+  "Cloud start" with "check my plans" instead of "start plan <id>". Create nothing yourself.
 - Restart of a `halted`, `partial` or stopped plan: if `<run>` exists, resume the builder with `--resume <sessionId>`
   from `state.json` (resume rules in step 6). Otherwise `git worktree add <run> slice/run-<id>` (no `-b`) and resume.
 
