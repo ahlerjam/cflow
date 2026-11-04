@@ -83,7 +83,8 @@ Plan id: `YYYYMMDD-<short-slug>`. Work in the agent worktree. Write:
 - `.slice/plans/<id>/state.json`: `{"state": "parked"}`.
 
 Commit them in the agent worktree as `slice: plan <id>`, and push the agent branch when the repo has a remote (never
-force). Then ask one AskUserQuestion, the start question: `Start now` (recommended), `Park`, `Plan another task`.
+force). Then ask one AskUserQuestion, the start question: `Start now` (recommended), `Start in the cloud` (only when the repo has a GitHub remote), `Park`, `Plan another task`.
 - Start now: invoke the `run` skill for the plan.
+- Start in the cloud: invoke the `run` skill for the plan as a cloud start.
 - Park: the plan stays `parked`; say how to start it later ("start plan <id>").
 - Plan another task: begin a new interview.

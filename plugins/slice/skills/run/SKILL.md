@@ -1,7 +1,7 @@
 ---
 name: run
-description: Runs a saved slice plan with a separate builder session in its own git worktree and run branch, checks readiness first, resumes after turn stops, gates on the tests, fast-forwards the agent branch, logs decisions and the changelog. Also lists, changes, deletes, stops and reports on plans. Use when the person starts a plan after the start question or asks to start, stop or list plans, ask how far a run is, or turn a decision into a plan.
-when_to_use: /slice:run, "start plan", "show my plans", "zeig meine Pläne", "plan decision", "stop the run", "stop plan <id>", "Lauf stoppen", "how far is the run?", "wie weit ist der Lauf?", "Plan starten", "Plan löschen", "Plan ändern".
+description: Runs a saved slice plan with a separate builder session in its own git worktree and run branch, checks readiness first, resumes after turn stops, gates on the tests, fast-forwards the agent branch, logs decisions and the changelog. Also lists, changes, deletes, stops and reports on plans. Use when the person starts a plan after the start question or asks to start (here or in the cloud), stop or list plans, ask how far a run is, or turn a decision into a plan.
+when_to_use: /slice:run, "start plan", "show my plans", "zeig meine Pläne", "plan decision", "stop the run", "stop plan <id>", "Lauf stoppen", "how far is the run?", "wie weit ist der Lauf?", "Plan starten", "Plan löschen", "Plan ändern", "start plan <id> in the cloud", "in der Cloud starten".
 ---
 Slice's plans live on the agent branch under `.slice/plans/<id>/`. The builder is a separate `claude -p` process with a
 `/goal`. This session only prepares the run, starts the builder, resumes it, merges and reports; it builds nothing
@@ -9,7 +9,7 @@ itself. Everything happens in git worktrees; the person's checkout is never swit
 repo's default branch.
 
 Terms: `<repo>` is the person's checkout (`$CLAUDE_PROJECT_DIR`); the marker is `<repo>/.claude/slice.json`
-(`agentBranch`, `testCommand`, `startCommand`, `maxTurns`, `budgetUsd`, `changelogDoc`). `<out>` is
+(`agentBranch`, `testCommand`, `startCommand`, `maxTurns`, `budgetUsd`, `changelogDoc`, `cloudPluginRef`). `<out>` is
 `${XDG_CACHE_HOME:-$HOME/.cache}/slice/<repo dir name>/` (`mkdir -p`); the builder must not write into `.git`.
 `<agent>` is the worktree `<out>/agent` on the agent branch, `<run>` is `<out>/run-<id>` on `slice/run-<id>`. No marker:
 say to set slice up (`setup` skill) and stop.
@@ -20,6 +20,8 @@ say to set slice up (`setup` skill) and stop.
 - "start plan <id>", or the start question's `Start now`: run the plan (flow below). Several plans: run dependent ones
   one after another; independent ones also run one after another for now, as a queue. Say so and set the waiting plans
   to `queued`; start the next one when a run ends. Parallel runs come later.
+- "start plan <id> in the cloud", or the start question's `Start in the cloud`: the cloud start (section below). Not
+  in a cloud session (`CLAUDE_CODE_REMOTE=true`): there the plan simply runs (flow below).
 - Change or delete a plan: edit or delete its folder in `<agent>` and commit. A changed `spec.md` or `features.json`
   is committed as `slice: plan <id>` again (the guard compares against the latest such commit). Other changes:
   `slice: update <id>`. Never change a running plan.
@@ -30,6 +32,9 @@ say to set slice up (`setup` skill) and stop.
   Queued plans stay queued unless the person says otherwise.
 - "how far is the run?": read `<run>/.slice/plans/<id>/features.json` and `git -C <run> log --oneline`; report passes
   of total and the last commit, in one or two lines. Without a run worktree, report `<agent>/.slice/plans/<id>/state.json`.
+  A plan whose `state.json` says `"where": "cloud"`: `git -C <agent> fetch origin <agentBranch>`, then report from
+  `origin/<agentBranch>` (`git show origin/<agentBranch>:.slice/plans/<id>/state.json` and `features.json`: state, passes
+  of total) and add the `cloudSession` URL. The run branch lives only in the cloud VM until it is merged.
 - Restart of a `halted`, `partial` or stopped plan: if `<run>` exists, resume the builder with `--resume <sessionId>`
   from `state.json` (resume rules in step 6). Otherwise `git worktree add <run> slice/run-<id>` (no `-b`) and resume.
 
@@ -39,7 +44,8 @@ once with all its fields (read the current file first and keep `started`, `sessi
 `state` and `finished` change), and skip the commit when the file already holds that state. Only the `shape` and `run`
 skills write `state.json`, never the builder:
 `{"state": "parked|queued|running|done|partial|halted", "runBranch": ..., "sessionId": ..., "started": ...,
-"finished": ...}`.
+"finished": ...}`. A cloud plan also has `"where": "cloud"` and, once started, `"cloudSession": "<url>"`; keep both
+whenever the file is rewritten.
 
 1. Readiness gate. Read the marker again right before it, on every run: its values may have changed since the session
    started. Check all before any builder starts. On any failure list every gap, name `shape` for gaps in the
@@ -51,7 +57,8 @@ skills write `state.json`, never the builder:
      features marked `ui`, `npx` is on `PATH` (`command -v npx`); the run brings its own headless
      browser server. Not a gate: if no
      language server plugin (`*-lsp`) is enabled for the repo's main language, say so and name `setup`.
-   - c. What it may touch: `<repo>/.claude/slice-run.json` exists.
+   - c. What it may touch: `<repo>/.claude/slice-run.json` exists. Skipped when `CLAUDE_CODE_REMOTE` is `true` or for
+     a cloud start: the cloud profile is used there.
    - d. What stops it: `maxTurns` (default 400) resolves to a number. `budgetUsd` is optional and has no default: only
      when it is set (for test runs) does the run get a dollar cap.
    - e. It can be tested: `testCommand` is in the marker. The env var names under `## Access` in `spec.md` are set in
@@ -61,7 +68,9 @@ skills write `state.json`, never the builder:
    `setup`; stop if it equals the default branch or is checked out in `<repo>`). With a remote: `git fetch origin`.
    Merge the repo's default branch into the agent branch (`git -C <agent> merge --no-edit <default>`; only read on the
    default branch). A conflict: `git -C <agent> merge --abort`, go on without the merge and record a decision.
-3. Run worktree. Run `uuidgen` (lowercase) first and keep the result as `<uuid>`. Only then write `state.json` once
+3. Run worktree. A plan that is already `queued` or `running` with `"where": "cloud"` is startable inside the cloud
+   session (`CLAUDE_CODE_REMOTE=true`): this step rewrites `state.json` as `running` with the new `runBranch`,
+   `sessionId` and `started` and keeps `where` and `cloudSession`. Run `uuidgen` (lowercase) first and keep the result as `<uuid>`. Only then write `state.json` once
    as `running` with `runBranch`, `sessionId` = `<uuid>` and `started`, and commit it in `<agent>` as the single
    `slice: state <id> running` commit, so the run branch contains it. Never commit it before the session id is known
    and never amend it with a second commit. Then
@@ -127,6 +136,45 @@ skills write `state.json`, never the builder:
    Notifications: after each finished feature the builder sends one itself. Send the halt notification
    here, immediately on a halt, with the reason, using the PushNotification tool if it is available (skip silently
    otherwise). slice has resumed on its own first (step 6); a halt means that did not help.
+
+## Cloud start
+Only when `<repo>` has a GitHub remote (`git remote get-url origin` contains `github.com`) and `CLAUDE_CODE_REMOTE` is
+not `true`: a cloud session never starts another cloud run; it runs the plan itself.
+
+1. Readiness gate as in step 1 (check c skipped), plus: the remote exists, and the person's current branch exists on
+   origin (`git -C <repo> ls-remote --exit-code --heads origin <branch>`). Otherwise go to C below with the note that
+   this branch must be pushed first; never push the person's branch yourself.
+2. Step 2 (agent worktree, merge the default branch). Write `state.json` as `queued` with `"where": "cloud"` and
+   commit it once as `slice: state <id> queued`. Push the agent branch (`git -C <agent> push origin <agentBranch>`,
+   never force). The push is required: on failure stop and show the error.
+3. Write the task to `<out>/<id>-cloud-task.txt`, with `<id>`, `<agentBranch>`, `<cloudPluginRef>` and `<marker>`
+   (the marker file's content, one line of JSON) filled in. `<cloudPluginRef>` is the marker field `cloudPluginRef`
+   when set, else `slice--v<version>` with the version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`:
+
+   ```
+   You are only a launcher. Change nothing in this repository yourself and create no commits.
+   1. Run: git clone --depth 1 --branch <cloudPluginRef> https://github.com/ahlerjam/cflow /tmp/cflow
+   2. If .claude/slice.json does not exist in the repository, create it with exactly this content: <marker>
+   3. Start the run in the background with the longest Bash timeout (run_in_background true, timeout 7200000):
+      SLICE_PLUGIN_DIR=/tmp/cflow/plugins/slice claude -p --plugin-dir /tmp/cflow/plugins/slice 'start plan <id>' --model sonnet --permission-mode dontAsk --allowedTools 'Bash,Read,Edit,Write,Glob,Grep,Skill' --output-format stream-json --verbose > /tmp/orch.jsonl 2>&1
+   4. Stay active until it exits: loop with a Bash call "sleep 600; tail -c 400 /tmp/orch.jsonl" and check whether the
+      background process is still running. Do not create scheduled triggers, routines, cron jobs or loops of any kind.
+      Never kill the run before it exits.
+   5. When it has exited, report the last line of /tmp/orch.jsonl that has "type":"result", and the output of
+      git fetch origin <agentBranch> && git log --oneline -5 origin/<agentBranch>.
+   ```
+4. Start, in this order:
+   - B. Routine start: not built yet.
+   - D. When `command -v expect` finds expect: from `<repo>` run
+     `expect "${CLAUDE_PLUGIN_ROOT}/scripts/cloud-start.exp" <out>/<id>-cloud-task.txt <out>/<id>-cloud-start.log`
+     with Bash, timeout 180000. It starts `claude --cloud`, an undocumented use of that command through a pty. Exit 0:
+     stdout is the session URL. Write `state.json` as `running` with `"where": "cloud"`, `"cloudSession": "<url>"`,
+     `started`, commit it (`slice: state <id> running`), push the agent branch (a failed push is reported, not
+     fatal) and answer with exactly one line: `Started in the cloud: <url>`. Exit 1 (no URL within 120 s, or an
+     error): C.
+   - C. Tell the person one line to run in their terminal, in the repo: `claude --cloud "$(cat <out>/<id>-cloud-task.txt)"`.
+     The state stays `queued` with `where: cloud`. After D failed, add that the automatic start failed
+     (`<out>/<id>-cloud-start.log` has the output). With a branch not on origin, say it must be pushed first.
 
 ## Report
 The same content goes to the changelog entry and the merge commit:

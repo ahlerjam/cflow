@@ -26,7 +26,7 @@ In repos without the marker slice stays silent.
 In a repo with the marker, a SessionStart hook tells Claude that slice is active. Describe what to build or change:
 
 - **Planning.** Claude estimates the size. A small change gets quick mode (at most 6 questions); bigger work gets deep mode, which ends only when every area of its coverage list is settled, every feature has executable E2E steps and you confirmed a summary. Keys and access (env var names, accounts, services) are part of the interview; the names go under `## Access` in the spec, never the values. In existing code it runs `Explore` first. In a new app the first feature is a walking skeleton.
-- **Start question.** After the summary Claude asks: `Start now`, `Park` or `Plan another task`. Every plan is saved. "Show my plans" lists them with their state; you can start, change or delete one by asking.
+- **Start question.** After the summary Claude asks: `Start now`, `Start in the cloud` (only with a GitHub remote), `Park` or `Plan another task`. Every plan is saved. "Show my plans" lists them with their state; you can start, change or delete one by asking.
 - **Run.** Claude never works on the default branch and never touches your checkout. Plans live on one agent branch (`agent` by default) under `.slice/plans/<id>/`; each run has its own run branch in a git worktree under `~/.cache/slice/<repo>/`. Several plans run one after another in a queue. "Stop the run" ends a running run, and "how far is the run?" reports progress.
 - **Result.** When the tests are green, the run branch is fast-forwarded into the agent branch and, when a remote exists, pushed. Finished features are merged even if others stay open. You get one line in the chat, and a push notification (when available) after each finished feature and on a halt. The changelog doc (when available) and the merge commit carry the report; there is no PR.
 - **Decisions.** A missing key or an owner-only question does not stop the builder. It builds against a fake or a reversible interim solution and records a decision (`D1`, `D2`, ... in `.slice/decisions.md` on the agent branch). "Plan decision D3: use Postgres" turns an entry into a new, independent plan.
@@ -52,11 +52,23 @@ The `taste` skill covers how screens look: it lists tells of machine-made UI and
 - **Gate.** The agent branch is merged into the run branch, `testCommand` runs there, and only a green result is fast-forwarded into the agent branch. Tests of features left open are marked skipped with the reason.
 - **Code intelligence.** The `setup` skill offers the official language server plugin for each language in the repo (`typescript-lsp`, `pyright-lsp` and others). With it, the builder sees type errors after every edit and finds code by symbol. Each plugin needs its language server installed; setup shows the command. Cloud sessions start no language servers.
 
+## Cloud
+
+`Start in the cloud` (or "start plan <id> in the cloud") runs a plan in a Claude Code cloud session instead of on your machine. It needs a GitHub remote, a Claude account with cloud sessions and your current branch pushed to origin; slice never pushes your branch. The plan goes on the agent branch, which slice pushes. The cloud session clones `ahlerjam/cflow` at the slice release tag, starts a nested `claude -p` run with the plugin from that clone and stays active until it ends. The nested run builds, gates, fast-forwards and pushes the agent branch. Cloud runs use the profile without sandbox, so the local `.claude/slice-run.json` is not needed. "How far is the run?" reads the agent branch on origin and shows the session link.
+
+How the session starts:
+
+1. A routine call: not built yet.
+2. `claude --cloud` driven through `expect` (`scripts/cloud-start.exp`), when `expect` is on `PATH`. Scripting the interactive trust prompt is not a documented way to start a session, so it can break with a Claude Code update. If no session link appears within 120 seconds, slice falls back to 3.
+3. Otherwise slice shows one line to paste into your terminal in the repo: `claude --cloud "$(cat <task file>)"`.
+
+The other way is to work directly in the Claude Code web chat once slice is enabled for your claude.ai account.
+
 ## Where things live
 
 | What | Where |
 | --- | --- |
-| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd`, a dollar cap for a whole run, meant for test runs | `.claude/slice.json` |
+| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd`, a dollar cap for a whole run, meant for test runs; optional `cloudPluginRef`, only for testing before a release | `.claude/slice.json` |
 | Builder settings: the plugin's `profiles/run.json` plus the marker's domains and commands | `.claude/slice-run.json` |
 | Plan: spec, feature list, builder log, state | `.slice/plans/<id>/` on the agent branch |
 | Open decisions | `.slice/decisions.md` on the agent branch |
@@ -67,5 +79,5 @@ The `taste` skill covers how screens look: it lists tells of machine-made UI and
 - The builder runs sandboxed with `failIfUnavailable`. Network is limited to the package registries plus `allowedDomains`, and commands in `excludedCommands` run unsandboxed.
 - Features with screens use a headless Playwright server from `mcp/playwright.json`, passed with `--mcp-config` to the builder and the acceptance only. The run settings switch off `playwright@claude-plugins-official` for those sessions, so no second, visible browser opens.
 - Plans run one after another. Parallel runs are not part of this version.
-- On a cloud VM (`CLAUDE_CODE_REMOTE=true`) the run uses the profile without sandbox. Cloud runs aren't tested end to end for this version. Cloud sessions don't install plugins from the repo's settings, so slice has to be loaded another way there, and background shell work in a cloud VM is limited in time, which can cut a long builder short.
+- On a cloud VM (`CLAUDE_CODE_REMOTE=true`) the run uses the profile without sandbox. Cloud sessions don't install plugins from the repo's settings, so slice has to be loaded another way there, and background shell work in a cloud VM is limited in time, which can cut a long builder short. See Cloud below.
 - In a run session (`SLICE_RUN=1`; other sessions skip it before Node starts) a hook (`scripts/guard-features.mjs`, Node.js) rejects edits to the plan's `features.json` other than `passes`, and shell commands that name the file in anything but a read. After every shell command it compares the file with the `slice: plan <id>` commit and tells the builder to restore it when more than `passes` changed.
