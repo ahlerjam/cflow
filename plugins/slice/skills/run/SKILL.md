@@ -160,13 +160,12 @@ not `true`: a cloud session never starts another cloud run; it runs the plan its
    3. Start the run in the background with the longest Bash timeout (run_in_background true, timeout 7200000):
       SLICE_PLUGIN_DIR=/tmp/cflow/plugins/slice claude -p --plugin-dir /tmp/cflow/plugins/slice 'start plan <id>' --model sonnet --permission-mode dontAsk --allowedTools 'Bash,Read,Edit,Write,Glob,Grep,Skill' --output-format stream-json --verbose > /tmp/orch.jsonl 2>&1
    4. Stay active until it exits: loop with a Bash call "sleep 600; tail -c 400 /tmp/orch.jsonl" and check whether the
-      background process is still running. Do not create scheduled triggers, routines, cron jobs or loops of any kind.
+      background process is still running. Do not create scheduled triggers, routines or cron jobs.
       Never kill the run before it exits.
    5. When it has exited, report the last line of /tmp/orch.jsonl that has "type":"result", and the output of
       git fetch origin <agentBranch> && git log --oneline -5 origin/<agentBranch>.
    ```
 4. Start, in this order:
-   - B. Routine start: not built yet.
    - D. When `command -v expect` finds expect: from `<repo>` run
      `expect "${CLAUDE_PLUGIN_ROOT}/scripts/cloud-start.exp" <out>/<id>-cloud-task.txt <out>/<id>-cloud-start.log`
      with Bash, timeout 180000. It starts `claude --cloud`, an undocumented use of that command through a pty. Exit 0:

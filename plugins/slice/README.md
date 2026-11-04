@@ -58,9 +58,8 @@ The `taste` skill covers how screens look: it lists tells of machine-made UI and
 
 How the session starts:
 
-1. A routine call: not built yet.
-2. `claude --cloud` driven through `expect` (`scripts/cloud-start.exp`), when `expect` is on `PATH`. Scripting the interactive trust prompt is not a documented way to start a session, so it can break with a Claude Code update. If no session link appears within 120 seconds, slice falls back to 3.
-3. Otherwise slice shows one line to paste into your terminal in the repo: `claude --cloud "$(cat <task file>)"`.
+1. `claude --cloud` driven through `expect` (`scripts/cloud-start.exp`), when `expect` is on `PATH`. Scripting the interactive trust prompt is not a documented way to start a session, so it can break with a Claude Code update. If no session link appears within 120 seconds, slice falls back to 2.
+2. Otherwise slice shows one line to paste into your terminal in the repo: `claude --cloud "$(cat <task file>)"`.
 
 The other way is to work directly in the Claude Code web chat once slice is enabled for your claude.ai account.
 
