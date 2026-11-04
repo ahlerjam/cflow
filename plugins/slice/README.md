@@ -223,7 +223,7 @@ On a resume the builder first starts the app and reruns the E2E tests of feature
 
 The run settings set `skillOverrides` to `"user-invocable-only"` for `verify`. The [skills docs](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit) say a project skill named `verify` makes Claude run it before each commit and name no interactive-only condition, so without the override it would also apply to the unattended builder. Builders read the recipe file instead of invoking the skill.
 
-The builder runs on Opus with Sonnet as fallback, and the acceptance runs on Sonnet. Planning and run control use the model of your own session.
+The builder runs on `builderModel` from the marker (default Opus, with Sonnet as fallback) and, with `builderAdvisor`, consults a stronger model at key points ([advisor](https://code.claude.com/docs/en/advisor)); unset, your own `advisorModel` setting applies. The acceptance runs on Sonnet. Planning and run control use the model of your own session.
 
 ## Checks and how the rules reach the model
 
@@ -342,7 +342,7 @@ Features with screens use a headless Playwright server from `mcp/playwright.json
 
 | What | Where |
 | --- | --- |
-| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd` and `cloudPluginRef`, both only for tests | `.claude/slice.json` |
+| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `builderModel` (opus), `builderAdvisor` (unset: your settings), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd` and `cloudPluginRef`, both only for tests | `.claude/slice.json` |
 | Run settings: the plugin's `profiles/run.json` plus the marker's domains and commands | `.claude/slice-run.json` |
 | Plan: `spec.md`, `features.json`, `progress.md`, `state.json` | `.slice/plans/<id>/` on the agent branch |
 | Open decisions | `.slice/decisions.md` on the agent branch |

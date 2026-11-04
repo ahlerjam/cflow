@@ -97,14 +97,17 @@ whenever the file is rewritten.
    10 minutes would kill it):
 
    ```
-   cd <run> && SLICE_RUN=1 SLICE_PLAN=<id> claude -p '<GOAL>' --output-format stream-json --verbose --model opus --fallback-model sonnet --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> --plugin-dir "${SLICE_PLUGIN_DIR:-${CLAUDE_PLUGIN_ROOT}}"<mcp> > <out>/<id>-worker.jsonl 2> <out>/<id>-worker.err
+   cd <run> && SLICE_RUN=1 SLICE_PLAN=<id><advisor-off> claude -p '<GOAL>' --output-format stream-json --verbose --model <model><fallback><advisor> --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> --plugin-dir "${SLICE_PLUGIN_DIR:-${CLAUDE_PLUGIN_ROOT}}"<mcp> > <out>/<id>-worker.jsonl 2> <out>/<id>-worker.err
    ```
 
    `<uuid>` is the session id from step 3. `--plugin-dir` always loads the plugin from the directory this session
    runs from (or `SLICE_PLUGIN_DIR`, the cloud checkout); a same-named installed copy is replaced silently, never
    loaded twice, so the builder has the slice skill and its guard hook whatever the install state. Never use `--bare`: it
    skips the hooks, skills and plugin settings the run relies on. Only when `budgetUsd` is
-   set, add `--max-budget-usd` with 0.8 x `budgetUsd` for the first call. `<E>` is `medium`; it rises to `high` for a
+   set, add `--max-budget-usd` with 0.8 x `budgetUsd` for the first call. Model: `<model>` is the marker's `builderModel`
+   (default `opus`); `<fallback>` is ` --fallback-model sonnet` when `<model>` is `opus`, else empty. Advisor: the
+   marker's `builderAdvisor` set to a model alias makes `<advisor>` ` --advisor <alias>`; set to `off` it makes
+   `<advisor-off>` ` CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`; unset, both are empty and the person's own settings apply. `<E>` is `medium`; it rises to `high` for a
    resume after a call that added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<id>` and `<maxTurns>` filled in (it contains no single quote):
 
