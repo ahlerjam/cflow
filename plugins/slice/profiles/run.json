@@ -77,6 +77,9 @@
     "playwright@claude-plugins-official": false
   },
   "crossSessionInbound": "refuse",
+  "skillOverrides": {
+    "verify": "user-invocable-only"
+  },
   "env": {
     "CLAUDE_CODE_RETRY_WATCHDOG": "1",
     "CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS": "18000000",

@@ -62,8 +62,10 @@ whenever the file is rewritten.
    - d. What stops it: `maxTurns` (default 400) resolves to a number. `budgetUsd` is optional and has no default: only
      when it is set (for test runs) does the run get a dollar cap.
    - e. It can be tested: `testCommand` is in the marker. The env var names under `## Access` in `spec.md` are set in
-     the environment or in `<repo>/.env` (check names only, never print values). Missing ones are no gap: note them;
-     the builder uses fakes.
+     the environment or in a file that step 3 copies into the run worktree (`<repo>/.env`, or the files that
+     `<repo>/.worktreeinclude` lists), check names only, never print values. For a cloud start only variables of the
+     cloud environment count; the person's `.env` is not there. Missing ones are no gap: note them (for the cloud:
+     set them as environment variables of the cloud environment); the builder uses fakes.
 2. Agent worktree. Create `<agent>` if missing (`git worktree add <out>/agent <agentBranch>`; the branch comes from
    `setup`; stop if it equals the default branch or is checked out in `<repo>`). With a remote: `git fetch origin`.
    Merge the repo's default branch into the agent branch (`git -C <agent> merge --no-edit <default>`; only read on the
@@ -75,6 +77,14 @@ whenever the file is rewritten.
    `slice: state <id> running` commit, so the run branch contains it. Never commit it before the session id is known
    and never amend it with a second commit. Then
    `git worktree add -b slice/run-<id> <run> <agentBranch>`.
+   Required before step 5, never skipped: copy the person's gitignored files into `<run>`. A worktree made with
+   `git worktree add` gets no `.worktreeinclude` treatment from Claude Code, so do it yourself, in one Bash call:
+   - `<repo>/.worktreeinclude` exists (`.gitignore` syntax): the files to copy are
+     `git -C <repo> ls-files -o -i --exclude-from=.worktreeinclude | git -C <repo> check-ignore --stdin`
+     (matches that are untracked and gitignored); `cp -p` each to the same relative path in `<run>`.
+   - No such file: copy `<repo>/.env` if it exists and `git -C <repo> check-ignore -q .env` succeeds.
+   Never copy a file that is not gitignored, never `git add` a copied file, never print one. Afterwards `ls -a <run>`
+   shows `.env`. Not in a cloud session: there the environment's variables apply.
 4. Settings file: `<repo>/.claude/slice-run.json`, except when the env var `CLAUDE_CODE_REMOTE` is `true` (cloud VM, no
    sandbox): then `${CLAUDE_PLUGIN_ROOT}/profiles/cloud.json`. Browser: when any feature is marked `ui`, `<mcp>` is
    ` --mcp-config "${CLAUDE_PLUGIN_ROOT}/mcp/playwright.json"` (a headless Playwright server, tools
@@ -84,20 +94,33 @@ whenever the file is rewritten.
    10 minutes would kill it):
 
    ```
-   cd <run> && SLICE_RUN=1 SLICE_PLAN=<id> claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-worker.json 2> <out>/<id>-worker.err
+   cd <run> && SLICE_RUN=1 SLICE_PLAN=<id> claude -p '<GOAL>' --output-format stream-json --verbose --model opus --fallback-model sonnet --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> --plugin-dir "${SLICE_PLUGIN_DIR:-${CLAUDE_PLUGIN_ROOT}}"<mcp> > <out>/<id>-worker.jsonl 2> <out>/<id>-worker.err
    ```
 
-   `<uuid>` is the session id from step 3. Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. Only when `budgetUsd` is
+   `<uuid>` is the session id from step 3. `--plugin-dir` always loads the plugin from the directory this session
+   runs from (or `SLICE_PLUGIN_DIR`, the cloud checkout); a same-named installed copy is replaced silently, never
+   loaded twice, so the builder has the slice skill and its guard hook whatever the install state. Never use `--bare`: it
+   skips the hooks, skills and plugin settings the run relies on. Only when `budgetUsd` is
    set, add `--max-budget-usd` with 0.8 x `budgetUsd` for the first call. `<E>` is `medium`; it rises to `high` for a
    resume after a call that added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<id>` and `<maxTurns>` filled in (it contains no single quote):
 
-   `/goal Done means: every feature in .slice/plans/<id>/features.json has passes true, and the finish steps of the slice skill ran: /simplify, /code-review (and /security-review when the slice skill requires it), a full E2E run with its output shown after the last code change, and for screens a screenshot of each view at 360 and 1280 px. Follow the slice skill. Never change anything in .slice/plans/<id>/features.json except passes. You have at most <maxTurns> turns.`
+   `/goal Done means: every feature in .slice/plans/<id>/features.json has passes true, and the finish steps of the slice skill ran: /simplify, /code-review on the plan's diff (and /security-review when the slice skill requires it), a full E2E run with its output shown after the last code change, and for screens a screenshot of each view at 360 and 1280 px. Follow the slice skill. Never change anything in .slice/plans/<id>/features.json except passes. You have at most <maxTurns> turns.`
 
-   Do not poll; wait for the completion notice. Tell the person once that the run started.
-6. On exit read `<out>/<id>-worker.json`: `subtype`, `total_cost_usd`. `total_cost_usd` is cumulative for the session,
-   so the run's spend is its latest value; never sum calls. Count features with `passes: true` in
-   `<run>/.slice/plans/<id>/features.json`.
+   Load check, right after the start: wait until `<out>/<id>-worker.jsonl` holds a line with `"subtype":"init"` (check
+   every 2 s for at most 60 s; `grep -m1 '"subtype":"init"'`). Read that line's `plugins` (names) and
+   `mcp_servers` (name and status). The check fails when `slice` is not among the plugins, when a `plugin_errors` entry names `slice`
+   (other plugins' errors are ignored: the run settings switch the Playwright plugin off, which `plugin_errors` reports
+   for plugins that depend on it), or, with `<mcp>` set, when no `playwright` server has the status `connected`. A failed check: stop the
+   builder (TaskStop; else `pkill -f <uuid>`), set `state.json` to `halted` with the reason (for example "plugin
+   slice not loaded: <plugin_errors>" or "playwright MCP server not connected"), send the halt notification (step 8),
+   go on as a halt with no passing feature (step 6, last paragraph), and do not resume. No `init` line within 60 s
+   counts as failed too.
+   Otherwise do not poll; wait for the completion notice. Tell the person once that the run started.
+6. On exit read the last line of `<out>/<id>-worker.jsonl` that holds `"type":"result"` (`grep '"type":"result"'
+   <out>/<id>-worker.jsonl | tail -1`): `subtype`, `total_cost_usd`, `permission_denials`, `session_id`.
+   `total_cost_usd` is cumulative for the session, so the run's spend is its latest value; never sum calls. Count
+   features with `passes: true` in `<run>/.slice/plans/<id>/features.json`.
    All features pass, whatever the `subtype` (a call can stop on its cap right after the last step):
    - No feature marked `ui`: go to step 7.
    - Otherwise acceptance (with `budgetUsd` set, only if at least 0.5 $ of it is left; else note it was skipped for
@@ -109,10 +132,10 @@ whenever the file is rewritten.
      prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
      then run acceptance again. A second acceptance with FAIL lines: halt and list them in the changelog entry.
    Features still false and `subtype` is `error_max_turns`, `error_max_budget_usd` or `success`, or the worker file
-   is empty because the process was killed (timeout, crash):
+   has no `result` line because the process was killed (timeout, crash):
    - Two resumes in a row added no newly passing feature: halt.
    - `budgetUsd` set and spend >= `budgetUsd`, or less than 1 $ of it left: halt.
-   - Otherwise resume with the same command, but `claude -p --resume <uuid> '<GOAL>'` instead of `--session-id`
+   - Otherwise resume with the same command (including `--plugin-dir`, the load check and the `.jsonl` output), but `claude -p --resume <uuid> '<GOAL>'` instead of `--session-id`
      (setting the goal again also restores it if an error cleared it). With `budgetUsd` set, `--max-budget-usd` =
      0.7 x (`budgetUsd` - spend), rounded to cents; the cap is checked between turns, so a call overshoots it by its
      last turn, and the 30 % is headroom. Wait as in step 5.
@@ -157,11 +180,14 @@ not `true`: a cloud session never starts another cloud run; it runs the plan its
    You are only a launcher. Change nothing in this repository yourself and create no commits.
    1. Run: git clone --depth 1 --branch <cloudPluginRef> https://github.com/ahlerjam/cflow /tmp/cflow
    2. If .claude/slice.json does not exist in the repository, create it with exactly this content: <marker>
-   3. Start the run in the background with the longest Bash timeout (run_in_background true, timeout 7200000):
+   3. Start the run in the background with the longest background time limit (run_in_background true, timeout 7200000;
+      without that timeout the limit is 30 minutes and cuts the run):
       SLICE_PLUGIN_DIR=/tmp/cflow/plugins/slice claude -p --plugin-dir /tmp/cflow/plugins/slice 'start plan <id>' --model sonnet --permission-mode dontAsk --allowedTools 'Bash,Read,Edit,Write,Glob,Grep,Skill' --output-format stream-json --verbose > /tmp/orch.jsonl 2>&1
-   4. Stay active until it exits: loop with a Bash call "sleep 600; tail -c 400 /tmp/orch.jsonl" and check whether the
-      background process is still running. Do not create scheduled triggers, routines or cron jobs.
-      Never kill the run before it exits.
+   4. Stay active until it exits: loop with a Bash call that has timeout 600000 and the command
+      "sleep 540; tail -c 400 /tmp/orch.jsonl", and check whether the background process is still running. The command
+      must start with sleep: a foreground command that reaches its timeout is otherwise moved to the background, and a
+      sleep command is stopped at the timeout instead, so give it that timeout (the default is 2 minutes). Do not create
+      scheduled triggers, routines or cron jobs. Never kill the run before it exits.
    5. When it has exited, report the last line of /tmp/orch.jsonl that has "type":"result", and the output of
       git fetch origin <agentBranch> && git log --oneline -5 origin/<agentBranch>.
    ```
@@ -173,7 +199,7 @@ not `true`: a cloud session never starts another cloud run; it runs the plan its
      `started`, commit it (`slice: state <id> running`), push the agent branch (a failed push is reported, not
      fatal) and answer with exactly one line: `Started in the cloud: <url>`. Exit 1 (no URL within 120 s, or an
      error): C.
-   - C. Tell the person one line to run in their terminal, in the repo: `claude --cloud "$(cat <out>/<id>-cloud-task.txt)"`.
+   - C. Tell the person one line to run in their terminal, in the repo: `claude --cloud --permission-mode auto "$(cat <out>/<id>-cloud-task.txt)"`.
      The state stays `queued` with `where: cloud`. After D failed, add that the automatic start failed
      (`<out>/<id>-cloud-start.log` has the output). With a branch not on origin, say it must be pushed first.
 

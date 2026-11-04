@@ -13,6 +13,10 @@ Read `<plan>/spec.md` (with its `## Quality bar`, `## Decisions` and `## Access`
 the type the spec names, and in a new app its `references/architecture.md`. After a resume or a compaction, do this
 again first.
 
+Smoke test: when features already have `passes` true (a resume, or an app that existed before), start the app and run
+the E2E tests of those features before building anything new. Fix a regression first. With no passing feature yet,
+skip this.
+
 ## Build
 Build the features in their order, the way you would on your own. With no app yet, start with the walking skeleton.
 Follow `## Decisions`. Names under `## Access` are env vars: use the value when it is set, otherwise build against
@@ -26,20 +30,25 @@ continue where it stopped. Right after the commit, send a push notification (Pus
 with the feature and its title; skip it silently when the tool is missing.
 
 ## How to run the app
-Use the project's `verify` skill (`.claude/skills/verify/SKILL.md`) or a `run-<name>` skill if the repo has one.
-Otherwise start the app from the README, `Makefile` or package scripts. CLI and servers: Bash. Screens: the E2E file
+Use the recipe in the project's `verify` skill or a `run-<name>` skill if the repo has one. The run settings hide
+`verify` from Claude so it does not run before every commit, so read `.claude/skills/verify/SKILL.md` with Read
+instead of invoking it. Otherwise start the app from the README, `Makefile` or package scripts. CLI and servers: Bash. Screens: the E2E file
 holds Playwright code that you run with the headless Playwright server's run-code tool (`mcp__playwright__*`, loaded
 by the run for features with screens), since Chromium cannot start inside the
-Bash sandbox. Start servers in the background on a fixed port and stop them when done. You cannot write inside
+Bash sandbox. Start a server in the background on a fixed port (`&`, its PID in a file) and kill it in the same turn, after the
+tests. Never leave a background command running when a turn ends: it skips the goal evaluation and keeps the
+session open. You cannot write inside
 `.claude/`; if the recorded recipe is wrong, write the fix to `<plan>/progress.md` under `## Recipe changes`.
 
 ## Finish
 When all features pass, work on the diff from the base commit, the parent of the `slice: plan $SLICE_PLAN` commit
 (`git rev-parse "$(git log --format=%H --grep="^slice: plan $SLICE_PLAN\$" -1)^"`):
 1. Claude Code's `/simplify`, then rerun the E2E tests.
-2. `/code-review`, plus `/security-review` when the diff touches authentication, secrets, network input or anything
-   users submit (it needs a remote; without one, have a subagent review `git diff <base>` for security instead).
-   Fix every finding that holds.
+2. `/code-review medium <base>..HEAD`, then check the same diff against `<plan>/spec.md` and each feature's steps: is
+   anything the spec asks for missing? Add `/security-review` when the diff touches authentication, secrets, network
+   input or anything users submit (it needs a remote; without one, have a subagent review `git diff <base>` for
+   security instead). Fix findings that affect correctness against the spec or the quality bar. Skip style remarks
+   and speculative cases: fixing every finding adds needless abstraction.
 3. Run the whole E2E file once more and show the output. For screens, look at each view with the Playwright browser
    tools at 360 and 1280 px, take a screenshot each and judge it against the `taste` skill and the `## Quality bar`;
    fix what fails and rerun the tests.

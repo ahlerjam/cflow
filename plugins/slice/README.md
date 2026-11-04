@@ -68,7 +68,7 @@ Setup only runs when you ask. It:
 
 - writes the marker `.claude/slice.json` (agent branch, test command, start command, turn limit, network domains)
 - creates the agent branch (`agent` by default) and the run settings `.claude/slice-run.json`
-- audits the repo for what an unattended run needs: one command each to start, test and lint, a short `CLAUDE.md`, a recorded run recipe (it suggests Claude Code's `/verify` once), language server plugins, an architecture record for new apps
+- audits the repo for what an unattended run needs: one command each to start, test and lint, a short `CLAUDE.md`, a recorded run recipe (it suggests Claude Code's `/verify` once; see [Why it works this way](#why-it-works-this-way) for what a project skill named `verify` does), the secrets a run needs, language server plugins, an architecture record for new apps
 - checks inside the sandbox that the app's tools start
 
 Setup never commits on your default branch. A new app's scaffold goes on the agent branch; only an empty repo gets one initial commit with a README. If `.claude/` is not writable (for example in `claude -p --permission-mode dontAsk`), setup stops and says what to allow or which two files to create.
@@ -168,7 +168,9 @@ sequenceDiagram
     S->>A: Merge your default branch into the agent branch
     S->>A: state running (one commit)
     S->>R: New branch slice/run-id from the agent branch
+    S->>R: Copy .env or the .worktreeinclude files
     S->>B: Start in background (SLICE_RUN=1, SLICE_PLAN=id)
+    S->>S: Load check: init line shows slice (and Playwright)
     B->>R: Feature by feature: E2E test, code, commit
     B-->>S: Exit (done, turn limit or killed)
     alt features still open
@@ -189,13 +191,18 @@ sequenceDiagram
 
 Before any cost, the readiness gate checks that every step has a concrete action and an observable result, that the app can be started, that `npx` is there for features with screens, that the run settings and the test command exist, and that the turn limit resolves. Missing env names from `## Access` are noted, not blocking. On a gap it lists everything and stops.
 
+The run copies your gitignored secrets into the run worktree: the files `.worktreeinclude` lists (`.gitignore` syntax, only files that are gitignored and untracked), or `.env` when there is no such file. Claude Code applies `.worktreeinclude` only to worktrees it creates itself, so slice copies by hand. Copied files are never committed. In the cloud they do not exist; set the secrets as environment variables of the cloud environment. A name under `## Access` counts as present when it is in the environment or in a file that gets copied.
+
+The builder runs with `--output-format stream-json --verbose` into `<id>-worker.jsonl` and always gets `--plugin-dir` for slice itself; a same-named installed copy is replaced, not loaded twice ([plugin name conflicts](https://code.claude.com/docs/en/plugins/loading#name-conflicts)). Right after the start the run reads the first `system/init` line ([headless docs](https://code.claude.com/docs/en/headless#fail-ci-when-a-plugin-or-mcp-server-doesnt-load)). If `slice` is not among the loaded plugins, or a run with screens has no connected `playwright` server, it stops the builder and halts with that reason. The result, cost and refused commands come from the last `result` line of the file. `--bare` is not used, since it skips the hooks and skills the run relies on.
+
 After a turn stop or a killed process (timeout, crash), the run resumes the same builder session. The effort rises from `medium` to `high` after a call that added no newly passing feature, and two resumes in a row without progress halt the run. There is no dollar limit; an optional `budgetUsd` in the marker exists only for test runs.
 
 ## Inside the builder
 
 ```mermaid
 flowchart TD
-    read[Read spec, features, progress, git log<br/>load practices and the cookbook] --> next{Next open feature?}
+    read[Read spec, features, progress, git log<br/>load practices and the cookbook] --> smoke[Smoke test: start the app, rerun E2E<br/>of features already passing]
+    smoke --> next{Next open feature?}
     next -->|yes| e2e[Write its steps as E2E tests]
     e2e --> code[Build it]
     code --> run[Run the E2E tests on the running app]
@@ -203,13 +210,17 @@ flowchart TD
     run -->|green| commit[passes true, commit 'slice: fk title'<br/>push notification]
     commit --> next
     next -->|no| simplify[simplify, rerun E2E]
-    simplify --> review[code-review, plus security-review<br/>for auth, secrets, user input]
+    simplify --> review[code-review medium on the plan's diff, check against spec,<br/>plus security-review for auth, secrets, user input]
     review --> full[Full E2E run, output shown]
     full --> shots[Screens: screenshots at 360 and 1280 px,<br/>judged against taste and the quality bar]
     shots --> done([Goal met])
 ```
 
 The builder's goal is that every feature has `passes` true and the finish steps ran. `/goal` keeps the session working until that condition is met in the transcript ([goal](https://code.claude.com/docs/en/goal)). A feature it cannot finish stays `passes` false with the reason in `progress.md`, and its tests are marked skipped so the full run stays green.
+
+On a resume the builder first starts the app and reruns the E2E tests of features that already pass, and fixes a regression before building anything new. The review runs as `/code-review medium <base>..HEAD`, where `<base>` is the parent of the `slice: plan` commit; the builder then checks the same diff against `spec.md`. It fixes findings that affect correctness against the spec or the quality bar and skips style remarks and speculative cases, since [best practices](https://code.claude.com/docs/en/best-practices) warn that fixing every finding adds needless abstraction. Servers it starts are stopped before the turn ends: a running background command skips the `/goal` evaluation and keeps `claude -p` alive ([goal](https://code.claude.com/docs/en/goal#background-work-defers-evaluation), [headless](https://code.claude.com/docs/en/headless#background-tasks-at-exit)).
+
+The run settings set `skillOverrides` to `"user-invocable-only"` for `verify`. The [skills docs](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit) say a project skill named `verify` makes Claude run it before each commit and name no interactive-only condition, so without the override it would also apply to the unattended builder. Builders read the recipe file instead of invoking the skill.
 
 The builder runs on Opus with Sonnet as fallback, and the acceptance runs on Sonnet. Planning and run control use the model of your own session.
 
@@ -286,7 +297,9 @@ sequenceDiagram
 
 - The cloud VM clones your GitHub remote at your current branch, so that branch must be on GitHub. slice never pushes your branch, only the agent branch.
 - The task carries the marker, since the marker is usually not committed. Cloud runs use the profile without sandbox.
-- `claude --cloud` needs an interactive terminal, so slice drives it with `expect` (`scripts/cloud-start.exp`). That is not a documented way to start a session and can break with a Claude Code update. If no session link appears within 120 seconds, slice shows one line to paste into your terminal: `claude --cloud "$(cat <task file>)"`.
+- Your `.env` is not in the cloud clone. Set the secrets under `## Access` as environment variables of the cloud environment ([set environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)); anyone who uses that environment can read them.
+- Time limits ([cloud environments](https://code.claude.com/docs/en/cloud-environments#time-limits)): a foreground command waits 2 minutes by default and at most 10; at its timeout it moves to the background and is stopped 30 minutes later, unless the command starts with `sleep`, which is stopped at its timeout. slice therefore starts the nested run and the builder with an explicit 2 hour background timeout and polls with a `sleep` command that carries its own 10 minute timeout. For long runs also set `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` as environment variables of the cloud environment (milliseconds). The docs say a default above 1800000 lengthens the background limit too. The values 3600000 and 7200000 are a suggestion, not tested.
+- `claude --cloud` needs an interactive terminal, so slice drives it with `expect` (`scripts/cloud-start.exp`). That is not a documented way to start a session and can break with a Claude Code update. If no session link appears within 120 seconds, slice shows one line to paste into your terminal: `claude --cloud --permission-mode auto "$(cat <task file>)"`.
 - The Claude Code docs describe no supported way to start a new cloud session from inside a running session ([Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web)).
 
 ## Safety
@@ -296,7 +309,7 @@ sequenceDiagram
 | Sandbox | The builder runs sandboxed (`failIfUnavailable`), with network only to package registries plus the marker's `allowedDomains`. |
 | Denied commands | `git push`, `gh pr`, `gh release`, every `publish`, `--no-verify`, changing git hooks, reading or editing credentials (`~/.ssh`, `~/.aws`, `~/.npmrc`, `.env` files in your home) |
 | Guard hook | In a run session (`SLICE_RUN=1`) only `passes` may change in the plan's `features.json`, and shell commands may only read it. After every shell command the file is compared with the `slice: plan` commit. Other sessions skip the hook before Node starts. |
-| Independent checks | `/verify` in a fresh session, `/code-review`, and the test gate before any merge |
+| Independent checks | `/verify` in a fresh session, `/code-review medium` on the plan's diff, and the test gate before any merge |
 | Your branches | No writes to your checkout or default branch, no force pushes |
 
 Features with screens use a headless Playwright server from `mcp/playwright.json`, passed with `--mcp-config` to the builder and the acceptance only. The run settings switch off the official Playwright plugin for those sessions, so no browser window opens on your screen.
@@ -340,7 +353,7 @@ Each choice comes from a source or a measurement. The middle column says what th
 | A separate, skeptical checker | [Harness design](https://www.anthropic.com/engineering/harness-design-long-running-apps): a generator and an evaluator instead of one agent judging itself | Claude Code's own `/verify` and `/code-review` instead of a reviewer agent of our own |
 | One builder session, no per-feature agents | [When to fold subagents](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop): fold subagents into the main loop when an eval shows no gain | Per-feature sessions cost 36 % more and took twice as long for the same result, so slice dropped them. |
 | `/goal` keeps the builder going | [goal](https://code.claude.com/docs/en/goal): the session works until the condition is met | The condition names the feature file and the finish steps, so "done" can be checked. |
-| A recorded run recipe | [Building verification loops](https://www.youtube.com/watch?v=mQZB0l-rhxE), [skills](https://code.claude.com/docs/en/skills): a project skill named `verify` runs before each commit in interactive sessions | Setup suggests `/verify` once, and builders start the app the recorded way. |
+| A recorded run recipe | [Skills](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit): a project skill named `verify` makes Claude run it before each commit (no interactive-only condition stated). [Building verification loops](https://www.youtube.com/watch?v=mQZB0l-rhxE) is background on verification loops in general, not the source of that claim | Setup suggests `/verify` once. Builders start the app the recorded way; the run settings keep `verify` from running before every commit of the builder. |
 | CLAUDE.md, make targets, language servers | [Best practices](https://code.claude.com/docs/en/best-practices) | Setup audits these and proposes only what is missing. |
 | GitHub only through git and `gh api` | [Cloud environments](https://code.claude.com/docs/en/cloud-environments): GraphQL is rejected in cloud sessions | Pushes and API calls use git and REST. |
 | No plugin dependency | Observed in a cloud test: a session dropped slice without a message while it depended on the Playwright plugin | slice brings its own headless Playwright config. |
@@ -352,7 +365,8 @@ Measured and dropped along the way: a custom orchestrator process, per-feature b
 
 - Plans run one after another; parallel runs are not part of this version.
 - The cloud start through `expect` is undocumented and can break with an update; the paste line is the fallback.
-- Cloud sessions don't install plugins from the repo's settings, and background work in a cloud VM is limited in time, which can cut a long builder short.
+- Cloud sessions don't install plugins from the repo's settings. Background work in a cloud VM is limited in time; slice passes explicit timeouts (see [Cloud runs](#cloud-runs)), but a cloud builder running longer than about 11 minutes is not tested yet.
+- Secrets reach cloud runs only as environment variables of the cloud environment, never from your `.env`.
 - Cloud sessions start no language servers.
 - Push notifications and the changelog doc are built but have not been seen working; without them the merge commit carries the report.
 - Whether slice writes better code than Claude Code alone is not proven yet.
