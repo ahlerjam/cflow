@@ -90,7 +90,7 @@ In a set-up repo a SessionStart hook tells Claude that slice is active. Then you
 | "How far is the run?" | features passed of total, last commit |
 | "Stop the run" | stops the builder and keeps its work for a later resume |
 | "Plan decision D2: use Postgres" | turns an open decision into a new plan |
-| "Check my plans" | starts queued plans, resumes runs that stopped for technical reasons once, reports the rest |
+| "Check my plans" | starts the next pending plan (queued first, then parked) without asking, resumes runs that stopped for technical reasons once, reports the rest |
 | "Set up a check-in routine" | creates a Claude Code routine (through `/schedule`) that runs "check my plans" in the cloud every 2 hours, starting queued plans there even while your machine is off |
 
 The slash commands `/slice:setup`, `/slice:shape` and `/slice:run` do the same and stay as a back door.

@@ -89,5 +89,5 @@ Commit them in the agent worktree as `slice: plan <id>`, and push the agent bran
 force). Then ask one AskUserQuestion, the start question: `Start now` (recommended), `Start in the cloud` (only when the repo has a GitHub remote), `Park`, `Plan another task`.
 - Start now: invoke the `run` skill for the plan.
 - Start in the cloud: invoke the `run` skill for the plan as a cloud start.
-- Park: the plan stays `parked`; say how to start it later ("start plan <id>").
+- Park: the plan stays `parked`; say how to start it later ("start plan <id>") and that a check-in routine picks parked plans up on its own.
 - Plan another task: begin a new interview.
