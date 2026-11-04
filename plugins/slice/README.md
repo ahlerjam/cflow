@@ -2,7 +2,7 @@
 
 slice plans work with you in an interview and then builds it unattended. A feature counts as done only after its end-to-end steps ran against the running app. Finished work is merged to an agent branch, never to your default branch. You talk to slice only in the Claude Code chat: no commands, no GitHub issues, no labels. Runs go on your machine or in a Claude Code cloud session.
 
-This file explains how it works, why it works that way, what has been tested, and where to read more.
+New here? Start with the short [GUIDE](GUIDE.md). This file explains how it works, why it works that way, what has been tested, and where to read more.
 
 ## Requirements
 
@@ -299,7 +299,7 @@ sequenceDiagram
 - The task carries the marker, since the marker is usually not committed. Cloud runs use the profile without sandbox.
 - Your `.env` is not in the cloud clone. Set the secrets under `## Access` as environment variables of the cloud environment ([set environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)); anyone who uses that environment can read them.
 - Time limits ([cloud environments](https://code.claude.com/docs/en/cloud-environments#time-limits)): a foreground command waits 2 minutes by default and at most 10; at its timeout it moves to the background and is stopped 30 minutes later, unless the command starts with `sleep`, which is stopped at its timeout. slice therefore starts the nested run and the builder with an explicit 2 hour background timeout and polls with a `sleep` command that carries its own 10 minute timeout. For long runs also set `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` as environment variables of the cloud environment (milliseconds). The docs say a default above 1800000 lengthens the background limit too. The values 3600000 and 7200000 are a suggestion, not tested.
-- `claude --cloud` needs an interactive terminal, so slice drives it with `expect` (`scripts/cloud-start.exp`). That is not a documented way to start a session and can break with a Claude Code update. If no session link appears within 120 seconds, slice shows one line to paste into your terminal: `claude --cloud --permission-mode auto "$(cat <task file>)"`.
+- `claude --cloud` needs an interactive terminal, so slice drives it with `expect` (`scripts/cloud-start.exp`). That is not a documented way to start a session and can break with a Claude Code update. If no session link appears within 120 seconds, slice shows one line to paste into your terminal: `claude --cloud "$(cat <task file>)" --permission-mode auto`.
 - The Claude Code docs describe no supported way to start a new cloud session from inside a running session ([Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web)).
 
 ## Safety

@@ -199,7 +199,7 @@ not `true`: a cloud session never starts another cloud run; it runs the plan its
      `started`, commit it (`slice: state <id> running`), push the agent branch (a failed push is reported, not
      fatal) and answer with exactly one line: `Started in the cloud: <url>`. Exit 1 (no URL within 120 s, or an
      error): C.
-   - C. Tell the person one line to run in their terminal, in the repo: `claude --cloud --permission-mode auto "$(cat <out>/<id>-cloud-task.txt)"`.
+   - C. Tell the person one line to run in their terminal, in the repo: `claude --cloud "$(cat <out>/<id>-cloud-task.txt)" --permission-mode auto`.
      The state stays `queued` with `where: cloud`. After D failed, add that the automatic start failed
      (`<out>/<id>-cloud-start.log` has the output). With a branch not on origin, say it must be pushed first.
 
