@@ -146,7 +146,9 @@ not `true`: a cloud session never starts another cloud run; it runs the plan its
    this branch must be pushed first; never push the person's branch yourself.
 2. Step 2 (agent worktree, merge the default branch). Write `state.json` as `queued` with `"where": "cloud"` and
    commit it once as `slice: state <id> queued`. Push the agent branch (`git -C <agent> push origin <agentBranch>`,
-   never force). The push is required: on failure stop and show the error.
+   never force). The push is required and runs as its own Bash call, never chained with later steps: GitHub sometimes
+   answers 500, so retry up to 4 times with 20 s pauses, verify with `git ls-remote origin <agentBranch>` that origin
+   has the commit, and on a final failure stop with the error. Start no cloud session before that.
 3. Write the task to `<out>/<id>-cloud-task.txt`, with `<id>`, `<agentBranch>`, `<cloudPluginRef>` and `<marker>`
    (the marker file's content, one line of JSON) filled in. `<cloudPluginRef>` is the marker field `cloudPluginRef`
    when set, else `slice--v<version>` with the version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`:
