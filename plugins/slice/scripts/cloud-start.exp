@@ -1,0 +1,31 @@
+#!/usr/bin/expect -f
+# Usage: cloud-start.exp <task file> <log file>   (cwd = the checkout)
+# Starts `claude --cloud <task text>` on a pty, answers the folder-trust prompt,
+# prints the claude.ai/code session URL and exits 0; exits 1 when none appears.
+if {$argc != 2} { puts stderr "usage: cloud-start.exp <task file> <log file>"; exit 2 }
+lassign $argv taskFile logFile
+set fh [open $taskFile r]
+set task [string trim [read $fh]]
+close $fh
+set timeout 120
+log_user 0
+log_file -noappend $logFile
+spawn claude --cloud $task
+set trusted 0
+set url ""
+expect {
+  -re {claude\.ai/code/[A-Za-z0-9_-]+} { set url "https://$expect_out(0,string)" }
+  -re {confirm} {
+    if {!$trusted} { set trusted 1; sleep 1; send "\033\[B"; sleep 1; send "\r" }
+    exp_continue
+  }
+  timeout {}
+  eof {}
+}
+if {$url eq ""} { exit 1 }
+# let the CLI finish handing the session over before the pty closes
+sleep 8
+catch {close}
+catch {wait}
+puts $url
+exit 0
