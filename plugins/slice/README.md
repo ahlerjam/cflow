@@ -90,10 +90,19 @@ In a set-up repo a SessionStart hook tells Claude that slice is active. Then you
 | "How far is the run?" | features passed of total, last commit |
 | "Stop the run" | stops the builder and keeps its work for a later resume |
 | "Plan decision D2: use Postgres" | turns an open decision into a new plan |
-| "Check my plans" | starts the next pending plan (queued first, then parked) without asking, resumes runs that stopped for technical reasons once, reports the rest |
-| "Set up a check-in routine" | creates a Claude Code routine (through `/schedule`) that runs "check my plans" in the cloud every 2 hours, starting queued plans there even while your machine is off |
+| "Start all pending plans in the cloud" | one cloud session per pending plan that depends on no other pending plan; dependent plans stay pending and say what they wait for |
+| "Check my plans" | works through the pending plans one after another (queued first, then parked, dependencies respected) without asking, resumes runs that stopped for technical reasons once, reports the rest |
+| "Set up a check-in routine" | creates a Claude Code routine (through `/schedule`) that runs "check my plans" in the cloud every hour, even while your machine is off; needs slice enabled in your claude.ai account |
 
 The slash commands `/slice:setup`, `/slice:shape` and `/slice:run` do the same and stay as a back door.
+
+## Several plans
+
+- **Dependencies.** When a new plan builds on plans that are not done yet, `shape` records them as `dependsOn` in the plan's `state.json` (it asks only if that is unclear). A plan starts only when all of them are `done`; "show my plans" shows what a plan waits for, and starting a blocked plan names the plan it waits for and does not start.
+- **Check-ins drain the queue.** "Check my plans" starts the next startable plan after each run ends and goes on until none is left. A plan that halts is not retried in the same check-in; plans that depend on it stay pending.
+- **Parallel only in the cloud, only for independent plans.** "Start all pending plans in the cloud" starts one session per independent plan. Locally, plans run one after another because ports and browsers are shared. Inside a cloud session or routine slice starts no further cloud sessions and drains the plans in sequence.
+- **Safe merge.** Before merging, the run fetches the agent branch from origin and fast-forwards to it. If the push is rejected because another run pushed first, it fetches, merges origin's agent branch into the run branch, reruns the test command and pushes again, at most 3 times and never with force. A conflict or a red gate after that merge halts the plan with a decision entry; in the cloud the run branch stays pushed.
+- **Check-in routine.** The routine does not clone slice. It writes the marker into the VM (never committed) and checks that slice is loaded from your claude.ai account; if not, it sends a push notification and stops. The routine is not tested end to end until slice is enabled in an account. Its sessions run in auto mode, which blocked running slice from a clone.
 
 ## Planning
 
@@ -369,7 +378,7 @@ Real runs, November 2026:
 | Context7 without your own server | the bundled config connects next to the Playwright one with the run profile; a docs lookup works without a key |
 | Better code than Claude Code without slice, same spec | one valid pair: the reviewer gave slice 16 and plain 15 points, within noise. Not proven. |
 
-Not seen yet: push notifications, the changelog doc, cloud builders running longer than about 11 minutes, the web-chat way, parallel runs.
+Not seen yet: the changelog doc, cloud builders running longer than about 11 minutes, the web-chat way, parallel cloud runs, the check-in routine with slice from the account.
 
 ## Why it works this way
 
@@ -393,7 +402,7 @@ Measured and dropped along the way: a custom orchestrator process, per-feature b
 ## Limits
 
 - A non-interactive run session keeps itself alive with a wait loop; it detects that through `CLAUDE_CODE_SESSION_ATTENDED=0` (or `CLAUDE_CODE_REMOTE=true`), an undocumented variable. Before this loop, a `claude -p` run control once ended its turn right after starting the builder.
-- Plans run one after another; parallel runs are not part of this version.
+- Local runs are sequential. Parallel runs exist only as separate cloud sessions for independent plans and are not tested yet.
 - The cloud start through `expect` is undocumented and can break with an update; the paste line is the fallback.
 - Cloud sessions don't install plugins from the repo's settings. Background work in a cloud VM is limited in time; slice passes explicit timeouts (see [Cloud runs](#cloud-runs)), but a cloud builder running longer than about 11 minutes is not tested yet.
 - Secrets reach cloud runs only as environment variables of the cloud environment, never from your `.env`.

@@ -50,6 +50,10 @@ Coverage list:
 Summary: before writing anything, show the planned features in one line each and every assumption you made as its
 own line, and ask the person to confirm or correct. Apply corrections and show what changed.
 
+Dependencies: after the summary, decide whether the new plan builds on plans that are not `done` yet. Read
+`.slice/plans/*/state.json` and the specs in the agent worktree (fetch `origin/<agentBranch>` first with a remote, since
+cloud runs write there). Ask only when it is unclear, with one AskUserQuestion naming the candidate plans.
+
 ## Existing code (brownfield)
 Before the interview run the built-in `Explore` subagent on the affected area: modules, existing patterns, entry
 points, risks. Its short summary goes into the spec under `## Context`.
@@ -83,11 +87,12 @@ Plan id: `YYYYMMDD-<short-slug>`. Work in the agent worktree. Write:
 - `.slice/plans/<id>/state.json`: `{"state": "parked", "builderModel": "<model>"}` with `<model>` `sonnet` when you
   used quick mode (a small change in one place) and `opus` for anything bigger. For a large plan add
   `"builderAdvisor": "opus"`: deep mode and at least one of a new app, an architecture decision in `## Decisions`, or 8
-  or more features. The marker's `builderModel` and `builderAdvisor` override both.
+  or more features. The marker's `builderModel` and `builderAdvisor` override both. When the plan builds on others that
+  are not `done`, add `"dependsOn": ["<plan id>", ...]`; omit the key otherwise.
 
 Commit them in the agent worktree as `slice: plan <id>`, and push the agent branch when the repo has a remote (never
 force). Then ask one AskUserQuestion, the start question: `Start now` (recommended), `Start in the cloud` (only when the repo has a GitHub remote), `Park`, `Plan another task`.
-- Start now: invoke the `run` skill for the plan.
+- Start now: invoke the `run` skill for the plan (it refuses and names the plan it waits for when `dependsOn` is open).
 - Start in the cloud: invoke the `run` skill for the plan as a cloud start.
-- Park: the plan stays `parked`; say how to start it later ("start plan <id>") and that a check-in routine picks parked plans up on its own.
+- Park: the plan stays `parked`; say how to start it later ("start plan <id>") and that a check-in routine picks parked plans up on its own once the plans in `dependsOn` are `done`.
 - Plan another task: begin a new interview.
