@@ -28,7 +28,8 @@ with the feature and its title; skip it silently when the tool is missing.
 ## How to run the app
 Use the project's `verify` skill (`.claude/skills/verify/SKILL.md`) or a `run-<name>` skill if the repo has one.
 Otherwise start the app from the README, `Makefile` or package scripts. CLI and servers: Bash. Screens: the E2E file
-holds Playwright code that you run with the Playwright tools' run-code tool, since Chromium cannot start inside the
+holds Playwright code that you run with the headless Playwright server's run-code tool (`mcp__playwright__*`, loaded
+by the run for features with screens), since Chromium cannot start inside the
 Bash sandbox. Start servers in the background on a fixed port and stop them when done. You cannot write inside
 `.claude/`; if the recorded recipe is wrong, write the fix to `<plan>/progress.md` under `## Recipe changes`.
 

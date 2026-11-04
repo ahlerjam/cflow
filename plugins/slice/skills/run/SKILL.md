@@ -34,18 +34,22 @@ say to set slice up (`setup` skill) and stop.
   from `state.json` (resume rules in step 6). Otherwise `git worktree add <run> slice/run-<id>` (no `-b`) and resume.
 
 ## Flow
-State changes are committed in `<agent>` as `slice: state <id> <state>`. Only the `shape` and `run` skills write
-`state.json`, never the builder:
+State changes are committed in `<agent>` as `slice: state <id> <state>`, one commit per change: write `state.json`
+once with all its fields (read the current file first and keep `started`, `sessionId` and `runBranch` when only
+`state` and `finished` change), and skip the commit when the file already holds that state. Only the `shape` and `run`
+skills write `state.json`, never the builder:
 `{"state": "parked|queued|running|done|partial|halted", "runBranch": ..., "sessionId": ..., "started": ...,
 "finished": ...}`.
 
-1. Readiness gate. Check all before any builder starts. On any failure list every gap, name `shape` for gaps in the
+1. Readiness gate. Read the marker again right before it, on every run: its values may have changed since the session
+   started. Check all before any builder starts. On any failure list every gap, name `shape` for gaps in the
    plan and `setup` for the others, and stop: no builder, no cost, state unchanged.
    - a. Done is defined: every feature has at least one step with a concrete action and an observable expected
      result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
    - b. It can run the app: `startCommand` in the marker, a project skill `verify` or `run-<name>` in
      `.claude/skills/`, the README, `Makefile` or package scripts, or the first feature is a walking skeleton. For
-     features marked `ui`, the Playwright plugin is installed and enabled (`claude plugin list`). Not a gate: if no
+     features marked `ui`, `npx` is on `PATH` (`command -v npx`); the run brings its own headless
+     browser server. Not a gate: if no
      language server plugin (`*-lsp`) is enabled for the repo's main language, say so and name `setup`.
    - c. What it may touch: `<repo>/.claude/slice-run.json` exists.
    - d. What stops it: `maxTurns` (default 400) resolves to a number. `budgetUsd` is optional and has no default: only
@@ -57,16 +61,21 @@ State changes are committed in `<agent>` as `slice: state <id> <state>`. Only th
    `setup`; stop if it equals the default branch or is checked out in `<repo>`). With a remote: `git fetch origin`.
    Merge the repo's default branch into the agent branch (`git -C <agent> merge --no-edit <default>`; only read on the
    default branch). A conflict: `git -C <agent> merge --abort`, go on without the merge and record a decision.
-3. Run worktree. Generate `<uuid>` (lowercase `uuidgen`) first. Set `state.json` to `running` (runBranch, sessionId,
-   started) and commit it in `<agent>`, so the run branch contains it. Then
+3. Run worktree. Run `uuidgen` (lowercase) first and keep the result as `<uuid>`. Only then write `state.json` once
+   as `running` with `runBranch`, `sessionId` = `<uuid>` and `started`, and commit it in `<agent>` as the single
+   `slice: state <id> running` commit, so the run branch contains it. Never commit it before the session id is known
+   and never amend it with a second commit. Then
    `git worktree add -b slice/run-<id> <run> <agentBranch>`.
 4. Settings file: `<repo>/.claude/slice-run.json`, except when the env var `CLAUDE_CODE_REMOTE` is `true` (cloud VM, no
-   sandbox): then `${CLAUDE_PLUGIN_ROOT}/profiles/cloud.json`.
+   sandbox): then `${CLAUDE_PLUGIN_ROOT}/profiles/cloud.json`. Browser: when any feature is marked `ui`, `<mcp>` is
+   ` --mcp-config "${CLAUDE_PLUGIN_ROOT}/mcp/playwright.json"` (a headless Playwright server, tools
+   `mcp__playwright__*`; the profiles switch off the Playwright plugin so no second, headed browser exists);
+   otherwise `<mcp>` is empty.
 5. Start the builder in `<run>` with Bash, `run_in_background: true` and `timeout: 7200000` (2 hours; the default of
    10 minutes would kill it):
 
    ```
-   cd <run> && SLICE_RUN=1 SLICE_PLAN=<id> claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/<id>-worker.json 2> <out>/<id>-worker.err
+   cd <run> && SLICE_RUN=1 SLICE_PLAN=<id> claude -p '<GOAL>' --output-format json --model opus --fallback-model sonnet --effort <E> --session-id <uuid> --max-turns <maxTurns> --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-worker.json 2> <out>/<id>-worker.err
    ```
 
    `<uuid>` is the session id from step 3. Add `--plugin-dir "$SLICE_PLUGIN_DIR"` only if that env var is set. Only when `budgetUsd` is
@@ -85,7 +94,7 @@ State changes are committed in `<agent>` as `slice: state <id> <state>`. Only th
    - Otherwise acceptance (with `budgetUsd` set, only if at least 0.5 $ of it is left; else note it was skipped for
      budget and go to step 7). Run Claude Code's own `/verify` as an independent check, sandboxed like the builder,
      `run_in_background: true`, `timeout: 3600000`:
-     `cd <run> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/plans/<id>/features.json against it. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools, never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --permission-mode dontAsk --permission-prompts none --settings <settings> > <out>/<id>-accept.json 2> <out>/<id>-accept.err`.
+     `cd <run> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/plans/<id>/features.json against it. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools (`mcp__playwright__*`), never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-accept.json 2> <out>/<id>-accept.err`.
      With `budgetUsd` set, add `--max-budget-usd` = `budgetUsd` minus the spend. Add its cost to the spend. Every
      feature PASS: go to step 7. Any FAIL: resume the builder (as below) with the
      prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,

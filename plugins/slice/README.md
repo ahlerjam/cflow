@@ -1,6 +1,6 @@
 # slice
 
-slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. You talk to it only in the Claude Code chat. It builds on Claude Code's `/goal`, `/simplify`, `/code-review`, `/verify` and the official Playwright plugin.
+slice plans bigger work as a product spec plus an end-to-end feature list, then lets one long Claude Code session build it. A feature counts as done only after its E2E steps ran against the running app and the evidence is in the conversation. You talk to it only in the Claude Code chat. It builds on Claude Code's `/goal`, `/simplify`, `/code-review`, `/verify` and a headless Playwright server that it starts itself.
 
 ## Requirements
 
@@ -8,8 +8,7 @@ slice plans bigger work as a product spec plus an end-to-end feature list, then 
 | --- | --- | --- |
 | Claude Code | the plugin and the builder sessions | `claude --version` |
 | git | worktrees, run branches, commits | `git --version` |
-| Node.js | the guard hook of run sessions | `node --version` |
-| Playwright plugin | features with screens (builder and acceptance use its browser tools); install with `/plugin install playwright@claude-plugins-official` | `claude plugin list` |
+| Node.js | the guard hook of run sessions; `npx` starts the headless Playwright server for features with screens (builder and acceptance use its browser tools) | `node --version`, `npx --version` |
 
 Optional: a Context7 MCP server (the `context7` plugin or your own). Builders use it to look up library docs when it is there. Also optional: a language server for each language in the repo, used by the official `*-lsp` plugins that the `setup` skill offers. Pushing needs a git remote, and the changelog needs the Claude Docs connector; both are used when available.
 
@@ -17,6 +16,8 @@ Optional: a Context7 MCP server (the `context7` plugin or your own). Builders us
 
 1. Install from the cflow marketplace: `/plugin install slice@cflow`.
 2. Ask Claude to "set up slice" (or run `/slice:setup`). It writes the marker `.claude/slice.json`, creates the agent branch, writes the run settings `.claude/slice-run.json` and audits the repo. If there is no recorded run recipe yet, it suggests running Claude Code's `/verify` once (or `/run-skill-generator`) so builders start the app the recorded way.
+
+Setup never commits on the default branch: a new app's scaffold goes on the agent branch (only an empty repo gets one initial commit with a README). If `.claude/` is not writable, for example in `claude -p --permission-mode dontAsk`, setup stops and says what to allow or which two files to create.
 
 In repos without the marker slice stays silent.
 
@@ -45,7 +46,7 @@ The `taste` skill covers how screens look: it lists tells of machine-made UI and
 
 ## The run
 
-- **Readiness gate.** Before the builder starts, the run checks that every feature has steps with a concrete action and an observable result, that the app can be started, that the Playwright plugin is enabled for features with screens, that `.claude/slice-run.json` and the marker's `testCommand` exist, and that the turn limit resolves. Missing env names from `## Access` are noted, not blocking. On a gap it lists everything and stops without cost.
+- **Readiness gate.** Before the builder starts, the run checks that every feature has steps with a concrete action and an observable result, that the app can be started, that `npx` is on `PATH` for features with screens, that `.claude/slice-run.json` and the marker's `testCommand` exist, and that the turn limit resolves. Missing env names from `## Access` are noted, not blocking. On a gap it lists everything and stops without cost.
 - **Build and acceptance.** One builder session builds the features in order against the spec, tests each one on the running app and commits it. It finishes with Claude Code's `/simplify` and `/code-review` (plus `/security-review` when the change handles user input or secrets) and a last full E2E run. When any feature has screens, Claude Code's `/verify` then checks every feature's steps in a fresh session, sandboxed like the builder. A failed acceptance goes back to the builder once; a second failure halts the run.
 - **Resume.** A turn stop or a killed builder is resumed in the same session. Two resumes without a newly passing feature halt the run.
 - **Gate.** The agent branch is merged into the run branch, `testCommand` runs there, and only a green result is fast-forwarded into the agent branch. Tests of features left open are marked skipped with the reason.
@@ -64,6 +65,7 @@ The `taste` skill covers how screens look: it lists tells of machine-made UI and
 ## Limits
 
 - The builder runs sandboxed with `failIfUnavailable`. Network is limited to the package registries plus `allowedDomains`, and commands in `excludedCommands` run unsandboxed.
+- Features with screens use a headless Playwright server from `mcp/playwright.json`, passed with `--mcp-config` to the builder and the acceptance only. The run settings switch off `playwright@claude-plugins-official` for those sessions, so no second, visible browser opens.
 - Plans run one after another. Parallel runs are not part of this version.
 - On a cloud VM (`CLAUDE_CODE_REMOTE=true`) the run uses the profile without sandbox. Cloud runs aren't tested end to end for this version. Cloud sessions don't install plugins from the repo's settings, so slice has to be loaded another way there, and background shell work in a cloud VM is limited in time, which can cut a long builder short.
 - In a run session (`SLICE_RUN=1`; other sessions skip it before Node starts) a hook (`scripts/guard-features.mjs`, Node.js) rejects edits to the plan's `features.json` other than `passes`, and shell commands that name the file in anything but a read. After every shell command it compares the file with the `slice: plan <id>` commit and tells the builder to restore it when more than `passes` changed.

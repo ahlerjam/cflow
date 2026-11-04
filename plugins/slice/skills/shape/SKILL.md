@@ -8,7 +8,7 @@ if it exists. The agent worktree is `${XDG_CACHE_HOME:-$HOME/.cache}/slice/<repo
 the marker. Create it when missing with `git worktree add <path> <agentBranch>`; stop if `agentBranch` equals the
 repo's default branch or is checked out in the person's checkout. The result is a plan: `spec.md` and `features.json` under `.slice/plans/<id>/` on the agent branch.
 Nothing else is written, and the person's checkout is never switched or modified. Without the marker
-`.claude/slice.json`, tell the person to set slice up first (`setup` skill) and stop.
+`.claude/slice.json`, do not interview: say that slice must be set up first (`setup` skill) and stop.
 
 ## Mode
 Estimate the size of the work first, then pick the mode and say which one you use.
