@@ -48,7 +48,7 @@ No slash commands needed. `/slice:setup`, `/slice:shape` and `/slice:run` exist 
 | `/code-review` | once, on the plan's diff (`/code-review medium <base>..HEAD`), then checked against the spec |
 | `/security-review` | only when the diff touches sign-in, secrets, network input or user input |
 | Screenshots judged by `taste` | at the end, for features with screens, at 360 and 1280 px |
-| `/verify` acceptance | after the builder, in a fresh session, when any feature has screens |
+| `/verify` acceptance | after the builder, in a fresh session, when any feature has screens; this is Claude Code's built-in `/verify` |
 | Your repo's `verify` skill | switched off in runs; the builder only reads its recipe |
 | The test command | before every merge, on the run branch |
 

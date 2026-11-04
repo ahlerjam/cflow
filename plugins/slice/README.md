@@ -23,16 +23,17 @@ Optional: a Context7 MCP server (the `context7` plugin or your own), which build
 5. [The start question and plan states](#the-start-question-and-plan-states)
 6. [A run, step by step](#a-run-step-by-step)
 7. [Inside the builder](#inside-the-builder)
-8. [Branches and merging](#branches-and-merging)
-9. [Decisions instead of questions](#decisions-instead-of-questions)
-10. [Reports](#reports)
-11. [Cloud runs](#cloud-runs)
-12. [Safety](#safety)
-13. [Where things live](#where-things-live)
-14. [What has been tested](#what-has-been-tested)
-15. [Why it works this way](#why-it-works-this-way)
-16. [Limits](#limits)
-17. [Sources](#sources)
+8. [Checks and how the rules reach the model](#checks-and-how-the-rules-reach-the-model)
+9. [Branches and merging](#branches-and-merging)
+10. [Decisions instead of questions](#decisions-instead-of-questions)
+11. [Reports](#reports)
+12. [Cloud runs](#cloud-runs)
+13. [Safety](#safety)
+14. [Where things live](#where-things-live)
+15. [What has been tested](#what-has-been-tested)
+16. [Why it works this way](#why-it-works-this-way)
+17. [Limits](#limits)
+18. [Sources](#sources)
 
 ## The idea in one picture
 
@@ -223,6 +224,29 @@ On a resume the builder first starts the app and reruns the E2E tests of feature
 The run settings set `skillOverrides` to `"user-invocable-only"` for `verify`. The [skills docs](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit) say a project skill named `verify` makes Claude run it before each commit and name no interactive-only condition, so without the override it would also apply to the unattended builder. Builders read the recipe file instead of invoking the skill.
 
 The builder runs on Opus with Sonnet as fallback, and the acceptance runs on Sonnet. Planning and run control use the model of your own session.
+
+## Checks and how the rules reach the model
+
+| Check | When | Defined in |
+| --- | --- | --- |
+| The feature's E2E steps | every feature, before its commit; on start and after a resume the finished features first | `skills/slice/SKILL.md`, Start and Build |
+| `/simplify` | once, when all features pass; E2E runs again afterwards | `skills/slice/SKILL.md`, Finish 1 |
+| `/code-review` | once, as `/code-review medium <base>..HEAD` on the plan's diff, then a check against `spec.md`; only findings that affect correctness against the spec or the quality bar are fixed | `skills/slice/SKILL.md`, Finish 2 |
+| `/security-review` | only when the diff touches sign-in, secrets, network input or user input; without a remote a subagent reviews the diff for security | `skills/slice/SKILL.md`, Finish 2 |
+| Screenshots judged by `taste` | at the end, for features with screens, at 360 and 1280 px | `skills/slice/SKILL.md`, Finish 3 |
+| `/verify` acceptance | after the builder, in a fresh session, when any feature has screens; one FAIL round goes back to the builder | `skills/run/SKILL.md`, step 6 |
+| Your repo's `verify` skill | switched off in run sessions (`skillOverrides`), so it does not run before every feature commit; the builder only reads its recipe | `profiles/run.json`, `profiles/cloud.json` |
+| `testCommand` | the gate before every merge, on the run branch | `skills/run/SKILL.md`, step 7 |
+
+The acceptance uses Claude Code's built-in `/verify` command, not a reviewer of slice's own. It checks at runtime, reports PASS, FAIL, BLOCKED or SKIP, and probes around the happy path. On its first run in a repo, `/verify` records what worked as a project skill `.claude/skills/verify/SKILL.md`; setup suggests doing that once, and builders use that recipe to start the app. Whether `/verify` starts the built-in command or the project skill of the same name when both exist is not verified.
+
+The rules reach the model in three ways, from strongest to weakest:
+
+1. **Enforced by code.** The guard hook keeps `features.json` unchanged except `passes`; the sandbox and the deny lists block commands; the test gate is a command, not a request. None of this depends on what the model reads.
+2. **Part of the goal.** The builder's `/goal` names the feature file and the finish steps (`/simplify`, `/code-review`, the last E2E run) as the condition for done, and `/goal` checks it after every turn. The SessionStart hook adds about 550 characters to every session in a set-up repo.
+3. **Loaded on demand.** Skills point to the `practices` skill, which loads only the files the work needs. The planner loads the work-item rules (`issues.md`), the cookbook for each project type (`cli.md`, `web.md`, `api.md`, `library.md`, `data-job.md`) and, for a new app, `architecture.md`. The builder loads the code rules (`code.md`), the same cookbook and, for a new app, `architecture.md` at start, and again after a resume or a compaction. This saves context but relies on the model following the instruction; run logs show the calls, but no test measured how reliably they happen.
+
+Costs: each run reports what the builder and the acceptance spent (`total_cost_usd`). There is no limit, and the interview in your own session is not counted.
 
 ## Branches and merging
 
