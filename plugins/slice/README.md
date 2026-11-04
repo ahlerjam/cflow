@@ -362,6 +362,7 @@ Real runs, November 2026:
 | Cloud, web plan with headless acceptance | 3/3 features, `/verify` PASS, 4.17 $ |
 | Start in the cloud from slice | 3/3 features merged in the cloud; a failed push once started a second session, fixed since (the push is verified before the start) |
 | Setup without write access to `.claude/` | stops with an instruction and plans nothing |
+| Cloud start with `--permission-mode auto` | the session's mode menu showed Auto (checked by hand) |
 | Context7 without your own server | the bundled config connects next to the Playwright one with the run profile; a docs lookup works without a key |
 | Better code than Claude Code without slice, same spec | one valid pair: the reviewer gave slice 16 and plain 15 points, within noise. Not proven. |
 
