@@ -34,7 +34,9 @@ say to set slice up (`setup` skill) and stop.
   of total and the last commit, in one or two lines. Without a run worktree, report `<agent>/.slice/plans/<id>/state.json`.
   A plan whose `state.json` says `"where": "cloud"`: `git -C <agent> fetch origin <agentBranch>`, then report from
   `origin/<agentBranch>` (`git show origin/<agentBranch>:.slice/plans/<id>/state.json` and `features.json`: state, passes
-  of total) and add the `cloudSession` URL. The run branch lives only in the cloud VM until it is merged.
+  of total) and add the `cloudSession` URL. While it runs, the cloud pushes the run branch every few minutes: when
+  `git -C <agent> fetch origin slice/run-<id>` succeeds, report passes of total and the last commit from
+  `origin/slice/run-<id>` instead (`.slice/plans/<id>/features.json` there, `git log -1 --oneline`).
 - "check my plans" / "prüfe meine Pläne" (meant for scheduled check-ins: a routine or `/loop`): with a remote,
   `git fetch origin` first. Then, plan by plan, and do at most one thing per plan:
   - `running` but its builder is gone (`pgrep -f <sessionId>` finds nothing, and it is not a cloud plan whose state
@@ -51,6 +53,9 @@ say to set slice up (`setup` skill) and stop.
   "Cloud start" with "check my plans" instead of "start plan <id>". Create nothing yourself.
 - Restart of a `halted`, `partial` or stopped plan: if `<run>` exists, resume the builder with `--resume <sessionId>`
   from `state.json` (resume rules in step 6). Otherwise `git worktree add <run> slice/run-<id>` (no `-b`) and resume.
+  The branch only on origin (a cloud VM was lost): `git fetch origin slice/run-<id>`, then
+  `git worktree add -b slice/run-<id> <run> origin/slice/run-<id>`. The old builder session is gone with the VM, so
+  start a fresh builder (new `<uuid>`, new `sessionId` in `state.json`); it continues from the pushed commits.
 
 ## Flow
 State changes are committed in `<agent>` as `slice: state <id> <state>`, one commit per change: write `state.json`
@@ -147,7 +152,10 @@ whenever the file is rewritten.
    - Non-interactive session (`CLAUDE_CODE_SESSION_ATTENDED` is `0`, or `CLAUDE_CODE_REMOTE` is `true`; this is the
      case under `claude -p` and in the cloud): never end your turn while the builder runs, because the session would
      stop and nothing after the build would happen. Loop with one Bash call at a time, timeout 600000:
-     `sleep 300; pgrep -f <uuid> >/dev/null && echo running || echo exited`, until it prints `exited`.
+     `sleep 300; pgrep -f <uuid> >/dev/null && echo running || echo exited`, until it prints `exited`. In a cloud
+     session (`CLAUDE_CODE_REMOTE` is `true`) each loop call also pushes the run branch first, so the person sees the
+     progress and a lost VM loses nothing: `git -C <run> push -q origin HEAD:refs/heads/slice/run-<id>; sleep 300; …`
+     (never force; a failed push is noted and the loop goes on). Only this session pushes, never the builder.
    - Interactive session: do not poll; the background task's completion notice wakes you, and the chat stays free.
 6. On exit read the last line of `<out>/<id>-worker.jsonl` that holds `"type":"result"` (`grep '"type":"result"'
    <out>/<id>-worker.jsonl | tail -1`): `subtype`, `total_cost_usd`, `permission_denials`, `session_id`.
