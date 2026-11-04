@@ -52,8 +52,11 @@ whenever the file is rewritten.
    plan and `setup` for the others, and stop: no builder, no cost, state unchanged.
    - a. Done is defined: every feature has at least one step with a concrete action and an observable expected
      result. Judge each step; "works correctly" or "handle edge cases" fail. List the feature and step.
-   - b. It can run the app: `startCommand` in the marker, a project skill `verify` or `run-<name>` in
-     `.claude/skills/`, the README, `Makefile` or package scripts, or the first feature is a walking skeleton. For
+   - b. It can run the app. This holds when any one of these is true; check them in this order and stop at the first
+     that holds: `startCommand` is in the marker; a project skill `verify` or `run-<name>` is in `.claude/skills/`; the
+     README, `Makefile` or package scripts say how to start the app; the repo has no app code yet (greenfield), in
+     which case the first feature builds the start (whatever its title). Never require an extra feature, a "feature 0"
+     or an existing `Makefile` for a greenfield repo. For
      features marked `ui`, `npx` is on `PATH` (`command -v npx`); the run brings its own headless
      browser server. Not a gate: if no
      language server plugin (`*-lsp`) is enabled for the repo's main language, say so and name `setup`.
@@ -105,9 +108,11 @@ whenever the file is rewritten.
    loaded twice, so the builder has the slice skill and its guard hook whatever the install state. Never use `--bare`: it
    skips the hooks, skills and plugin settings the run relies on. Only when `budgetUsd` is
    set, add `--max-budget-usd` with 0.8 x `budgetUsd` for the first call. Model: `<model>` is the marker's `builderModel`
-   (default `opus`); `<fallback>` is ` --fallback-model sonnet` when `<model>` is `opus`, else empty. Advisor: the
-   marker's `builderAdvisor` set to a model alias makes `<advisor>` ` --advisor <alias>`; set to `off` it makes
-   `<advisor-off>` ` CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`; unset, both are empty and the person's own settings apply. `<E>` is `medium`; it rises to `high` for a
+   when set, else the plan's `builderModel` in `state.json` (set by `shape` from the size: `sonnet` for a small
+   change, `opus` for anything bigger), else `opus`. `<fallback>` is ` --fallback-model sonnet` when `<model>` is
+   `opus`, else empty. Advisor: the marker's `builderAdvisor` set to a model alias makes `<advisor>`
+   ` --advisor <alias>` and `<advisor-off>` empty; unset or `off`, `<advisor>` is empty and `<advisor-off>` is
+   ` CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`, so the person's own advisor setting does not change the build. `<E>` is `medium`; it rises to `high` for a
    resume after a call that added no newly passing feature, and stays there.
    `<GOAL>` is this text, with `<id>` and `<maxTurns>` filled in (it contains no single quote):
 
@@ -123,7 +128,12 @@ whenever the file is rewritten.
    slice not loaded: <plugin_errors>" or "playwright MCP server not connected"), send the halt notification (step 8),
    go on as a halt with no passing feature (step 6, last paragraph), and do not resume. No `init` line within 60 s
    counts as failed too.
-   Otherwise do not poll; wait for the completion notice. Tell the person once that the run started.
+   Otherwise tell the person once that the run started, then wait for the builder to exit:
+   - Non-interactive session (`CLAUDE_CODE_SESSION_ATTENDED` is `0`, or `CLAUDE_CODE_REMOTE` is `true`; this is the
+     case under `claude -p` and in the cloud): never end your turn while the builder runs, because the session would
+     stop and nothing after the build would happen. Loop with one Bash call at a time, timeout 600000:
+     `sleep 300; pgrep -f <uuid> >/dev/null && echo running || echo exited`, until it prints `exited`.
+   - Interactive session: do not poll; the background task's completion notice wakes you, and the chat stays free.
 6. On exit read the last line of `<out>/<id>-worker.jsonl` that holds `"type":"result"` (`grep '"type":"result"'
    <out>/<id>-worker.jsonl | tail -1`): `subtype`, `total_cost_usd`, `permission_denials`, `session_id`.
    `total_cost_usd` is cumulative for the session, so the run's spend is its latest value; never sum calls. Count

@@ -223,7 +223,7 @@ On a resume the builder first starts the app and reruns the E2E tests of feature
 
 The run settings set `skillOverrides` to `"user-invocable-only"` for `verify`. The [skills docs](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit) say a project skill named `verify` makes Claude run it before each commit and name no interactive-only condition, so without the override it would also apply to the unattended builder. Builders read the recipe file instead of invoking the skill.
 
-The builder runs on `builderModel` from the marker (default Opus, with Sonnet as fallback) and, with `builderAdvisor`, consults a stronger model at key points ([advisor](https://code.claude.com/docs/en/advisor)); unset, your own `advisorModel` setting applies. The acceptance runs on Sonnet. Planning and run control use the model of your own session.
+The builder's model follows the size of the work: Sonnet for a small change (quick mode), Opus for anything bigger, with Sonnet as fallback. A test in November 2026 found Sonnet as good as Opus on a small CLI plan at about 40 % lower cost, and clearly behind on an 11-feature web app. The advisor ([advisor](https://code.claude.com/docs/en/advisor)) is off in runs, whatever your own setting; `builderModel` and `builderAdvisor` in the marker override both. The acceptance runs on Sonnet. Planning and run control use the model of your own session.
 
 ## Checks and how the rules reach the model
 
@@ -342,7 +342,7 @@ Features with screens use a headless Playwright server from `mcp/playwright.json
 
 | What | Where |
 | --- | --- |
-| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `builderModel` (opus), `builderAdvisor` (unset: your settings), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd` and `cloudPluginRef`, both only for tests | `.claude/slice.json` |
+| Marker: `agentBranch`, `testCommand`, `startCommand`, `maxTurns` (400), `builderModel` (overrides the size-based choice), `builderAdvisor` (off by default), `allowedDomains`, `excludedCommands`, `changelogDoc`; optional `budgetUsd` and `cloudPluginRef`, both only for tests | `.claude/slice.json` |
 | Run settings: the plugin's `profiles/run.json` plus the marker's domains and commands | `.claude/slice-run.json` |
 | Plan: `spec.md`, `features.json`, `progress.md`, `state.json` | `.slice/plans/<id>/` on the agent branch |
 | Open decisions | `.slice/decisions.md` on the agent branch |
@@ -363,6 +363,7 @@ Real runs, November 2026:
 | Start in the cloud from slice | 3/3 features merged in the cloud; a failed push once started a second session, fixed since (the push is verified before the start) |
 | Setup without write access to `.claude/` | stops with an instruction and plans nothing |
 | Cloud start with `--permission-mode auto` | the session's mode menu showed Auto (checked by hand) |
+| Builder model, same plans (A Opus, B Sonnet, C Opus with advisor) | small CLI: all 3/3, code A 14, B 13.5, C 16 of 20, cost A 2.58 $, B 1.53 $, C 3.07 $; web app with 11 features: A 16/16 hidden requirements and code 16, B 14/16 and 13 at 61 % of the cost; Sonnet never called its advisor |
 | Context7 without your own server | the bundled config connects next to the Playwright one with the run profile; a docs lookup works without a key |
 | Better code than Claude Code without slice, same spec | one valid pair: the reviewer gave slice 16 and plain 15 points, within noise. Not proven. |
 
@@ -389,6 +390,7 @@ Measured and dropped along the way: a custom orchestrator process, per-feature b
 
 ## Limits
 
+- A non-interactive run session keeps itself alive with a wait loop; it detects that through `CLAUDE_CODE_SESSION_ATTENDED=0` (or `CLAUDE_CODE_REMOTE=true`), an undocumented variable. Before this loop, a `claude -p` run control once ended its turn right after starting the builder.
 - Plans run one after another; parallel runs are not part of this version.
 - The cloud start through `expect` is undocumented and can break with an update; the paste line is the fallback.
 - Cloud sessions don't install plugins from the repo's settings. Background work in a cloud VM is limited in time; slice passes explicit timeouts (see [Cloud runs](#cloud-runs)), but a cloud builder running longer than about 11 minutes is not tested yet.
