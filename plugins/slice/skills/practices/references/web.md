@@ -20,6 +20,8 @@
 - System status is visible: each view has its empty, loading and error state.
 - Error messages say what happened and what to do, in plain words, without apologizing.
 - No horizontal scroll at 360 px; no console errors.
+- No native `alert`, `confirm` or `prompt`: use in-page dialogs and messages. Claude cannot see browser-native
+  modals, so an E2E run cannot check or answer them.
 - Looks: follow the `taste` skill.
 
 ## E2E approach

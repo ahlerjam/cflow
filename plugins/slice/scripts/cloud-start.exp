@@ -10,7 +10,7 @@ close $fh
 set timeout 120
 log_user 0
 log_file -noappend $logFile
-spawn claude --cloud $task
+spawn claude --cloud $task --permission-mode auto
 set trusted 0
 set url ""
 expect {

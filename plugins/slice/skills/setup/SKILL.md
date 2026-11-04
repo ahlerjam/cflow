@@ -11,14 +11,16 @@ Set up slice in the current repo, only because the person asked. Interactive: it
    one or two lines what to allow (`Write(.claude/**)`) or which two files to create, each with path and content:
    `.claude/slice.json` (the marker with the detected values) and `.claude/slice-run.json` (a copy of
    `${CLAUDE_PLUGIN_ROOT}/profiles/run.json`). Do none of the later steps and plan
-   nothing. Fields: `agentBranch` (`agent`), `testCommand` (the repo's test command; detect it, confirm it), `startCommand` (optional, how to start the app), `maxTurns` 400, `allowedDomains` (network the run sessions may reach), `excludedCommands` (commands that run outside the sandbox, `Bash(...)` pattern syntax, e.g. `docker compose *`), `changelogDoc` (optional, step 7), `cloudPluginRef` (optional, only for testing before a release: the cflow branch or tag a cloud start clones the plugin from; leave it out otherwise). Write no dollar cap; an optional `budgetUsd` (cap for a whole run) is only for test runs. Ask at most two questions with AskUserQuestion, recommended answer first: the test command if it is unclear, and the domains the app's dependencies need beyond the package registries already allowed (suggest from the stack and lockfiles). Leave `excludedCommands` empty unless the app needs a tool that cannot run sandboxed, and say that such commands run unsandboxed. If the file exists, show it and change only what the person asks for.
+   nothing. Fields: `agentBranch` (`agent`), `testCommand` (the repo's test command; detect it, confirm it), `startCommand` (optional, how to start the app), `maxTurns` 400, optional `builderModel` (overrides the size-based choice of the plan: `sonnet` for small changes, `opus` otherwise) and `builderAdvisor` (a model alias such as `opus`, or `off`; overrides the plan's choice, which is `opus` for large plans and off otherwise), `allowedDomains` (network the run sessions may reach), `excludedCommands` (commands that run outside the sandbox, `Bash(...)` pattern syntax, e.g. `docker compose *`), `changelogDoc` (optional, step 7), `cloudPluginRef` (optional, only for testing before a release: the cflow branch or tag a cloud start clones the plugin from; leave it out otherwise). Write no dollar cap; an optional `budgetUsd` (cap for a whole run) is only for test runs. Ask at most two questions with AskUserQuestion, recommended answer first: the test command if it is unclear, and the domains the app's dependencies need beyond the package registries already allowed (suggest from the stack and lockfiles). Leave `excludedCommands` empty unless the app needs a tool that cannot run sandboxed, and say that such commands run unsandboxed. If the file exists, show it and change only what the person asks for.
 2. Run recipe. Look for a project skill `verify` or `run-<name>` in `.claude/skills/`. Claude Code's own `/verify`
-   records `verify`, `/run-skill-generator` records `run-<name>`; slice does not check or write their content. Only a
-   project skill named `verify` makes Claude Code run it before each commit in interactive sessions; a `run-<name>`
-   skill only tells sessions how to start the app.
+   records `verify`, `/run-skill-generator` records `run-<name>`; slice does not check or write their content. A
+   project skill named `verify` in place at session start makes Claude Code tell Claude to run it before
+   each commit, except for changes to docs or tests; the docs state no restriction to interactive sessions. slice
+   switches that off in its run sessions (`skillOverrides` in the run settings) and has builders read the recipe
+   instead. A `run-<name>` skill only tells sessions how to start the app.
    - Present: name it and go on.
    - Missing in an existing app: recommend running `/verify` once on a small change (it records `verify`), or `/run-skill-generator`, so
-     builders and the before-commit check follow a recorded recipe instead of guessing. Go on either way.
+     builders follow a recorded recipe instead of guessing (your own sessions then also run it before commits). Go on either way.
    - Missing in a greenfield repo: skip; there is nothing to record yet. Suggest `/verify` after the
      first run.
 3. Audit. Propose only what is missing; show it, write after consent.
@@ -28,6 +30,11 @@ Set up slice in the current repo, only because the person asked. Interactive: it
    - Screens: if the app has or will have a browser UI, check that `npx` is on `PATH` (`command -v npx`); missing:
      tell the person to install Node.js. Runs bring their own headless Playwright server through `npx`, so no
      Playwright plugin is needed; runs without screens do not need `npx`.
+   - Secrets: names under `## Access` come from the environment or a gitignored `.env` (or the files listed in
+     `.worktreeinclude`), which a run copies into its worktree. For cloud runs they must be environment variables of
+     the cloud environment instead. For long cloud runs, tell the person to also set `BASH_DEFAULT_TIMEOUT_MS` and
+     `BASH_MAX_TIMEOUT_MS` there (milliseconds, for example 3600000 and 7200000); a command that outlives the
+     default is cut after 30 more minutes otherwise.
    - `.slice/` is committed on the agent branch; `.claude/slice-run.json` is local and may be gitignored.
    - Code intelligence: for each language the repo is written in that has an official language server plugin
      (`typescript-lsp`, `pyright-lsp`, `gopls-lsp`, `rust-analyzer-lsp`, `jdtls-lsp`, `kotlin-lsp`, `csharp-lsp`,
