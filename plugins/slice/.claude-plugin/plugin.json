@@ -1,6 +1,6 @@
 {
   "name": "slice",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "Plans work in a chat interview, builds it unattended, merges to an agent branch when E2E passes.",
   "author": {
     "name": "ahlerjam"
