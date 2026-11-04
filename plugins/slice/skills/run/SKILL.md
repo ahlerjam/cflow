@@ -48,9 +48,16 @@ say to set slice up (`setup` skill) and stop.
   - When no plan is running, start the oldest `queued` plan.
   End with one line per plan that needs the person (state, reason, open decisions `D<n>`), or "All plans fine".
   In a non-interactive session keep the wait loop of step 5 for any run you started.
-- "set up a check-in routine": print a ready prompt for a Claude Code routine (cloud scheduled task) and tell the
-  person to create it with `/schedule` (for example every 2 hours, model Sonnet). The prompt is the cloud task from
-  "Cloud start" with "check my plans" instead of "start plan <id>". Create nothing yourself.
+- "set up a check-in routine": a Claude Code routine (cloud scheduled task) that runs "check my plans" in the cloud
+  on a schedule, also while the person's machine is off; it starts queued plans and runs their builders there. Needs
+  a GitHub remote and the agent branch pushed (push it first). The routine prompt is the cloud task from "Cloud
+  start" with "check my plans" instead of "start plan <id>" and the repo's marker inline. Create it with Claude
+  Code's `schedule` skill (invoke it with the prompt and these settings): name `slice check-in <repo dir name>`, the
+  GitHub remote as the repository, every 2 hours (`0 */2 * * *`, UTC; at least hourly) unless the person names
+  another interval, the current Sonnet model, no connectors (`clear_mcp_connections`), the default cloud
+  environment unless the person picks another. Show the settings and ask once to confirm before creating. Then say
+  in one line where it lives (its claude.ai/code/routines link) and that only the person can delete it there.
+  Without the `schedule` skill, print the prompt and say to create it with `/schedule` or at claude.ai/code/routines.
 - Restart of a `halted`, `partial` or stopped plan: if `<run>` exists, resume the builder with `--resume <sessionId>`
   from `state.json` (resume rules in step 6). Otherwise `git worktree add <run> slice/run-<id>` (no `-b`) and resume.
   The branch only on origin (a cloud VM was lost): `git fetch origin slice/run-<id>`, then
