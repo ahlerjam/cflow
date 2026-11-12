@@ -177,10 +177,12 @@ of the agent branch, by `<live> end <agent> <id> <owner> <state>`.
    `sessionId` and `started` and keeps `where` and `cloudSession`. Run `uuidgen` (lowercase) twice first: `<owner>`, and `<uuid>` for the builder session. Then claim the run:
    `<live> claim <agent> <id> <owner> <note>` (`<note>` is `local`, or the `cloudSession` URL from `state.json`, else
    `cloud`). Exit 3: another session holds the run; start nothing, change no state, report the printed status line in
-   one line. A plan that is `running` or `halted` with the reason "stopped" by the time you get here is never started
-   fresh: `halted` ends this start with one line; `running` is startable only through this claim, which succeeds only
+   one line. A plan whose run branch `slice/run-<id>` already exists (locally, or
+   `git ls-remote --exit-code --heads origin slice/run-<id>` exits 0) is never started fresh: it goes on by the
+   restart rule. In a cloud session a plan that is `halted` with the reason "stopped" was stopped before this session
+   got to it: end with one line (a new cloud start sets it to `queued` again). A `running` plan is startable only through this claim, which succeeds only
    when the previous holder is stale, stopped or ended, in the cloud and locally, and then goes on by the restart
-   rule instead of this step's new `<uuid>` and `git worktree add -b`. Only then write `state.json` once
+   rule instead of this step's new `<uuid>` and `git worktree add -b`. For a fresh start, only then write `state.json` once
    as `running` with `runBranch`, `sessionId` = `<uuid>` and `started`, and commit it in `<agent>` as the single
    `slice: state <id> running` commit, so the run branch contains it. Never commit it before the session id is known
    and never amend it with a second commit. Then
