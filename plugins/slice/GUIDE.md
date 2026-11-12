@@ -145,8 +145,10 @@ A plain question about the code ("what does this function do?") is answered norm
 | "Show my plans" | Every plan with its state, progress and what it waits for. |
 | "Start plan `<id>`" | Runs a parked plan here, or resumes a halted or partial one. |
 | "Start plan `<id>` in the cloud" | Runs it in a Claude Code cloud session. |
-| "How far is the run?" | Features done of total and the last commit; for a cloud plan read from GitHub, with the session link. |
-| "Stop the run" | Stops the builder and keeps its work. |
+| "How far is the run?" | Features done of total and the last commit, when the last sign of life came, and the builder's replies to your messages; for a cloud plan read from GitHub, with the session link. |
+| "What is running?" | Plans that have a live run, a run without a sign for 15 minutes, or a stop under way, plus live runs on GitHub that have no plan in this checkout. |
+| "Stop the run", "Stop plan `<id>`" | Stops the builder and keeps its work. A run this session started stops at once; any other run, such as a cloud run, stops within about two minutes. |
+| "Tell plan `<id>`: ..." | Sends a hint, an answer or information to a live builder. It reads it after its current feature and answers in the plan's `progress.md`. |
 | "Plan decision D2: …" | Turns decision D2 into a new plan with your instructions. |
 | "Change plan `<id>`: …", "Delete plan `<id>`" | Edits or removes a plan that is not running. |
 | "Start all pending plans in the cloud" | One cloud session per pending plan that waits for nothing. |
@@ -176,7 +178,8 @@ In existing code slice explores the affected area first, so you do not need to e
 
 The builder works in the background. You can keep chatting and keep working in your checkout.
 
-- "How far is the run?" gives features done of total and the last commit.
+- "How far is the run?" gives features done of total, the last commit, the last sign of life and the builder's replies to your messages. "What is running?" lists all live runs, local and cloud.
+- "Tell plan `<id>`: the Stripe key is set now" or "... use the second option for D2" reaches the builder through GitHub. It reads messages at the start, after each feature and before its finish steps, so expect minutes, not seconds. Work the plan does not contain is noted as a suggestion, not built. Without a GitHub remote nothing can be delivered, and a run with no recent sign of life (stale) is not sent anything. For a cloud run the answer comes back with the pushed run branch; for a local run "how far is the run?" reads it from the run worktree. Anyone who can push to the repo can send a message.
 - Push notifications arrive after each finished feature and on a halt, when the session can send them.
 - At the end the chat gets exactly one line. Everything else is in the report.
 
@@ -257,6 +260,10 @@ Run these in your own checkout, with no run active.
 - Cloud sessions should run in auto mode, because a session waiting for a permission answer stands still until you look. slice starts them with `--permission-mode auto`. If a session still shows another mode in its mode menu, switch it to Auto. Auto appears only when your organization and the model allow it.
 - For long cloud runs, setup suggests setting `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` as variables of your cloud environment, for example 3600000 and 7200000 (milliseconds). These values have not been tested.
 - Locally, `/loop 2h check my plans` works like the routine while your session stays open.
+- A running cloud plan can be stopped from your terminal: "stop plan `<id>`". The cloud run beats a heartbeat every 2 minutes and sees the stop on the next one, then pushes its run branch. A cloud plan that is still queued, with no session holding it yet, is set to `halted` at once. You do not need to stop sessions in the browser.
+- slice refuses to start a plan that another session still runs. If a run shows no sign of life for 15 minutes ("no sign for 20 min (stale)"), "start plan `<id>`" takes it over and resumes on the run branch. A check-in does the same for a `running` plan whose live ref is stale, ended or missing, and sets a plan whose stop is older than 15 minutes to `halted`.
+- The cloud task is short: it clones slice, writes the marker and runs `cloud-run.sh`, which runs the nested run control at most 3 times (two retries) and reports `DONE` or `FAILED`.
+- Stopping, messages, takeover and the shorter cloud task have not been tested in the cloud yet.
 
 ## When something goes wrong
 
@@ -279,6 +286,10 @@ Run these in your own checkout, with no run active.
 | `git switch agent` fails: already used by a worktree | Expected, see [Taking the work to main](#taking-the-work-to-main). |
 | No cloud link, a paste line instead | Run that line in your terminal, in the repo. |
 | "this branch must be pushed first" | Push your current branch, then start again. |
+| A start says another session holds the run | Look at "what is running?". Wait for it, or "stop plan `<id>`" first. |
+| A plan stays `running` and "no sign for ... min (stale)" | The session is gone. "Start plan `<id>`" takes the run over. |
+| A cloud plan stays `queued`: "cloud session never started the run" | Start it again, or run the paste line from the start answer. |
+| "tell plan" says `not running`, or slice sends nothing to a stale run | The plan has no live run. Use "plan decision D`<n>`: ..." or change the plan, then start it. |
 | A cloud session waits for a permission | Switch its mode to Auto, then answer once. |
 | The routine reports "enable slice in your claude.ai account" | Enable slice under claude.ai plugins; the next check-in works. |
 
@@ -325,6 +336,7 @@ In the test run, one check-in built a plan, passed the acceptance, merged, pushe
 | Decision | A question only you can answer, written as `D<n>` with a temporary solution and options. |
 | Deep mode, quick mode | The two interview depths: no question limit for anything bigger, at most six questions for a change in one place. |
 | E2E steps | What a user does in the running app and what they see, concrete enough to run. A feature passes only when its steps pass. |
+| Heartbeat, live ref | The branch `slice/live-<id>` on GitHub that marks who runs a plan. The run writes to it every 2 minutes, also during the acceptance; stop signals and messages travel on it too. Each session that runs a plan holds it under its own id, separate from the builder's session id. A run without a sign for 15 minutes is stale. |
 | Gate | The repo's test command, run on the run branch before anything is merged. |
 | Marker | `.claude/slice.json`, the file that turns slice on for a repo and holds its settings. |
 | Park, parked | Save a plan without starting it. A parked plan starts with "start plan `<id>`" or at the next check-in. |

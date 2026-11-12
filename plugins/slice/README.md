@@ -8,7 +8,7 @@ At a glance:
 - The builder model follows the size of the plan: Sonnet for small changes, Opus otherwise, Opus with an Opus advisor for large plans. The acceptance runs on Sonnet.
 - A run cost between about 0.6 $ and 10 $ in tests, depending on size. There is no dollar cap, and an hourly routine starts pending plans unattended, so its spend is not capped either.
 - Proven in real runs: the full path locally and in the cloud, the check-in routine end to end, and parallel cloud runs with a safe merge.
-- Not proven or untested: better code than Claude Code alone, cloud builders longer than about 11 minutes, the changelog doc, the web-chat way. The automatic cloud start drives `claude --cloud` through `expect`, which is undocumented.
+- Not proven or untested: better code than Claude Code alone, cloud builders longer than about 11 minutes, the changelog doc, the web-chat way. The automatic cloud start drives `claude --cloud` through `expect`, which is undocumented. Not tested in the cloud yet: stopping a cloud run, messages to a run, takeover of a stale run, duplicate-start protection and the shorter cloud task.
 - Tested with Claude Code 2.1.318. No minimum version is known.
 
 New to slice? The [guide](GUIDE.md) covers everything you do with it. This README is the overview and the reference.
@@ -39,6 +39,7 @@ Every path ends at the same gate. Only a green test run moves work to the agent 
 | Claude Code | the plugin, and the builder and acceptance sessions it starts with `claude -p` | `claude --version` |
 | git | worktrees, run branches, commits | `git --version` |
 | Node.js with `npx` | the guard hook in run sessions; `npx` starts the headless Playwright server for features with screens | `node --version`, `npx --version` |
+| POSIX `sh` with `pgrep` and `ps` (procps on Linux) | `scripts/live.sh` (heartbeat, stop, messages, wait loop) and the cloud supervisor | `command -v sh pgrep ps` |
 
 Optional: a git remote so slice can push the agent branch, a GitHub remote for cloud runs and the check-in routine, `expect` to start cloud runs without a paste line, slice enabled in your claude.ai account for the routine, the Claude Docs connector for a changelog doc, and a language server for each language in the repo (setup offers the official `*-lsp` plugins).
 
@@ -73,15 +74,17 @@ You never call the parts by name. In a set-up repo the SessionStart hook tells C
 | :- | :- | :- |
 | `setup` skill | `skills/setup/SKILL.md` | Opts the repo in, only when you ask: writes the marker and the run settings, creates the agent branch, audits the repo for what an unattended run needs, and proves that the app's tools start inside the sandbox. |
 | `shape` skill | `skills/shape/SKILL.md` | Interviews you, writes the plan on the agent branch and asks the start question. |
-| `run` skill | `skills/run/SKILL.md` | Run control: readiness, worktrees, builder start and resume, acceptance, gate, merge, push, report. Also lists, changes, deletes and stops plans, starts cloud runs, runs check-ins and sets up the routine. |
+| `run` skill | `skills/run/SKILL.md` | Run control: readiness, worktrees, builder start and resume, acceptance, gate, merge, push, report. Also lists, changes, deletes and stops plans, tells a running build something, answers "what is running?", starts cloud runs, runs check-ins and sets up the routine. |
 | `slice` skill | `skills/slice/SKILL.md` | The builder's rules, active only in run sessions (`SLICE_RUN=1`). Hidden from the slash menu. |
 | `practices` skill | `skills/practices/` | Know-how loaded on demand: work items and E2E steps, cookbooks for CLI, web UI, HTTP API, library and data job, code rules against AI slop, architecture records. Hidden from the slash menu. |
 | `taste` skill | `skills/taste/` | Judges screens on design quality, originality, craft and functionality, with a list of tells of machine-made UI. Used in the builder's finish step and in your own sessions when you work on UI files. |
-| SessionStart hook | `hooks/hooks.json`, `scripts/session-context.sh` | Adds about 650 characters to each of your sessions in a set-up repo. Silent without the marker and in run sessions. |
+| SessionStart hook | `hooks/hooks.json`, `scripts/session-context.sh` | Adds about 700 characters to each of your sessions in a set-up repo. Silent without the marker and in run sessions. |
 | Guard hook | `hooks/hooks.json`, `scripts/guard-features.mjs` | Keeps the plan's `features.json` unchanged except for `passes` in run sessions, see [Checks](#how-the-rules-reach-the-model). |
 | Run profiles | `profiles/run.json`, `profiles/cloud.json` | Settings for builder and acceptance, see [Run profiles](#run-profiles). |
 | MCP configs | `mcp/playwright.json`, `mcp/context7.json` | A headless Playwright server for features with screens, and Context7 for library docs. |
 | Cloud starter | `scripts/cloud-start.exp` | Drives `claude --cloud` through `expect` and prints the session link. |
+| Live ref | `scripts/live.sh` | A lock and mailbox per plan on origin (branch `slice/live-<id>`): claim, heartbeat, stop, messages, end, finding and ending the builder process, and the wait loop of non-interactive run control. See [Live ref, stop and messages](#live-ref-stop-and-messages). |
+| Cloud supervisor | `scripts/cloud-run.sh` | Runs inside a cloud session: fetches the agent branch, starts the nested run control detached, runs it at most 3 times and reports `DONE` or `FAILED`. |
 
 `/slice:setup`, `/slice:shape` and `/slice:run` exist as slash commands for the rare case that a sentence is routed the wrong way.
 
@@ -94,7 +97,7 @@ flowchart TB
     you(["You"]) -->|"chat"| own["Your session<br/>setup, shape, run control"]
     own -->|"Start now"| builder["Builder<br/>claude -p /goal"]
     own -->|"Start in the cloud"| launcher["Cloud session<br/>launcher, clones cflow"]
-    launcher -->|"claude -p start plan"| nested["Nested run control<br/>on Sonnet"]
+    launcher -->|"cloud-run.sh starts claude -p start plan"| nested["Nested run control<br/>on Sonnet"]
     nested --> builder
     timer(["Every hour"]) --> routine["Routine session<br/>slice from your account"]
     routine -->|"check my plans"| builder
@@ -108,8 +111,8 @@ Three different sessions can act as run control, and each starts the same kind o
 | Your session | you | Runs `setup` and `shape`, and is the run control for local runs. |
 | Builder | the run control, as `claude -p '/goal …'` in the background, in the run worktree | Builds the features under the `slice` skill and commits on the run branch. |
 | Acceptance | the run control, as `claude -p '/verify …'`, once every feature passes | Runs every E2E step and the unhappy paths at their real surface, changes no files, ends with one PASS or FAIL line per feature. |
-| Cloud session | `claude --cloud "<task>" --permission-mode auto`, through `expect` or from the paste line | Only a launcher: clones cflow, writes the marker, starts the nested run control and waits. |
-| Nested run control | the cloud session, as `claude -p --plugin-dir /tmp/cflow/plugins/slice 'start plan <id>'` | The normal run flow inside the VM. |
+| Cloud session | `claude --cloud "<task>" --permission-mode auto`, through `expect` or from the paste line | Only a launcher: clones cflow, writes the marker, starts `cloud-run.sh` and polls it until it prints `DONE` or `FAILED`. |
+| Nested run control | the supervisor of `cloud-run.sh`, as `claude -p --plugin-dir /tmp/cflow/plugins/slice 'start plan <id>'` | The normal run flow inside the VM. Run at most 3 times (two retries) when it ends before the plan is `done`, `partial` or `halted`. |
 | Routine session | a Claude Code routine, every hour | Writes the marker, checks that slice is loaded from your account, then runs "check my plans" as run control. |
 
 Only your own session (`shape` pushes the plan, the run control pushes the agent branch) and the cloud run controls push. The builder and the acceptance never push: `git push` is denied in their settings. Models, profiles and sandboxing per place are in the [matrix](#local-cloud-session-and-routine).
@@ -170,7 +173,8 @@ A plan lives in `.slice/plans/<id>/` on the agent branch, with the id `YYYYMMDD-
 | `spec.md` | `shape` | Product level only. First line `Type: <cli\|web\|api\|library\|data-job>`, then purpose, users, what they can do, `## Decisions` (stack, storage, every assumption), `## Quality bar`, `## Access` (env var names), `## Context` (existing code). |
 | `features.json` | `shape` | `{"features": [{"id": "f1", "title": "...", "steps": ["User does X", "Sees Y"], "passes": false, "ui": true}]}` in build order. `ui` marks features with screens. After planning only `passes` may change. |
 | `state.json` | `shape`, `run` | See [Plan state fields](#plan-state-fields). The builder never writes it. |
-| `progress.md` | the builder | Notes, reasons for open features, `## Needs decision`, `## Recipe changes`. |
+| `progress.md` | the builder | Notes, reasons for open features, `## Needs decision`, `## Recipe changes`, `## Replies` (answers to your messages). |
+| `inbox.md` | `live.sh watch`, in the run worktree only | Messages from you, one entry per message. Excluded from git through the repo's `info/exclude`; the builder reads it and never edits it. |
 
 Decisions from all plans collect in `.slice/decisions.md` on the agent branch.
 
@@ -246,7 +250,7 @@ The builder only works inside the run worktree, and the agent branch moves only 
   /goal Done means: every feature in .slice/plans/<id>/features.json has passes true, and the finish steps of the slice skill ran: /simplify, /code-review on the plan's diff (and /security-review when the slice skill requires it), a full E2E run with its output shown after the last code change, and for screens a screenshot of each view at 360 and 1280 px. Follow the slice skill. Never change anything in .slice/plans/<id>/features.json except passes. You have at most <maxTurns> turns.
   ```
 - The load check reads the worker file's `system/init` line ([headless docs](https://code.claude.com/docs/en/headless#fail-ci-when-a-plugin-or-mcp-server-doesnt-load)). It fails when `slice` is missing or has a plugin error, or when a plan with screens has no connected `playwright` server. A Context7 server that did not connect is only noted.
-- An interactive run control stays free for chat and is woken by the background task. A non-interactive one (`CLAUDE_CODE_SESSION_ATTENDED=0`, or `CLAUDE_CODE_REMOTE=true`) never ends its turn while the builder runs and polls with `sleep 300`; in the cloud each poll first pushes the run branch.
+- An interactive run control stays free for chat and is woken by the background task; a second background task, `live.sh watch`, keeps the heartbeat and delivers stop and messages. A non-interactive one (`CLAUDE_CODE_SESSION_ATTENDED=0`, or `CLAUDE_CODE_REMOTE=true`) never ends its turn while the builder runs and calls `live.sh watch` in 540 second slices; in the cloud it also pushes the run branch at each heartbeat.
 - On exit the run control reads the last `result` line. While features are open it resumes with `claude -p --resume <uuid> '<goal>'`, which also restores the goal.
 - An acceptance FAIL sends the builder back once with the FAIL lines.
 - The gate merges the current agent branch into the run branch and runs `testCommand`, plus the E2E file when the test command does not cover it. Green: decisions are copied to `.slice/decisions.md`, the state becomes `done` or `partial`, `slice: done <id>` carries the report, the agent branch fast-forwards and is pushed. The run worktree is removed; the run branch stays.
@@ -296,6 +300,7 @@ Your checkout is never switched or edited. slice works in worktrees under `~/.ca
 | Readiness gate | before every run and cloud start, before any cost | `skills/run/SKILL.md`, step 1 |
 | Load check | after each builder start and resume | `skills/run/SKILL.md`, step 5 |
 | Guard hook | every Edit, Write and Bash call in a run session | `scripts/guard-features.mjs` |
+| Inbox hook | after every tool call in a run session | `scripts/inbox.mjs` |
 | Smoke test | at builder start and after a resume, when features already pass | `skills/slice/SKILL.md`, Start |
 | The feature's E2E steps | every feature, before its commit | `skills/slice/SKILL.md`, Build |
 | `/simplify` | once, when all features pass; E2E runs again | `skills/slice/SKILL.md`, Finish 1 |
@@ -324,7 +329,7 @@ A plan that builds on unfinished plans records them as `dependsOn` and starts on
 
 "Check my plans" fetches first, then does at most one thing per plan:
 
-1. A `running` plan whose builder is gone (and that is not a cloud plan still `running` on origin) is resumed.
+1. A `running` plan with no local builder is resumed when its live ref is `ended`, stale or missing, or `stopping` for more than 15 minutes; after a stop it is set to `halted` instead. A plan with a live run is left alone.
 2. A plan halted for a technical reason is resumed once and gets `"checkResumes": 1`; a second technical halt is only reported.
 3. Other halts and `partial` plans are only reported.
 4. When nothing runs, it starts the next startable plan: `queued` first, then `parked`, oldest first, dependencies `done`. It never asks.
@@ -352,13 +357,14 @@ sequenceDiagram
     S->>G: Commit state running with the link, push
     Note over C: The VM clones your repo at your current branch
     C->>C: Clone cflow at the release tag, write the marker
-    C->>N: claude -p start plan id, in the background
-    loop every 5 minutes while the builder runs
-        N->>G: Push the run branch
+    C->>N: cloud-run.sh start: supervisor starts claude -p start plan id
+    N->>G: Claim the live ref
+    loop every 2 minutes while the builder runs
+        N->>G: Heartbeat on the live ref, push the run branch
     end
     N->>N: Acceptance and gate
     N->>G: Fast-forward and push the agent branch
-    S->>G: How far is the run, read from origin
+    S->>G: How far is the run, stop or message, through origin
 ```
 
 Your session hands the plan over through GitHub and is then free; progress comes back only as pushed branches.
@@ -366,11 +372,25 @@ Your session hands the plan over through GitHub and is then free; progress comes
 - slice never pushes your branch. If it is missing on origin, you get the paste line with a note to push it first.
 - The task in `<out>/<id>-cloud-task.txt` carries the marker (usually not committed) and the cflow ref: `cloudPluginRef`, else `slice--v<version>`.
 - `scripts/cloud-start.exp` answers the folder trust prompt and waits for a `claude.ai/code/...` link. Without `expect` or a link, the chat shows `claude --cloud "$(cat <task file>)" --permission-mode auto` to paste in your terminal; the state stays `queued` and `<out>/<id>-cloud-start.log` has the output.
-- The launcher is told not to create routines or cron jobs and never to kill the run.
+- The launcher task is short: clone cflow, write the marker, `cloud-run.sh start`, then `cloud-run.sh wait` in a loop until `DONE` or `FAILED`. It is told to create no routines or cron jobs and to kill nothing.
+- `cloud-run.sh start` fetches the agent branch by explicit refspec (a cloud clone holds only the session's branch), unshallows the clone and checks that the plan is on origin; it says the branch is missing only when `git ls-remote` finds nothing. The supervisor then runs the nested run control detached from the launcher, at most 3 times (two retries), 30 s apart. The result is `DONE: plan <id> <state>` for `done`, `partial` or `halted`, and `FAILED` when the plan is still unfinished after the third run. A dead supervisor is restarted by `wait`, up to 3 times.
 - `claude --cloud` needs an interactive terminal, hence `expect`. The docs describe no supported way to start a cloud session from inside a running session ([Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web)).
 - Your `.env` is not in the cloud clone; set secrets as environment variables of the cloud environment ([set environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)). Anyone who uses that environment can read them.
-- A foreground command waits 2 minutes by default and at most 10, then moves to the background and is stopped 30 minutes later unless it starts with `sleep` ([time limits](https://code.claude.com/docs/en/cloud-environments#time-limits)). slice gives the nested run and the builder an explicit 2 hour background timeout and polls with `sleep`.
+- A foreground command waits 2 minutes by default and at most 10, then moves to the background and is stopped 30 minutes later ([time limits](https://code.claude.com/docs/en/cloud-environments#time-limits)). The launcher's `wait` calls and the nested run control's `watch` calls each end after 540 seconds, inside the 10 minute call timeout, and are repeated; the nested run control itself runs detached under the supervisor and the builder gets an explicit 2 hour background timeout.
 - The cloud session starts in auto mode, offered only when your organization and the model allow it ([permission modes](https://code.claude.com/docs/en/permission-modes)). Cloud sessions install no plugins from the repo's settings and start no language servers.
+
+### Live ref, stop and messages
+
+Every run claims a live ref: the branch `slice/live-<id>` on origin, a chain of empty commits made with `git commit-tree` (subjects `claim`, `beat`, `stop`, `end`, `msg`). Pushes are plain and never forced; a rejected push means someone else moved the ref first, and that is the lock. If GitHub cannot be reached, a heartbeat prints `offline` and the run goes on. Git calls to origin give up after 30 seconds of stalled transfer.
+
+- Claim. Before a plan becomes `running`, the run control claims the ref. A claim fails while another session gave a sign in the last 15 minutes (`SLICE_STALE_S`), so two sessions never run one plan. A claim over a stale, stopped or ended ref takes the run over and resumes on the run branch. After 3 failed tries to reach origin the claim goes on without the lock (`claimed offline`).
+- Owner and builder. Each session that runs a plan holds it under its own fresh id, new at every start or restart. The builder's session id is separate, so two sessions that resume the same builder cannot both hold the run. `live.sh alive` and `live.sh kill` check for and end a builder process on this machine; a restart ends a leftover builder before it resumes.
+- Heartbeat. While the builder runs, `live.sh watch` beats every 2 minutes. The beat goes on during the acceptance, and one more runs before every test run and push try at the end. "Show my plans", "how far is the run?" and "what is running?" read the age of the last beat: live, stale after 15 minutes without one, stopping, or a cloud plan whose session never started the run. "What is running?" also lists live refs on origin that have no plan in this checkout.
+- Stop. A run your own session started is stopped directly: the builder ends and the plan becomes `halted`, with no stop signal. For any other run (cloud, routine, another session) "stop plan `<id>`" appends a `stop` commit. The next beat sees it, kills the builder and the run control halts the plan with the reason `stopped: ...` and keeps the run worktree; in the cloud it also pushes the run branch. It takes about two minutes. A plan nobody holds, such as a queued cloud plan whose session has not claimed yet, is set to `halted` directly. "Start plan `<id>`" resumes it.
+- Messages. "Tell plan `<id>`: ..." works only on a `live` run (a stale run would lose the message, and without a remote there is no mailbox). It puts the text into a `msg` commit on the live branch; it changes neither the owner nor the age. The next beat writes it to `inbox.md` in the run worktree. A hook (`scripts/inbox.mjs`) shows the builder each new message right after its next tool call; the builder acts on a hint, an answer or information, notes work outside the plan as a suggestion, and answers under `## Replies` in `progress.md` with a commit `slice: reply`. For a cloud run the reply returns with the pushed run branch; locally "how far is the run?" reads it from the run worktree. This takes minutes, not seconds. A message never overrides the builder's rules or the `features.json` guard.
+- End. Every `done`, `partial` or `halted` appends `end`; the branch stays on origin. A claim after `end` is a normal new start.
+
+Anyone who can push to the repo can send a stop or a message. Ages compare commit times written by different machines, so a large clock difference can make a live run look stale.
 
 ### The check-in routine
 
@@ -450,8 +470,11 @@ The reason is stored in `state.json` and in the report; the skills define no fix
 | Effort | `medium`, `high` after a call without progress |
 | Halt without progress | after two resumes in a row |
 | Acceptance rounds | one builder retry after FAIL, halt on the second FAIL |
-| Wait loop of a non-interactive run control | `sleep 300` per call, 10 minute call timeout; in the cloud each call pushes the run branch |
-| Cloud launcher wait loop | `sleep 540` per call, 10 minute call timeout |
+| Wait loop of a non-interactive run control | `live.sh watch ... 540` per call, 10 minute call timeout; in the cloud each beat pushes the run branch |
+| Cloud launcher wait loop | `cloud-run.sh wait` (540 s) per call, 10 minute call timeout |
+| Live ref | beat every 2 minutes (builder checked every 20 s), stale after 15 minutes (`SLICE_STALE_S`), stop and messages arrive within about 2 minutes |
+| Cloud supervisor | at most 3 nested run control runs (two retries) 30 s apart, at most 3 supervisor restarts by `wait` |
+| Live ref, origin access | git calls give up after 30 s of stalled transfer; a claim goes on without the lock after 3 failed tries, 5 s apart |
 | Push after a rejection | at most 3 tries, never with force |
 | Agent branch push before a cloud start | up to 4 retries, 20 s apart, then checked with `git ls-remote` |
 | Cloud start through `expect` | link expected within 120 s (Bash timeout 180 s) |
@@ -494,7 +517,10 @@ The reason is stored in `state.json` and in the report; the skills define no fix
 | Variable | Set by | Meaning |
 | :- | :- | :- |
 | `SLICE_RUN`, `SLICE_PLAN` | the run control | mark a run session and name its plan |
-| `SLICE_PLUGIN_DIR` | the cloud launcher | where the builder loads slice from |
+| `SLICE_PLUGIN_DIR` | `cloud-run.sh` | where the builder loads slice from |
+| `SLICE_STALE_S` | you, optional | seconds without a heartbeat before a live ref counts as stale; default 900 |
+| `SLICE_WATCH_PROC` | the run control | makes `live.sh watch` follow the builder or the acceptance process |
+| `SLICE_ORCH_CMD`, `SLICE_RETRY_S`, `SLICE_POLL_S`, `SLICE_BEAT_S`, `SLICE_LIVE_RETRY_S`, `SLICE_WAIT_POLL_S` | tests | replace the nested run control command and shorten the pauses of the scripts |
 | `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` | the run control | `1` when the advisor is off |
 | `CONTEXT7_API_KEY` | you, optional | higher Context7 rate limits; works without it |
 | `XDG_CACHE_HOME` | you, optional | moves `~/.cache/slice/` |
@@ -509,6 +535,8 @@ The reason is stored in `state.json` and in the report; the skills define no fix
 | Run recipe | `.claude/skills/verify/SKILL.md` or `.claude/skills/run-<name>/SKILL.md` |
 | Your design tokens | `DESIGN.md`; builders never change it |
 | Worktrees | `~/.cache/slice/<repo>/agent/` and `run-<id>/` |
+| Live ref | the branch `slice/live-<id>` on origin; `refs/slice/live/<id>` locally |
+| Cloud supervisor files | `/tmp/slice-<id>-result`, `-orch.jsonl`, `-supervisor.log` in the cloud VM |
 | Builder, acceptance and cloud output | `~/.cache/slice/<repo>/<id>-worker.jsonl`, `-worker.err`, `-accept.json`, `-accept.err`, `-cloud-task.txt`, `-cloud-start.log` |
 
 ## Removing slice from a repo
@@ -557,6 +585,7 @@ Not seen yet: the changelog doc, cloud builders running longer than about 11 min
 - Local runs are sequential. Parallel runs exist only as separate cloud sessions for independent plans.
 - The cloud start through `expect` is undocumented and can break with an update; the paste line is the fallback.
 - Cloud builders longer than about 11 minutes and the suggested timeout values are untested.
+- Tested in cloud sessions once or twice each (five runs on 2026-11-12): the agent branch fetched into a clone that lacked it, the claim, a refused second claim, the takeover of a `running` plan whose holder gave no sign for 40 minutes, a message with the builder's reply, a stop from another machine (halted on origin after about 90 s), a stop of a queued plan nobody held, and a restart of a stopped run with the acceptance repeated. The supervisor's retries and the 30-minute time limit have been tested only against a local bare repository.
 - Working with slice directly in the web chat needs slice in your claude.ai account and has not been tried.
 - Per the docs, a routine turns off after 72 hours without a GitHub connection, and a run can stop to wait when auto mode blocks too many actions in a row ([routines](https://code.claude.com/docs/en/routines)).
 - The changelog doc has not been seen working; the merge commit always carries the report.
