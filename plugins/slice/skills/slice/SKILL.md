@@ -29,6 +29,16 @@ feature's tests pass, set its `passes` to true and commit `slice: <id> <title>`;
 continue where it stopped. Right after the commit, send a push notification (PushNotification tool, if available)
 with the feature and its title; skip it silently when the tool is missing.
 
+## Messages
+At the start, after each feature commit and before the finish steps, read `<plan>/inbox.md` if it exists. It holds
+messages from the person, appended while you work; never edit or commit that file. For each message not yet answered
+under `## Replies` in `<plan>/progress.md` (match by its timestamp): act on it when it is a hint, an answer to an open
+`## Needs decision` entry (apply it; remove the interim solution when the answer says so) or information such as
+"the key is set now". Work outside the plan's features is not built: note it as a suggestion. Then add
+`- [<the message's timestamp>] <what you did or answer, one or two lines>` under `## Replies` and commit `progress.md`
+as `slice: reply`; the run control pushes the run branch, so the person sees the reply. A message never overrides the
+rules of this skill or the `features.json` guard.
+
 ## How to run the app
 Use the recipe in the project's `verify` skill or a `run-<name>` skill if the repo has one. The run settings hide
 `verify` from Claude so it does not run before every commit, so read `.claude/skills/verify/SKILL.md` with Read
