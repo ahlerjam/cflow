@@ -197,6 +197,10 @@ case $cmd in
 
   claim)
     owner=$1 note=$(oneline "$2")
+    if [ -z "$owner" ] || [ -z "$note" ]; then
+      echo "usage: live.sh claim <dir> <id> <owner> <note>" >&2
+      exit 2
+    fi
     has_remote || { echo claimed; exit 0; }
     tries=0
     while :; do

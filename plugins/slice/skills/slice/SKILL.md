@@ -30,7 +30,8 @@ continue where it stopped. Right after the commit, send a push notification (Pus
 with the feature and its title; skip it silently when the tool is missing.
 
 ## Messages
-At the start, after each feature commit and before the finish steps, read `<plan>/inbox.md` if it exists. It holds
+At the start, after each feature commit, after each finish step and once more right before you end, read
+`<plan>/inbox.md` if it exists (messages arrive up to two minutes after they were sent). It holds
 messages from the person, appended while you work; never edit or commit that file. For each message not yet answered
 under `## Replies` in `<plan>/progress.md` (match by its timestamp): act on it when it is a hint, an answer to an open
 `## Needs decision` entry (apply it; remove the interim solution when the answer says so) or information such as
