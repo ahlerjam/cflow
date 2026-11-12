@@ -585,7 +585,7 @@ Not seen yet: the changelog doc, cloud builders running longer than about 11 min
 - Local runs are sequential. Parallel runs exist only as separate cloud sessions for independent plans.
 - The cloud start through `expect` is undocumented and can break with an update; the paste line is the fallback.
 - Cloud builders longer than about 11 minutes and the suggested timeout values are untested.
-- Stopping, messaging and taking over a cloud run, duplicate-start protection and the supervisor have been tested only against a local bare repository, not in a cloud session yet.
+- Tested in cloud sessions once each (four runs on 2026-11-12): the agent branch fetched into a clone that lacked it, the claim, a refused second claim, a message with the builder's reply, a stop from another machine (halted on origin after 85 s) and a restart of the stopped run. Taking over a stale run, the supervisor's retries and the 30-minute time limit have been tested only against a local bare repository.
 - Working with slice directly in the web chat needs slice in your claude.ai account and has not been tried.
 - Per the docs, a routine turns off after 72 hours without a GitHub connection, and a run can stop to wait when auto mode blocks too many actions in a row ([routines](https://code.claude.com/docs/en/routines)).
 - The changelog doc has not been seen working; the merge commit always carries the report.
