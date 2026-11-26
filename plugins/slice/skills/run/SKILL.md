@@ -266,11 +266,13 @@ of the agent branch, by `<live> end <agent> <id> <owner> <state>`.
    - Acceptance, for every plan (with `budgetUsd` set, only if at least 0.5 $ of it is left; else note it was skipped for
      budget and go to step 7). Run Claude Code's own `/verify` as an independent check, sandboxed like the builder,
      `run_in_background: true`, `timeout: 3600000`:
-     `cd <run> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature in .slice/plans/<id>/features.json against it, at its real surface: a command-line tool in the terminal, an API with requests, screens in the browser. Then probe the unhappy paths that .slice/plans/<id>/spec.md and its quality bar name (invalid, empty, long or repeated input); a real defect there is a FAIL for the feature it belongs to. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools (`mcp__playwright__*`), never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --session-id <auuid> --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-accept.json 2> <out>/<id>-accept.err`.
+     `cd <run> && claude -p '/verify Start the app from the recorded recipe or the README, then run every E2E step of every feature that has passes true in .slice/plans/<id>/features.json against it, at its real surface: a command-line tool in the terminal, an API with requests, screens in the browser. Then probe the unhappy paths that .slice/plans/<id>/spec.md and its quality bar name (invalid, empty, long or repeated input); a real defect there is a FAIL for the feature it belongs to. Build nothing and do not follow the slice skill. For screens use the Playwright browser tools (`mcp__playwright__*`), never a Playwright script in Bash: Chromium cannot start inside the sandbox. Change no files. End with one line per feature: f<k> PASS, or f<k> FAIL and the reason.' --output-format json --model sonnet --session-id <auuid> --permission-mode dontAsk --permission-prompts none --settings <settings><mcp> > <out>/<id>-accept.json 2> <out>/<id>-accept.err`.
      With `budgetUsd` set, add `--max-budget-usd` = `budgetUsd` minus the spend. Add its cost to the spend. Every
      feature PASS: go to step 7. Any FAIL: resume the builder (as below) with the
      prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
-     then run acceptance again. A second acceptance with FAIL lines: halt and list them in the changelog entry.
+     then run acceptance again. A second acceptance with FAIL lines: set `passes` to false for each FAIL feature in
+     `<run>`, commit as `slice: unconfirmed <id>`, halt and list them in the changelog entry. Nothing reaches the
+     agent branch with `passes` true that the acceptance did not confirm.
    Features still false and `subtype` is `error_max_turns`, `error_max_budget_usd` or `success`, or the worker file
    has no `result` line because the process was killed (timeout, crash):
    - Two resumes in a row added no newly passing feature: halt.
@@ -280,7 +282,9 @@ of the agent branch, by `<live> end <agent> <id> <owner> <state>`.
      0.7 x (`budgetUsd` - spend), rounded to cents; the cap is checked between turns, so a call overshoots it by its
      last turn, and the 30 % is headroom. Wait as in step 5.
    - Anything else (other subtype, or `--resume` fails): halt and keep the tail of `<out>/<id>-worker.err`.
-   On a halt, first send the halt notification (step 8), then go on to step 7 when at least one feature passed; with
+   On a halt, first send the halt notification (step 8). When at least one feature passed and no acceptance ran in
+   this flow yet, run it once (same command) for the passing features; set `passes` to false for each FAIL feature
+   and commit as `slice: unconfirmed <id>` (no resume). Then go on to step 7 when at least one feature passed; with
    none, set `state.json` to `halted`, write the decisions (step 7 without the merge) and finish with step 8: the
    push of the agent branch and `<live> end` are never skipped, or origin keeps saying `running`.
 7. Gate on the run branch, in `<run>`: with a remote, first `git -C <agent> fetch origin <agentBranch>` and, when
@@ -288,11 +292,17 @@ of the agent branch, by `<live> end <agent> <id> <owner> <state>`.
    (`git -C <agent> merge --ff-only origin/<agentBranch>`; when the local branch has commits of its own, so that no
    fast-forward is possible, `git -C <agent> merge --no-edit origin/<agentBranch>`; parallel cloud runs push there).
    Then merge the current
-   agent branch (`git merge --no-edit <agentBranch>`; a conflict is a red gate), then run `testCommand` (and the E2E
-   file, if `testCommand` does not cover it).
+   agent branch (`git merge --no-edit <agentBranch>`; a conflict is a red gate). The builder wrote the tests the gate
+   runs, so check them first; each of these is a red gate:
+   - `node "${SLICE_PLUGIN_DIR:-${CLAUDE_PLUGIN_ROOT}}/scripts/guard-features.mjs" gate <run> <id>` prints anything
+     but `ok` (features.json changed beyond `passes`, or it cannot be compared).
+   - In `git diff <base>..HEAD` (`<base>` as in the slice skill: the parent of the `slice: plan <id>` commit), a
+     test that existed at `<base>` is deleted, skipped or has a weaker assertion, or the E2E test of a feature with
+     `passes` true is skipped. A change the spec asks for, named in `progress.md`, is no red gate.
+   Then run `testCommand` (and the E2E file, if `testCommand` does not cover it).
    - Green: copy the entries under `## Needs decision` of `progress.md` into `<run>/.slice/decisions.md`, numbered
      `D<n>` across the repo, each as `- D<n> (plan <id>) f<k>: <question>` with its `Interim:` and `Options:` lines.
-     Set `state.json` to `done` (all passed) or `partial`, with `finished`. Commit as `slice: done <id>`; the message
+     Set `state.json` to `done` (all passed and the acceptance confirmed all) or `partial`, with `finished`. Commit as `slice: done <id>`; the message
      is the report summary plus the changelog link, or the full report without doc access (see Report). Then
      `git -C <agent> merge --ff-only slice/run-<id>`.
    - Red: no merge. Set `state.json` to `halted` in `<agent>`, write the decisions there, send the halt notification
