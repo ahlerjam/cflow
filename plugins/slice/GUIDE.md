@@ -325,7 +325,7 @@ In the test run, one check-in built a plan, passed the acceptance, merged, pushe
 
 | Term | Meaning |
 | :- | :- |
-| Acceptance | An independent check after the builder: Claude Code's `/verify` runs every step of every feature and tries the unhappy paths, in a fresh session. |
+| Acceptance | An independent check after the builder: Claude Code's `/verify` runs every step of every passing feature and tries the unhappy paths, in a fresh session. |
 | Advisor | A second model the builder can consult. On (Opus) for large plans by default; `builderAdvisor` in the marker overrides that. |
 | Agent branch | The branch (`agent` by default) where slice merges finished work. You merge from it to main. |
 | Auto mode | A permission mode in which a classifier allows or blocks actions instead of asking you. Cloud sessions and routines use it. |
@@ -337,7 +337,7 @@ In the test run, one check-in built a plan, passed the acceptance, merged, pushe
 | Deep mode, quick mode | The two interview depths: no question limit for anything bigger, at most six questions for a change in one place. |
 | E2E steps | What a user does in the running app and what they see, concrete enough to run. A feature passes only when its steps pass. |
 | Heartbeat, live ref | The branch `slice/live-<id>` on GitHub that marks who runs a plan. The run writes to it every 2 minutes, also during the acceptance; stop signals and messages travel on it too. Each session that runs a plan holds it under its own id, separate from the builder's session id. A run without a sign for 15 minutes is stale. |
-| Gate | The repo's test command, run on the run branch before anything is merged. |
+| Gate | The check on the run branch before anything is merged: `features.json` unchanged except `passes`, no test removed or weakened, then the repo's test command. |
 | Marker | `.claude/slice.json`, the file that turns slice on for a repo and holds its settings. |
 | Park, parked | Save a plan without starting it. A parked plan starts with "start plan `<id>`" or at the next check-in. |
 | Plan | One piece of work: `spec.md`, `features.json` and `state.json` under `.slice/plans/<id>/` on the agent branch. |
