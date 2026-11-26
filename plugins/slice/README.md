@@ -8,7 +8,7 @@ At a glance:
 - The builder model follows the size of the plan: Sonnet for small changes, Opus otherwise, Opus with an Opus advisor for large plans. The acceptance runs on Sonnet.
 - A run cost between about 0.6 $ and 10 $ in tests, depending on size. There is no dollar cap, and an hourly routine starts pending plans unattended, so its spend is not capped either.
 - Proven in real runs: the full path locally and in the cloud, the check-in routine end to end, and parallel cloud runs with a safe merge.
-- Not proven or untested: better code than Claude Code alone, cloud builders longer than about 11 minutes, the changelog doc, the web-chat way. The automatic cloud start drives `claude --cloud` through `expect`, which is undocumented. Not tested in a real run yet: the gate's checks of the builder's tests and the acceptance of a partial run. Not tested in the cloud yet: stopping a cloud run, messages to a run, takeover of a stale run, duplicate-start protection and the shorter cloud task.
+- Not proven or untested: better code than Claude Code alone, cloud builders longer than about 11 minutes, the changelog doc, the web-chat way. The automatic cloud start drives `claude --cloud` through `expect`, which is undocumented. Not tested in a real run yet: the gate's checks of the builder's tests and the acceptance of a partial run. Stopping a cloud run, messages to a run, takeover of a stale run and the refused second claim ran in the cloud only once or twice each (see [Limits](#limits)); the shorter cloud task is untested.
 - Tested with Claude Code 2.1.318. No minimum version is known.
 
 New to slice? The [guide](GUIDE.md) covers everything you do with it. This README is the overview and the reference.
