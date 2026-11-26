@@ -151,7 +151,8 @@ of the agent branch, by `<live> end <agent> <id> <owner> <state>`.
      features marked `ui`, `npx` is on `PATH` (`command -v npx`); the run brings its own headless
      browser server. Not a gate: if no
      language server plugin (`*-lsp`) is enabled for the repo's main language, say so and name `setup`.
-   - c. What it may touch: `<repo>/.claude/slice-run.json` exists. Skipped when `CLAUDE_CODE_REMOTE` is `true` or for
+   - c. What it may touch: `node` is on `PATH` (`command -v node`; the guard hook blocks every tool call without
+     it), and `<repo>/.claude/slice-run.json` exists. Skipped when `CLAUDE_CODE_REMOTE` is `true` or for
      a cloud start: the cloud profile is used there.
    - d. What stops it: `maxTurns` (default 400) resolves to a number. `budgetUsd` is optional and has no default: only
      when it is set (for test runs) does the run get a dollar cap.
@@ -272,7 +273,8 @@ of the agent branch, by `<live> end <agent> <id> <owner> <state>`.
      prompt `<GOAL> Independent acceptance failed: <the FAIL lines>. Fix, verify again with evidence, and set passes false for any feature that does not hold.`,
      then run acceptance again. A second acceptance with FAIL lines: set `passes` to false for each FAIL feature in
      `<run>`, commit as `slice: unconfirmed <id>`, halt and list them in the changelog entry. Nothing reaches the
-     agent branch with `passes` true that the acceptance did not confirm.
+     agent branch with `passes` true that the acceptance did not confirm. An acceptance that ends without its
+     PASS/FAIL lines (timeout, crash) is no FAIL: halt with the reason "acceptance gave no result", no merge.
    Features still false and `subtype` is `error_max_turns`, `error_max_budget_usd` or `success`, or the worker file
    has no `result` line because the process was killed (timeout, crash):
    - Two resumes in a row added no newly passing feature: halt.

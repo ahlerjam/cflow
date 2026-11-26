@@ -42,7 +42,8 @@ if (process.argv[2] === 'gate') {
   process.exit(0)
 }
 
-if (process.env.SLICE_RUN !== '1') process.exit(0)
+// The acceptance runs with the run profile (SLICE_RUN=1) but without SLICE_PLAN; it builds nothing, so it passes.
+if (process.env.SLICE_RUN !== '1' || !process.env.SLICE_PLAN) process.exit(0)
 
 const input = JSON.parse(readFileSync(0, 'utf8'))
 const args = input.tool_input || {}
@@ -59,11 +60,6 @@ const answer = (obj) => {
 const deny = reason => answer({
   hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
 })
-
-if (!process.env.SLICE_PLAN) {
-  if (post) process.exit(0)
-  deny('SLICE_RUN is 1 but SLICE_PLAN is not set, so the features.json guard cannot work. Stop and report it.')
-}
 
 if (post) {
   let plan, current
