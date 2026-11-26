@@ -8,7 +8,7 @@ At a glance:
 - The builder model follows the size of the plan: Sonnet for small changes, Opus otherwise, Opus with an Opus advisor for large plans. The acceptance runs on Sonnet.
 - A run cost between about 0.6 $ and 10 $ in tests, depending on size. There is no dollar cap, and an hourly routine starts pending plans unattended, so its spend is not capped either.
 - Proven in real runs: the full path locally and in the cloud, the check-in routine end to end, and parallel cloud runs with a safe merge.
-- Not proven or untested: better code than Claude Code alone, cloud builders longer than about 11 minutes, the changelog doc, the web-chat way. The automatic cloud start drives `claude --cloud` through `expect`, which is undocumented. Not tested in the cloud yet: stopping a cloud run, messages to a run, takeover of a stale run, duplicate-start protection and the shorter cloud task.
+- Not proven or untested: better code than Claude Code alone, cloud builders longer than about 11 minutes, the changelog doc, the web-chat way. The automatic cloud start drives `claude --cloud` through `expect`, which is undocumented. Not tested in a real run yet: the gate's checks of the builder's tests and the acceptance of a partial run. Not tested in the cloud yet: stopping a cloud run, messages to a run, takeover of a stale run, duplicate-start protection and the shorter cloud task.
 - Tested with Claude Code 2.1.318. No minimum version is known.
 
 New to slice? The [guide](GUIDE.md) covers everything you do with it. This README is the overview and the reference.
@@ -110,7 +110,7 @@ Three different sessions can act as run control, and each starts the same kind o
 | :- | :- | :- |
 | Your session | you | Runs `setup` and `shape`, and is the run control for local runs. |
 | Builder | the run control, as `claude -p '/goal …'` in the background, in the run worktree | Builds the features under the `slice` skill and commits on the run branch. |
-| Acceptance | the run control, as `claude -p '/verify …'`, once every feature passes | Runs every E2E step and the unhappy paths at their real surface, changes no files, ends with one PASS or FAIL line per feature. |
+| Acceptance | the run control, as `claude -p '/verify …'`, once every feature passes, or once before the gate when a run halts with some passing | Runs every E2E step and the unhappy paths at their real surface, changes no files, ends with one PASS or FAIL line per feature. |
 | Cloud session | `claude --cloud "<task>" --permission-mode auto`, through `expect` or from the paste line | Only a launcher: clones cflow, writes the marker, starts `cloud-run.sh` and polls it until it prints `DONE` or `FAILED`. |
 | Nested run control | the supervisor of `cloud-run.sh`, as `claude -p --plugin-dir /tmp/cflow/plugins/slice 'start plan <id>'` | The normal run flow inside the VM. Run at most 3 times (two retries) when it ends before the plan is `done`, `partial` or `halted`. |
 | Routine session | a Claude Code routine, every hour | Writes the marker, checks that slice is loaded from your account, then runs "check my plans" as run control. |
@@ -195,7 +195,7 @@ stateDiagram-v2
     done --> [*]
 ```
 
-A builder that stops with at least one passing feature still goes through the gate, and a green gate merges those features as `partial`. `halted` means the run stopped on a problem that needs you, usually before anything was merged. Every [halt reason](#halt-reasons) is listed below. Each change of state is one commit `slice: state <id> <state>` on the agent branch.
+A builder that stops with at least one passing feature still goes through the acceptance and the gate, and a green gate merges the confirmed features as `partial`. `halted` means the run stopped on a problem that needs you, usually before anything was merged. Every [halt reason](#halt-reasons) is listed below. Each change of state is one commit `slice: state <id> <state>` on the agent branch.
 
 ### A run, step by step
 
@@ -252,8 +252,8 @@ The builder only works inside the run worktree, and the agent branch moves only 
 - The load check reads the worker file's `system/init` line ([headless docs](https://code.claude.com/docs/en/headless#fail-ci-when-a-plugin-or-mcp-server-doesnt-load)). It fails when `slice` is missing or has a plugin error, or when a plan with screens has no connected `playwright` server. A Context7 server that did not connect is only noted.
 - An interactive run control stays free for chat and is woken by the background task; a second background task, `live.sh watch`, keeps the heartbeat and delivers stop and messages. A non-interactive one (`CLAUDE_CODE_SESSION_ATTENDED=0`, or `CLAUDE_CODE_REMOTE=true`) never ends its turn while the builder runs and calls `live.sh watch` in 540 second slices; in the cloud it also pushes the run branch at each heartbeat.
 - On exit the run control reads the last `result` line. While features are open it resumes with `claude -p --resume <uuid> '<goal>'`, which also restores the goal.
-- An acceptance FAIL sends the builder back once with the FAIL lines.
-- The gate merges the current agent branch into the run branch and runs `testCommand`, plus the E2E file when the test command does not cover it. Green: decisions are copied to `.slice/decisions.md`, the state becomes `done` or `partial`, `slice: done <id>` carries the report, the agent branch fast-forwards and is pushed. The run worktree is removed; the run branch stays.
+- An acceptance FAIL sends the builder back once with the FAIL lines. A feature that fails a second time, or fails the acceptance of a halted run, is set back to `passes` false before the gate, so nothing unconfirmed reaches the agent branch.
+- The gate merges the current agent branch into the run branch, compares `features.json` with the `slice: plan` commit, checks the diff for deleted or skipped tests and weaker assertions (the builder wrote those tests), and runs `testCommand`, plus the E2E file when the test command does not cover it. Green: decisions are copied to `.slice/decisions.md`, the state becomes `done` or `partial`, `slice: done <id>` carries the report, the agent branch fast-forwards and is pushed. The run worktree is removed; the run branch stays.
 - The chat gets exactly one line, such as `Done: 13/13 features merged to agent, report: <changelog link or merge commit>`. A halt sends a push notification with the reason, when the session can send one.
 
 ### Inside the builder
@@ -308,7 +308,7 @@ Your checkout is never switched or edited. slice works in worktrees under `~/.ca
 | `/security-review` | when the diff touches sign-in, secrets, network or user input | `skills/slice/SKILL.md`, Finish 2 |
 | Full E2E run | after the last code change, output shown | `skills/slice/SKILL.md`, Finish 3 |
 | Screenshots judged by `taste` | features with screens, at 360 and 1280 px | `skills/slice/SKILL.md`, Finish 3 |
-| `/verify` acceptance | after the builder, in a fresh session, when every feature passes | `skills/run/SKILL.md`, step 6 |
+| `/verify` acceptance | after the builder, in a fresh session, when every feature passes or a run halts with some passing | `skills/run/SKILL.md`, step 6 |
 | `testCommand` | before every merge, and again after merging origin when a push was rejected | `skills/run/SKILL.md`, steps 7 and 8 |
 
 The acceptance is Claude Code's built-in `/verify`; slice has no reviewer agent of its own. slice asks it for one line per feature, PASS or FAIL with a reason. On its first run in a repo, `/verify` records what worked as the project skill `.claude/skills/verify/SKILL.md`, and builders start the app from that recipe. A project skill named `verify` also makes Claude run it before each commit ([skills docs](https://code.claude.com/docs/en/skills#run-your-checks-before-each-commit)), with no stated exception for unattended sessions, so the run profiles set `skillOverrides` to `"user-invocable-only"` for `verify`.
@@ -317,7 +317,7 @@ The acceptance is Claude Code's built-in `/verify`; slice has no reviewer agent 
 
 From strongest to weakest:
 
-1. Some rules are enforced by code. The guard hook compares the new content before Edit and Write, refuses shell commands that name `features.json` unless they only read it, and after every shell command compares the file with the `slice: plan` commit; other sessions skip it before Node starts. The sandbox and the deny lists block commands, the load check stops a builder without slice, and the gate runs as a command.
+1. Some rules are enforced by code. The guard hook compares the new content before Edit and Write, refuses shell commands that name `features.json` unless they only read it, and after every shell command compares the file with the `slice: plan` commit; other sessions skip it before Node starts. The hook before a tool call is set to `onFailure: block`, so a guard that crashes or cannot start blocks the call. The gate repeats the comparison with `guard-features.mjs gate`, which is the binding check. The sandbox and the deny lists block commands, the load check stops a builder without slice, and the gate runs as a command.
 2. Some are part of the goal. `/goal` checks its condition after every turn ([goal](https://code.claude.com/docs/en/goal)). In your own sessions the SessionStart hook does the routing.
 3. The rest loads on demand from `skills/practices/references/`: `issues.md` when planning, `cli.md`, `web.md`, `api.md`, `library.md` or `data-job.md` per project type, `code.md` in every run session, `architecture.md` for a new app. This saves context but relies on the model following the instruction; no test measured how reliably it does. The repo's own conventions win over these files.
 

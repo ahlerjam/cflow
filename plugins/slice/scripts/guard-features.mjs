@@ -6,7 +6,43 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-if (process.env.SLICE_RUN !== '1' || !process.env.SLICE_PLAN) process.exit(0)
+// `gate <dir> <id>` is the binding check of the run control: exit 0 only when features.json in <dir> equals the
+// latest `slice: plan <id>` commit besides passes. The hooks are early feedback; the PreToolUse hook is set to
+// onFailure block, so a crash there denies the call instead of letting it through.
+const strip = text => {
+  const data = JSON.parse(text)
+  for (const f of data.features || []) delete f.passes
+  return JSON.stringify(data)
+}
+const sameBesidesPasses = (a, b) => {
+  try { return strip(a) === strip(b) } catch { return false }
+}
+const planVersion = (root, id, rel) => {
+  const git = a => execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  const subject = `slice: plan ${id}`
+  const sha = git(['log', '--format=%H %s', '--fixed-strings', `--grep=${subject}`])
+    .split('\n').find(l => l.slice(41) === subject)?.slice(0, 40)
+  return sha ? git(['show', `${sha}:${rel}`]) : null
+}
+
+if (process.argv[2] === 'gate') {
+  const [, , , dir, id] = process.argv
+  const rel = `.slice/plans/${id}/features.json`
+  let plan = null, current = null
+  try { plan = planVersion(dir, id, rel); current = readFileSync(resolve(dir, rel), 'utf8') } catch {}
+  if (plan === null || current === null) {
+    console.log(`red: cannot compare ${rel} with its \`slice: plan ${id}\` commit`)
+    process.exit(1)
+  }
+  if (!sameBesidesPasses(plan, current)) {
+    console.log(`red: ${rel} changed beyond the passes fields`)
+    process.exit(1)
+  }
+  console.log('ok')
+  process.exit(0)
+}
+
+if (process.env.SLICE_RUN !== '1') process.exit(0)
 
 const input = JSON.parse(readFileSync(0, 'utf8'))
 const args = input.tool_input || {}
@@ -24,24 +60,16 @@ const deny = reason => answer({
   hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
 })
 
-const strip = text => {
-  const data = JSON.parse(text)
-  for (const f of data.features || []) delete f.passes
-  return JSON.stringify(data)
-}
-const sameBesidesPasses = (a, b) => {
-  try { return strip(a) === strip(b) } catch { return false }
+if (!process.env.SLICE_PLAN) {
+  if (post) process.exit(0)
+  deny('SLICE_RUN is 1 but SLICE_PLAN is not set, so the features.json guard cannot work. Stop and report it.')
 }
 
 if (post) {
   let plan, current
   try {
-    const git = a => execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-    const subject = `slice: plan ${process.env.SLICE_PLAN}`
-    const sha = git(['log', '--format=%H %s', '--fixed-strings', `--grep=${subject}`])
-      .split('\n').find(l => l.slice(41) === subject)?.slice(0, 40)
-    if (!sha) process.exit(0)
-    plan = git(['show', `${sha}:${rel}`])
+    plan = planVersion(root, process.env.SLICE_PLAN, rel)
+    if (plan === null) process.exit(0)
     current = readFileSync(target, 'utf8')
   } catch { process.exit(0) }
   if (!sameBesidesPasses(plan, current)) {
